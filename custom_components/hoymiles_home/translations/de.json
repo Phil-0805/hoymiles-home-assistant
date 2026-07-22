@@ -1,0 +1,47 @@
+{
+  "title": "Hoymiles S-Miles Home",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Mit S-Miles Home verbinden",
+        "description": "Gib das Konto der S-Miles-Home-App und die numerische Anlagen-ID ein.",
+        "data": {
+          "username": "E-Mail",
+          "password": "Passwort",
+          "station_id": "Anlagen-ID"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung zu Hoymiles fehlgeschlagen",
+      "invalid_auth": "Ungültige S-Miles-Home-Zugangsdaten",
+      "unknown": "Unerwarteter Fehler"
+    },
+    "abort": {"already_configured": "Diese Anlage ist bereits eingerichtet"}
+  },
+  "entity": {
+    "sensor": {
+      "pv_power": {"name": "PV-Leistung"},
+      "load_power": {"name": "Hausverbrauch"},
+      "grid_power": {"name": "Netzleistung"},
+      "battery_power": {"name": "Batterieleistung"},
+      "battery_charge_power": {"name": "Batterie Ladeleistung"},
+      "battery_discharge_power": {"name": "Batterie Entladeleistung"},
+      "battery_soc": {"name": "Batterieladestand"},
+      "battery_charge_energy_today": {"name": "Batterie heute geladen"},
+      "battery_discharge_energy_today": {"name": "Batterie heute entladen"},
+      "ems": {"name": "EMS-Status"},
+      "brs": {"name": "Batterierelais-Status"},
+      "chs": {"name": "Ladestatus"},
+      "bhs": {"name": "Batteriezustand"},
+      "today_energy": {"name": "Energie heute"},
+      "month_energy": {"name": "Energie Monat"},
+      "year_energy": {"name": "Energie Jahr"},
+      "total_energy": {"name": "Energie gesamt"},
+      "module_power": {"name": "PV{port} Leistung"},
+      "module_voltage": {"name": "PV{port} Spannung"},
+      "module_current": {"name": "PV{port} Strom"}
+    },
+    "binary_sensor": {"connected": {"name": "Verbindung"}}
+  }
+}
