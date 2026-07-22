@@ -77,6 +77,23 @@ class HoymilesDescription(SensorEntityDescription):
     """Describe a station sensor."""
 
     value_fn: Callable[[dict[str, Any]], Any]
+    attributes_fn: Callable[[dict[str, Any]], dict[str, Any]] | None = None
+
+
+def _battery_settings_attributes(data: dict[str, Any]) -> dict[str, Any]:
+    settings = data.get("battery_settings", {})
+    return {
+        key: settings.get(key)
+        for key in (
+            "mode",
+            "available_modes",
+            "available_mode_names",
+            "active_settings",
+            "mode_settings",
+            "error",
+        )
+        if settings.get(key) is not None
+    }
 
 
 STATION_SENSORS = (
@@ -151,6 +168,46 @@ STATION_SENSORS = (
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
         value_fn=_battery_energy("discharge_wh"),
+    ),
+    HoymilesDescription(
+        key="battery_settings_access",
+        translation_key="battery_settings_access",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: (
+            "readable"
+            if data.get("battery_settings", {}).get("readable")
+            else "unavailable"
+        ),
+        attributes_fn=_battery_settings_attributes,
+    ),
+    HoymilesDescription(
+        key="battery_mode",
+        translation_key="battery_mode",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.get("battery_settings", {}).get("mode_name"),
+        attributes_fn=_battery_settings_attributes,
+    ),
+    HoymilesDescription(
+        key="battery_reserve_soc",
+        translation_key="battery_reserve_soc",
+        native_unit_of_measurement=PERCENTAGE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: _number(
+            data.get("battery_settings", {})
+            .get("active_settings", {})
+            .get("reserve_soc")
+        ),
+    ),
+    HoymilesDescription(
+        key="battery_max_power",
+        translation_key="battery_max_power",
+        native_unit_of_measurement=PERCENTAGE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: _number(
+            data.get("battery_settings", {})
+            .get("active_settings", {})
+            .get("max_power")
+        ),
     ),
     *(
         HoymilesDescription(
@@ -257,6 +314,12 @@ class HoymilesStationSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEn
     @property
     def native_value(self):
         return self.entity_description.value_fn(self.coordinator.data or {})
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        if self.entity_description.attributes_fn is None:
+            return None
+        return self.entity_description.attributes_fn(self.coordinator.data or {})
 
 
 class HoymilesModuleSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEntity):

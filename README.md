@@ -8,6 +8,7 @@ tested against an HMS-2000-4WB installation.
 - Three-second live PV, load, grid and battery power
 - Separate positive battery charge and discharge power sensors
 - Persistent daily battery charge and discharge energy counters
+- Read-only battery mode, reserve SOC and supported-setting diagnostics
 - Battery state of charge and raw operating flags
 - PV1–PV4 power, voltage and current from five-minute module charts
 - Station connectivity

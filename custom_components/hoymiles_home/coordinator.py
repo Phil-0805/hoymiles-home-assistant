@@ -19,6 +19,7 @@ from .api import (
 )
 from .const import (
     DEFAULT_PORT_COUNT,
+    BATTERY_SETTINGS_INTERVAL,
     DOMAIN,
     ENERGY_SAVE_INTERVAL,
     LIVE_MIN_INTERVAL,
@@ -48,8 +49,13 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.inverters: list[dict[str, Any]] = []
         self.modules: dict[int, dict[int, dict[str, float | None]]] = {}
         self.station: dict[str, Any] = {}
+        self.battery_settings: dict[str, Any] = {
+            "readable": False,
+            "error": "not_yet_read",
+        }
         self._modules_updated = datetime.min.replace(tzinfo=UTC)
         self._station_updated = datetime.min.replace(tzinfo=UTC)
+        self._battery_settings_updated = datetime.min.replace(tzinfo=UTC)
         self._energy_store: Store[dict[str, Any]] = Store(
             hass,
             STORAGE_VERSION,
@@ -85,6 +91,19 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def async_save_energy(self) -> None:
         """Persist calculated battery energy immediately."""
         await self._energy_store.async_save(self._energy_store_data())
+
+    async def _async_refresh_battery_settings(self) -> None:
+        """Refresh read-only battery settings without delaying live telemetry."""
+        try:
+            self.battery_settings = await self.client.async_battery_settings(
+                self.station_id
+            )
+        except (HoymilesAuthError, HoymilesConnectionError) as err:
+            self.battery_settings = {
+                "readable": False,
+                "error": str(err),
+            }
+            _LOGGER.debug("Could not read battery settings: %s", err)
 
     def _update_battery_energy(
         self, live: dict[str, Any], now: datetime
@@ -155,6 +174,13 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 else:
                     self._station_updated = now
 
+            if now - self._battery_settings_updated >= BATTERY_SETTINGS_INTERVAL:
+                self._battery_settings_updated = now
+                self.hass.async_create_task(
+                    self._async_refresh_battery_settings(),
+                    f"{DOMAIN} battery settings",
+                )
+
             if now - self._modules_updated >= MODULE_INTERVAL:
                 chart_date = dt_util.now().date().isoformat()
                 modules = {
@@ -193,6 +219,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "inverters": self.inverters,
                 "modules": self.modules,
                 "battery_energy": battery_energy,
+                "battery_settings": self.battery_settings,
             }
         except HoymilesAuthError as err:
             raise ConfigEntryAuthFailed(str(err)) from err

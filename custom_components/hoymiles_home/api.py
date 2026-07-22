@@ -9,7 +9,16 @@ from typing import Any
 from aiohttp import ClientError, ClientSession, ClientTimeout
 from argon2.low_level import Type, hash_secret_raw
 
-from .const import AUTH_BASE_URL, DATA_BASE_URL, TOKEN_LIFETIME, USER_AGENT
+from .battery import BatterySettingsError, parse_battery_settings
+from .const import (
+    AUTH_BASE_URL,
+    BATTERY_SETTINGS_ACTION,
+    BATTERY_SETTINGS_MAX_POLLS,
+    BATTERY_SETTINGS_POLL_INTERVAL,
+    DATA_BASE_URL,
+    TOKEN_LIFETIME,
+    USER_AGENT,
+)
 from .protobuf import latest_values
 
 
@@ -164,6 +173,38 @@ class HoymilesHomeClient:
         if raw.startswith(b"{"):
             raise HoymilesConnectionError(raw.decode(errors="replace")[:500])
         return latest_values(raw)
+
+    async def async_battery_settings(self, station_id: int) -> dict[str, Any]:
+        """Read battery settings through the asynchronous action-1013 API."""
+        await self.async_ensure_login()
+        response = await self._json(
+            f"{DATA_BASE_URL}/pvm-ctl/api/0/dev/setting/read",
+            {
+                "action": BATTERY_SETTINGS_ACTION,
+                "data": {"sid": station_id},
+            },
+        )
+        result = self._unwrap(response)
+
+        if isinstance(result, (str, int)):
+            for _attempt in range(BATTERY_SETTINGS_MAX_POLLS):
+                await asyncio.sleep(BATTERY_SETTINGS_POLL_INTERVAL)
+                response = await self._json(
+                    f"{DATA_BASE_URL}/pvm-ctl/api/0/dev/setting/status",
+                    {"id": str(result)},
+                )
+                status = self._unwrap(response)
+                if isinstance(status, dict) and status.get("code") == 2:
+                    continue
+                result = status
+                break
+            else:
+                raise HoymilesConnectionError("Battery settings request timed out")
+
+        try:
+            return parse_battery_settings(result)
+        except BatterySettingsError as err:
+            raise HoymilesConnectionError(str(err)) from err
 
 
 def microinverters(tree: Any) -> list[dict[str, Any]]:
