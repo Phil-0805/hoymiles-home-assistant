@@ -20,6 +20,42 @@ class BatterySettingsError(ValueError):
     """Raised when a battery settings payload is incomplete."""
 
 
+def battery_setting_targets(tree: Any) -> list[dict[str, Any]]:
+    """Return device-addressed read targets from a nested Home device tree."""
+    found: dict[tuple[str, str], dict[str, Any]] = {}
+
+    def visit(value: Any) -> None:
+        if isinstance(value, list):
+            for item in value:
+                visit(item)
+            return
+        if not isinstance(value, dict):
+            return
+
+        serial = value.get("sn")
+        dtu_serial = value.get("dtu_sn")
+        device_type = value.get("type")
+        if (
+            device_type == 3
+            and isinstance(serial, str)
+            and serial
+            and isinstance(dtu_serial, str)
+            and dtu_serial
+            and serial != dtu_serial
+        ):
+            found[(serial, dtu_serial)] = {
+                "dev_sn": serial,
+                "dev_type": device_type,
+                "dtu_sn": dtu_serial,
+            }
+
+        for child in value.values():
+            visit(child)
+
+    visit(tree)
+    return list(found.values())
+
+
 def parse_battery_settings(result: Any) -> dict[str, Any]:
     """Normalize a completed action-1013 settings response."""
     if not isinstance(result, dict):

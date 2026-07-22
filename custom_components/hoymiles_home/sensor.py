@@ -90,6 +90,7 @@ def _battery_settings_attributes(data: dict[str, Any]) -> dict[str, Any]:
             "available_mode_names",
             "active_settings",
             "mode_settings",
+            "request_method",
             "error",
         )
         if settings.get(key) is not None
