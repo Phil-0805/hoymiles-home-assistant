@@ -19,6 +19,14 @@
     },
     "abort": {"already_configured": "This station is already configured"}
   },
+  "exceptions": {
+    "battery_setting_write_failed": {
+      "message": "The battery setting could not be saved: {error}"
+    },
+    "battery_mode_unavailable": {
+      "message": "Battery mode {mode} is unavailable."
+    }
+  },
   "entity": {
     "sensor": {
       "pv_power": {"name": "PV power"},
@@ -45,6 +53,12 @@
       "module_power": {"name": "PV{port} power"},
       "module_voltage": {"name": "PV{port} voltage"},
       "module_current": {"name": "PV{port} current"}
+    },
+    "number": {
+      "battery_reserve_soc": {"name": "Reserve SOC"}
+    },
+    "select": {
+      "battery_mode": {"name": "Battery mode"}
     },
     "binary_sensor": {"connected": {"name": "Connection"}}
   }

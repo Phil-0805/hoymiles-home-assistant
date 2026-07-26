@@ -99,3 +99,16 @@ def parse_battery_settings(result: Any) -> dict[str, Any]:
         "active_settings": active_settings,
         "mode_settings": modes,
     }
+
+
+def battery_setting_command_data(
+    station_id: int, mode: int, mode_data: dict[str, Any]
+) -> dict[str, Any]:
+    """Build the action-1013 write data without dropping mode settings."""
+    setting_data: dict[str, Any] = {"mode": mode}
+    if mode_data:
+        setting_data["data"] = mode_data
+    return {
+        "sid": station_id,
+        "data": setting_data,
+    }

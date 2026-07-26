@@ -32,6 +32,28 @@ class TestBatteryEnergy(unittest.TestCase):
         self.assertEqual(charge, 50)
         self.assertEqual(discharge, 50)
 
+    def test_wb_charge_uses_relay_status(self):
+        self.assertEqual(energy.split_battery_power(500, 1), (500, 0))
+
+    def test_wb_discharge_uses_relay_status(self):
+        self.assertEqual(energy.split_battery_power(200, 2), (0, 200))
+
+    def test_wb_idle_ignores_stale_magnitude(self):
+        self.assertEqual(energy.split_battery_power(200, 0), (0, 0))
+
+    def test_wb_direction_change(self):
+        charge, discharge = energy.integrate_battery_energy(
+            0,
+            0,
+            100,
+            100,
+            3600,
+            previous_relay_status=1,
+            current_relay_status=2,
+        )
+        self.assertEqual(charge, 50)
+        self.assertEqual(discharge, 50)
+
 
 if __name__ == "__main__":
     unittest.main()

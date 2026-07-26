@@ -52,6 +52,31 @@ class TestBatterySettings(unittest.TestCase):
             [{"dev_sn": "INV-A", "dev_type": 3, "dtu_sn": "DTU-A"}],
         )
 
+    def test_builds_complete_write_data(self):
+        self.assertEqual(
+            battery.battery_setting_command_data(
+                14586310,
+                1,
+                {"reserve_soc": 10},
+            ),
+            {
+                "sid": 14586310,
+                "data": {
+                    "mode": 1,
+                    "data": {"reserve_soc": 10},
+                },
+            },
+        )
+
+    def test_mode_without_settings_has_no_empty_data_block(self):
+        self.assertEqual(
+            battery.battery_setting_command_data(14586310, 4, {}),
+            {
+                "sid": 14586310,
+                "data": {"mode": 4},
+            },
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

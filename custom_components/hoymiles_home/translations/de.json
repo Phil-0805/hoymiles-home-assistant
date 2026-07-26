@@ -19,6 +19,14 @@
     },
     "abort": {"already_configured": "Diese Anlage ist bereits eingerichtet"}
   },
+  "exceptions": {
+    "battery_setting_write_failed": {
+      "message": "Die Batterieeinstellung konnte nicht gespeichert werden: {error}"
+    },
+    "battery_mode_unavailable": {
+      "message": "Der Batteriemodus {mode} ist nicht verfügbar."
+    }
+  },
   "entity": {
     "sensor": {
       "pv_power": {"name": "PV-Leistung"},
@@ -45,6 +53,12 @@
       "module_power": {"name": "PV{port} Leistung"},
       "module_voltage": {"name": "PV{port} Spannung"},
       "module_current": {"name": "PV{port} Strom"}
+    },
+    "number": {
+      "battery_reserve_soc": {"name": "Reserve-SOC"}
+    },
+    "select": {
+      "battery_mode": {"name": "Batteriemodus"}
     },
     "binary_sensor": {"connected": {"name": "Verbindung"}}
   }

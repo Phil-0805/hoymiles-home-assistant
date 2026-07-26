@@ -11,6 +11,7 @@ from argon2.low_level import Type, hash_secret_raw
 
 from .battery import (
     BatterySettingsError,
+    battery_setting_command_data,
     battery_setting_targets,
     parse_battery_settings,
 )
@@ -189,19 +190,7 @@ class HoymilesHomeClient:
         result = self._unwrap(response)
 
         if isinstance(result, (str, int)):
-            for _attempt in range(BATTERY_SETTINGS_MAX_POLLS):
-                await asyncio.sleep(BATTERY_SETTINGS_POLL_INTERVAL)
-                response = await self._json(
-                    f"{DATA_BASE_URL}/pvm-ctl/api/0/dev/setting/status",
-                    {"id": str(result)},
-                )
-                status = self._unwrap(response)
-                if isinstance(status, dict) and status.get("code") == 2:
-                    continue
-                result = status
-                break
-            else:
-                raise HoymilesConnectionError("Battery settings request timed out")
+            result = await self._async_poll_battery_settings_job(str(result))
 
         try:
             parsed = parse_battery_settings(result)
@@ -209,6 +198,46 @@ class HoymilesHomeClient:
             return parsed
         except BatterySettingsError as err:
             raise HoymilesConnectionError(str(err)) from err
+
+    async def _async_poll_battery_settings_job(
+        self, job_id: str
+    ) -> dict[str, Any]:
+        """Poll an asynchronous battery settings command."""
+        for _attempt in range(BATTERY_SETTINGS_MAX_POLLS):
+            await asyncio.sleep(BATTERY_SETTINGS_POLL_INTERVAL)
+            response = await self._json(
+                f"{DATA_BASE_URL}/pvm-ctl/api/0/dev/setting/status",
+                {"id": job_id},
+            )
+            status = self._unwrap(response)
+            if isinstance(status, dict) and status.get("code") == 2:
+                continue
+            if not isinstance(status, dict):
+                raise HoymilesConnectionError(
+                    "Battery settings returned an invalid status"
+                )
+            return status
+        raise HoymilesConnectionError("Battery settings request timed out")
+
+    async def _async_write_battery_settings_request(
+        self, payload: dict[str, Any]
+    ) -> None:
+        """Submit and verify one action-1013 write request."""
+        response = await self._json(
+            f"{DATA_BASE_URL}/pvm-ctl/api/0/dev/setting/write",
+            payload,
+        )
+        result = self._unwrap(response)
+        if not isinstance(result, (str, int)):
+            raise HoymilesConnectionError(
+                "Battery settings write returned no command id"
+            )
+        status = await self._async_poll_battery_settings_job(str(result))
+        if status.get("code") != 0:
+            message = status.get("message") or status.get("err_code")
+            raise HoymilesConnectionError(
+                str(message or f"Battery settings write returned {status.get('code')}")
+            )
 
     async def async_battery_settings(self, station_id: int) -> dict[str, Any]:
         """Read battery settings, with a device-addressed fallback for WB units."""
@@ -248,6 +277,49 @@ class HoymilesHomeClient:
                 errors.append(f"device …{serial[-4:]}: {device_error}")
 
         raise HoymilesConnectionError("; ".join(errors)) from station_error
+
+    async def async_write_battery_settings(
+        self,
+        station_id: int,
+        mode: int,
+        mode_data: dict[str, Any],
+        *,
+        request_method: str | None,
+    ) -> None:
+        """Write a complete battery mode payload using the proven read target."""
+        await self.async_ensure_login()
+        command_data = battery_setting_command_data(
+            station_id, mode, mode_data
+        )
+
+        if request_method == "device":
+            targets = battery_setting_targets(
+                await self.async_device_tree(station_id)
+            )
+            if not targets:
+                raise HoymilesConnectionError(
+                    "No compatible inverter target found for battery settings"
+                )
+            errors: list[str] = []
+            for target in targets:
+                payload = {
+                    "action": BATTERY_SETTINGS_ACTION,
+                    **target,
+                    "data": command_data,
+                }
+                try:
+                    await self._async_write_battery_settings_request(payload)
+                    return
+                except HoymilesConnectionError as err:
+                    serial = str(target["dev_sn"])
+                    errors.append(f"device …{serial[-4:]}: {err}")
+            raise HoymilesConnectionError("; ".join(errors))
+
+        payload = {
+            "action": BATTERY_SETTINGS_ACTION,
+            "data": command_data,
+        }
+        await self._async_write_battery_settings_request(payload)
 
 
 def microinverters(tree: Any) -> list[dict[str, Any]]:

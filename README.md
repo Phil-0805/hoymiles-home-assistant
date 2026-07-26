@@ -6,9 +6,11 @@ tested against an HMS-2000-4WB installation.
 ## Features
 
 - Three-second live PV, load, grid and battery power
+- Correct WB battery charge/discharge direction using the live relay state
 - Separate positive battery charge and discharge power sensors
 - Persistent daily battery charge and discharge energy counters
-- Read-only battery mode, reserve SOC and supported-setting diagnostics
+- Writable reserve SOC and battery mode controls with read-back verification
+- Read-only battery setting diagnostics
 - Battery state of charge and raw operating flags
 - PV1–PV4 power, voltage and current from five-minute module charts
 - Station connectivity
@@ -44,6 +46,13 @@ The fast live endpoint follows the server-provided delay. Module values update
 every five minutes. Do not enable another fast cloud poller for the same station
 unless needed for diagnostics.
 
-The integration is intentionally read-only. The diagnostic `ems`, `brs`, `chs`
-and `bhs` values are exposed raw because Hoymiles does not publish a reliable
-meaning for every numeric state.
+The diagnostic `ems`, `brs`, `chs` and `bhs` values are exposed raw because
+Hoymiles does not publish a reliable meaning for every numeric state. On the
+tested HMS-2000-4WB, `brs` carries the battery direction (`1` charging, `2`
+discharging, `0` idle), while `power.bat` is an unsigned magnitude.
+
+Battery controls use Hoymiles' unofficial asynchronous cloud setting API.
+Changing the reserve SOC or mode sends a real command to the inverter. The
+integration preserves the complete settings block for the selected mode and
+reads it back after every write. Undocumented backend-only modes are not
+offered as writable choices.

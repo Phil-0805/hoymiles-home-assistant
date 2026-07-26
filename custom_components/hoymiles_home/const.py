@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 DOMAIN = "hoymiles_home"
-PLATFORMS = ["sensor", "binary_sensor"]
+PLATFORMS = ["sensor", "binary_sensor", "number", "select"]
 
 CONF_STATION_ID = "station_id"
 
@@ -19,7 +19,7 @@ TOKEN_LIFETIME = timedelta(minutes=90)
 DEFAULT_PORT_COUNT = 4
 MAX_ENERGY_SAMPLE_GAP = timedelta(minutes=1)
 ENERGY_SAVE_INTERVAL = timedelta(minutes=1)
-STORAGE_VERSION = 1
+STORAGE_VERSION = 2
 BATTERY_SETTINGS_ACTION = 1013
 BATTERY_SETTINGS_MAX_POLLS = 10
 BATTERY_SETTINGS_POLL_INTERVAL = 1

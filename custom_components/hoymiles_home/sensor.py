@@ -27,6 +27,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_STATION_ID, DOMAIN
 from .coordinator import HoymilesHomeCoordinator
+from .energy import split_battery_power
 
 
 def _number(value: Any) -> float | int | None:
@@ -63,13 +64,27 @@ def _pv_power(data: dict[str, Any]) -> float | int | None:
 def _battery_charge_power(data: dict[str, Any]) -> float | int | None:
     """Return charging power as a positive value."""
     value = _live("bat")(data)
-    return max(value, 0) if value is not None else None
+    if value is None:
+        return None
+    relay_status = _number(data.get("live", {}).get("brs"))
+    charge, _discharge = split_battery_power(
+        float(value),
+        int(relay_status) if relay_status is not None else None,
+    )
+    return charge
 
 
 def _battery_discharge_power(data: dict[str, Any]) -> float | int | None:
     """Return discharging power as a positive value."""
     value = _live("bat")(data)
-    return max(-value, 0) if value is not None else None
+    if value is None:
+        return None
+    relay_status = _number(data.get("live", {}).get("brs"))
+    _charge, discharge = split_battery_power(
+        float(value),
+        int(relay_status) if relay_status is not None else None,
+    )
+    return discharge
 
 
 @dataclass(frozen=True, kw_only=True)

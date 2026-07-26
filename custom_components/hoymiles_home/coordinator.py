@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 import logging
 from typing import Any
@@ -65,8 +67,10 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._charge_wh = 0.0
         self._discharge_wh = 0.0
         self._last_battery_power: float | None = None
+        self._last_battery_relay_status: int | None = None
         self._last_battery_sample: datetime | None = None
         self._next_energy_save = datetime.min.replace(tzinfo=UTC)
+        self._battery_settings_lock = asyncio.Lock()
 
     async def async_initialize(self) -> None:
         """Restore today's calculated battery energy."""
@@ -95,9 +99,10 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_refresh_battery_settings(self) -> None:
         """Refresh read-only battery settings without delaying live telemetry."""
         try:
-            self.battery_settings = await self.client.async_battery_settings(
-                self.station_id
-            )
+            async with self._battery_settings_lock:
+                self.battery_settings = await self.client.async_battery_settings(
+                    self.station_id
+                )
         except (HoymilesAuthError, HoymilesConnectionError) as err:
             self.battery_settings = {
                 "readable": False,
@@ -115,11 +120,19 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._charge_wh = 0.0
             self._discharge_wh = 0.0
             self._last_battery_power = None
+            self._last_battery_relay_status = None
             self._last_battery_sample = None
 
         value = live.get("power", {}).get("bat")
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             current_power = float(value)
+            relay_value = live.get("brs")
+            current_relay_status = (
+                int(relay_value)
+                if isinstance(relay_value, (int, float))
+                and not isinstance(relay_value, bool)
+                else None
+            )
             if (
                 self._last_battery_power is not None
                 and self._last_battery_sample is not None
@@ -132,8 +145,11 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         self._last_battery_power,
                         current_power,
                         elapsed,
+                        self._last_battery_relay_status,
+                        current_relay_status,
                     )
             self._last_battery_power = current_power
+            self._last_battery_relay_status = current_relay_status
             self._last_battery_sample = now
 
         if now >= self._next_energy_save:
@@ -145,6 +161,64 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "charge_wh": round(self._charge_wh, 3),
             "discharge_wh": round(self._discharge_wh, 3),
         }
+
+    async def _async_apply_battery_settings(
+        self, mode: int, mode_data: dict[str, Any]
+    ) -> None:
+        """Write battery settings, read them back and notify entities."""
+        async with self._battery_settings_lock:
+            request_method = self.battery_settings.get("request_method")
+            await self.client.async_write_battery_settings(
+                self.station_id,
+                mode,
+                mode_data,
+                request_method=request_method,
+            )
+            refreshed = await self.client.async_battery_settings(self.station_id)
+            self.battery_settings = refreshed
+            if self.data is not None:
+                self.async_set_updated_data(
+                    {
+                        **self.data,
+                        "battery_settings": refreshed,
+                    }
+                )
+            if refreshed.get("mode") != mode:
+                raise HoymilesConnectionError(
+                    "Battery did not confirm the requested mode"
+                )
+            confirmed = refreshed.get("active_settings")
+            if not isinstance(confirmed, dict):
+                raise HoymilesConnectionError(
+                    "Battery returned no active settings after the write"
+                )
+            for key, requested in mode_data.items():
+                if isinstance(requested, (str, int, float, bool)) and (
+                    confirmed.get(key) != requested
+                ):
+                    raise HoymilesConnectionError(
+                        f"Battery did not confirm the requested {key}"
+                    )
+
+    async def async_set_battery_reserve_soc(self, reserve_soc: int) -> None:
+        """Set reserve SOC for the active battery mode."""
+        mode = self.battery_settings.get("mode")
+        active_settings = self.battery_settings.get("active_settings")
+        if not isinstance(mode, int) or not isinstance(active_settings, dict):
+            raise HoymilesConnectionError("Active battery settings are unavailable")
+        updated = deepcopy(active_settings)
+        updated["reserve_soc"] = int(reserve_soc)
+        await self._async_apply_battery_settings(mode, updated)
+
+    async def async_set_battery_mode(self, mode: int) -> None:
+        """Switch to a battery mode while preserving its complete settings."""
+        mode_settings = self.battery_settings.get("mode_settings")
+        if not isinstance(mode_settings, dict):
+            raise HoymilesConnectionError("Battery mode settings are unavailable")
+        settings = mode_settings.get(mode)
+        if not isinstance(settings, dict):
+            raise HoymilesConnectionError(f"Battery mode {mode} is unavailable")
+        await self._async_apply_battery_settings(mode, deepcopy(settings))
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
