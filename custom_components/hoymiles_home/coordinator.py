@@ -20,8 +20,9 @@ from .api import (
     microinverters,
 )
 from .const import (
-    DEFAULT_PORT_COUNT,
     BATTERY_SETTINGS_INTERVAL,
+    BATTERY_ENERGY_CALCULATION_VERSION,
+    DEFAULT_PORT_COUNT,
     DOMAIN,
     ENERGY_SAVE_INTERVAL,
     LIVE_MIN_INTERVAL,
@@ -75,7 +76,12 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def async_initialize(self) -> None:
         """Restore today's calculated battery energy."""
         stored = await self._energy_store.async_load()
-        if not isinstance(stored, dict) or stored.get("date") != self._energy_date:
+        if (
+            not isinstance(stored, dict)
+            or stored.get("date") != self._energy_date
+            or stored.get("calculation_version")
+            != BATTERY_ENERGY_CALCULATION_VERSION
+        ):
             return
         for key, attribute in (
             ("charge_wh", "_charge_wh"),
@@ -87,6 +93,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def _energy_store_data(self) -> dict[str, Any]:
         return {
+            "calculation_version": BATTERY_ENERGY_CALCULATION_VERSION,
             "date": self._energy_date,
             "charge_wh": self._charge_wh,
             "discharge_wh": self._discharge_wh,
