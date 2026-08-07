@@ -51,7 +51,7 @@ def _station(key: str) -> Callable[[dict[str, Any]], Any]:
     return lambda data: _number(data.get("station", {}).get(key))
 
 
-def _battery_energy(key: str) -> Callable[[dict[str, Any]], Any]:
+def _calculated_energy(key: str) -> Callable[[dict[str, Any]], Any]:
     return lambda data: _number(data.get("battery_energy", {}).get(key))
 
 
@@ -130,6 +130,14 @@ STATION_SENSORS = (
         value_fn=_live("load"),
     ),
     HoymilesDescription(
+        key="load_energy_today",
+        translation_key="load_energy_today",
+        native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        value_fn=_calculated_energy("consumption_wh"),
+    ),
+    HoymilesDescription(
         key="grid_power",
         translation_key="grid_power",
         native_unit_of_measurement=UnitOfPower.WATT,
@@ -175,7 +183,7 @@ STATION_SENSORS = (
         native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
-        value_fn=_battery_energy("charge_wh"),
+        value_fn=_calculated_energy("charge_wh"),
     ),
     HoymilesDescription(
         key="battery_discharge_energy_today",
@@ -183,7 +191,7 @@ STATION_SENSORS = (
         native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
-        value_fn=_battery_energy("discharge_wh"),
+        value_fn=_calculated_energy("discharge_wh"),
     ),
     HoymilesDescription(
         key="battery_settings_access",

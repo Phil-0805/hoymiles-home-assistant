@@ -31,6 +31,7 @@
     "sensor": {
       "pv_power": {"name": "PV power"},
       "load_power": {"name": "Load power"},
+      "load_energy_today": {"name": "Home consumption today"},
       "grid_power": {"name": "Grid power"},
       "battery_power": {"name": "Battery power"},
       "battery_charge_power": {"name": "Battery charge power"},

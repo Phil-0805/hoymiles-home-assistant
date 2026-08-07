@@ -6,6 +6,7 @@ tested against an HMS-2000-4WB installation.
 ## Features
 
 - Three-second live PV, load, grid and battery power
+- Persistent daily home-consumption energy calculated from the live load
 - Correct WB battery charge/discharge direction using the live relay state
 - Separate positive battery charge and discharge power sensors
 - Persistent daily battery charge and discharge energy counters

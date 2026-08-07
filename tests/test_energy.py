@@ -11,6 +11,18 @@ SPEC.loader.exec_module(energy)
 
 
 class TestBatteryEnergy(unittest.TestCase):
+    def test_positive_energy(self):
+        self.assertEqual(
+            energy.integrate_positive_energy(0, 300, 300, 3600),
+            300,
+        )
+
+    def test_positive_energy_ignores_negative_values(self):
+        self.assertEqual(
+            energy.integrate_positive_energy(10, -100, -100, 3600),
+            10,
+        )
+
     def test_charge_energy(self):
         charge, discharge = energy.integrate_battery_energy(
             0, 0, 100, 100, 3600

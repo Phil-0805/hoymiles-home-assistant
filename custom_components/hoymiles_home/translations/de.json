@@ -31,6 +31,7 @@
     "sensor": {
       "pv_power": {"name": "PV-Leistung"},
       "load_power": {"name": "Hausverbrauch"},
+      "load_energy_today": {"name": "Hausverbrauch heute"},
       "grid_power": {"name": "Netzleistung"},
       "battery_power": {"name": "Batterieleistung"},
       "battery_charge_power": {"name": "Batterie Ladeleistung"},

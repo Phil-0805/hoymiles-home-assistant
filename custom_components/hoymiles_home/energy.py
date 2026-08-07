@@ -7,6 +7,19 @@ BATTERY_RELAY_CHARGING = 1
 BATTERY_RELAY_DISCHARGING = 2
 
 
+def integrate_positive_energy(
+    energy_wh: float,
+    previous_power: float,
+    current_power: float,
+    elapsed_seconds: float,
+) -> float:
+    """Integrate a positive power measurement using the trapezoidal rule."""
+    hours = elapsed_seconds / 3600
+    return energy_wh + (
+        max(previous_power, 0.0) + max(current_power, 0.0)
+    ) / 2 * hours
+
+
 def split_battery_power(
     power: float, relay_status: int | None = None
 ) -> tuple[float, float]:

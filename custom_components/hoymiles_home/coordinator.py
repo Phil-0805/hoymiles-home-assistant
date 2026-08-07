@@ -31,7 +31,7 @@ from .const import (
     STATION_INTERVAL,
     STORAGE_VERSION,
 )
-from .energy import integrate_battery_energy
+from .energy import integrate_battery_energy, integrate_positive_energy
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -67,9 +67,12 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._energy_date = dt_util.now().date().isoformat()
         self._charge_wh = 0.0
         self._discharge_wh = 0.0
+        self._consumption_wh = 0.0
         self._last_battery_power: float | None = None
         self._last_battery_relay_status: int | None = None
         self._last_battery_sample: datetime | None = None
+        self._last_load_power: float | None = None
+        self._last_load_sample: datetime | None = None
         self._next_energy_save = datetime.min.replace(tzinfo=UTC)
         self._battery_settings_lock = asyncio.Lock()
 
@@ -86,6 +89,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for key, attribute in (
             ("charge_wh", "_charge_wh"),
             ("discharge_wh", "_discharge_wh"),
+            ("consumption_wh", "_consumption_wh"),
         ):
             value = stored.get(key)
             if isinstance(value, (int, float)) and not isinstance(value, bool):
@@ -97,6 +101,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "date": self._energy_date,
             "charge_wh": self._charge_wh,
             "discharge_wh": self._discharge_wh,
+            "consumption_wh": self._consumption_wh,
         }
 
     async def async_save_energy(self) -> None:
@@ -126,9 +131,12 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._energy_date = local_date
             self._charge_wh = 0.0
             self._discharge_wh = 0.0
+            self._consumption_wh = 0.0
             self._last_battery_power = None
             self._last_battery_relay_status = None
             self._last_battery_sample = None
+            self._last_load_power = None
+            self._last_load_sample = None
 
         value = live.get("power", {}).get("bat")
         if isinstance(value, (int, float)) and not isinstance(value, bool):
@@ -159,6 +167,21 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._last_battery_relay_status = current_relay_status
             self._last_battery_sample = now
 
+        load_value = live.get("power", {}).get("load")
+        if isinstance(load_value, (int, float)) and not isinstance(load_value, bool):
+            current_load_power = max(float(load_value), 0.0)
+            if self._last_load_power is not None and self._last_load_sample is not None:
+                elapsed = (now - self._last_load_sample).total_seconds()
+                if 0 < elapsed <= MAX_ENERGY_SAMPLE_GAP.total_seconds():
+                    self._consumption_wh = integrate_positive_energy(
+                        self._consumption_wh,
+                        self._last_load_power,
+                        current_load_power,
+                        elapsed,
+                    )
+            self._last_load_power = current_load_power
+            self._last_load_sample = now
+
         if now >= self._next_energy_save:
             self._energy_store.async_delay_save(self._energy_store_data, 5)
             self._next_energy_save = now + ENERGY_SAVE_INTERVAL
@@ -167,6 +190,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "date": self._energy_date,
             "charge_wh": round(self._charge_wh, 3),
             "discharge_wh": round(self._discharge_wh, 3),
+            "consumption_wh": round(self._consumption_wh, 3),
         }
 
     async def _async_apply_battery_settings(
