@@ -250,14 +250,31 @@ class HoymilesHomeClient:
         probes: list[dict[str, Any]] = []
         candidates: list[dict[str, Any]] = []
 
-        for url in BATTERY_USER_SETTINGS_URLS:
+        probe_requests = [(BATTERY_USER_SETTINGS_URLS[0], {"sid": station_id})]
+        probe_requests.extend(
+            (BATTERY_USER_SETTINGS_URLS[1], payload)
+            for payload in (
+                {"sid": station_id},
+                {"id": station_id},
+                {"station_id": station_id},
+                {"stationId": station_id},
+            )
+        )
+
+        for url, request_payload in probe_requests:
             endpoint = url.rsplit("/", 1)[-1]
+            request_key = next(iter(request_payload))
             try:
-                response = await self._json(url, {"sid": station_id})
+                response = await self._json(url, request_payload)
                 payload = self._unwrap(response)
             except (HoymilesAuthError, HoymilesConnectionError) as err:
                 probes.append(
-                    {"endpoint": endpoint, "status": "error", "error": str(err)}
+                    {
+                        "endpoint": endpoint,
+                        "request_key": request_key,
+                        "status": "error",
+                        "error": str(err),
+                    }
                 )
                 continue
 
@@ -265,6 +282,7 @@ class HoymilesHomeClient:
             probes.append(
                 {
                     "endpoint": endpoint,
+                    "request_key": request_key,
                     "status": "ok",
                     "reserve_soc_candidates": found,
                 }
