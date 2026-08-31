@@ -32,7 +32,7 @@ class TestBatterySettings(unittest.TestCase):
         with self.assertRaises(battery.BatterySettingsError):
             battery.parse_battery_settings({"code": 0})
 
-    def test_finds_device_addressed_targets(self):
+    def test_finds_hibattery_device_addressed_targets(self):
         tree = [
             {
                 "type": 1,
@@ -43,14 +43,29 @@ class TestBatterySettings(unittest.TestCase):
                         "type": 3,
                         "sn": "INV-A",
                         "dtu_sn": "DTU-A",
+                    },
+                    {
+                        "type": 12,
+                        "sn": "BAT-A",
+                        "dtu_sn": "BAT-A",
                     }
                 ],
             }
         ]
         self.assertEqual(
             battery.battery_setting_targets(tree),
-            [{"dev_sn": "INV-A", "dev_type": 3, "dtu_sn": "DTU-A"}],
+            [{"dev_sn": "BAT-A", "dev_type": 12, "dtu_sn": "BAT-A"}],
         )
+
+    def test_does_not_use_microinverter_as_battery_target(self):
+        tree = [
+            {
+                "type": 3,
+                "sn": "INV-A",
+                "dtu_sn": "DTU-A",
+            }
+        ]
+        self.assertEqual(battery.battery_setting_targets(tree), [])
 
     def test_builds_complete_write_data(self):
         self.assertEqual(

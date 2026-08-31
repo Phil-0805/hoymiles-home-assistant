@@ -240,7 +240,7 @@ class HoymilesHomeClient:
             )
 
     async def async_battery_settings(self, station_id: int) -> dict[str, Any]:
-        """Read battery settings, with a device-addressed fallback for WB units."""
+        """Read battery settings, with a HiBattery-addressed fallback."""
         await self.async_ensure_login()
         station_payload = {
             "action": BATTERY_SETTINGS_ACTION,
@@ -259,7 +259,7 @@ class HoymilesHomeClient:
         targets = battery_setting_targets(await self.async_device_tree(station_id))
         if not targets:
             raise HoymilesConnectionError(
-                f"{errors[0]}; no compatible inverter target found"
+                f"{errors[0]}; no compatible HiBattery target found"
             ) from station_error
 
         for target in targets:
@@ -298,7 +298,7 @@ class HoymilesHomeClient:
             )
             if not targets:
                 raise HoymilesConnectionError(
-                    "No compatible inverter target found for battery settings"
+                    "No compatible HiBattery target found for battery settings"
                 )
             errors: list[str] = []
             for target in targets:

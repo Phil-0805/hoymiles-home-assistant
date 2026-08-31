@@ -21,7 +21,13 @@ class BatterySettingsError(ValueError):
 
 
 def battery_setting_targets(tree: Any) -> list[dict[str, Any]]:
-    """Return device-addressed read targets from a nested Home device tree."""
+    """Return HiBattery device-addressed targets from a Home device tree.
+
+    S-Miles Home exposes the AC battery controller as device type 12. A type-3
+    microinverter can also accept action 1013, but its response describes a
+    different/default settings block and must not be presented as the battery's
+    active configuration.
+    """
     found: dict[tuple[str, str], dict[str, Any]] = {}
 
     def visit(value: Any) -> None:
@@ -36,12 +42,11 @@ def battery_setting_targets(tree: Any) -> list[dict[str, Any]]:
         dtu_serial = value.get("dtu_sn")
         device_type = value.get("type")
         if (
-            device_type == 3
+            device_type == 12
             and isinstance(serial, str)
             and serial
             and isinstance(dtu_serial, str)
             and dtu_serial
-            and serial != dtu_serial
         ):
             found[(serial, dtu_serial)] = {
                 "dev_sn": serial,

@@ -53,7 +53,7 @@ tested HMS-2000-4WB, `brs` carries the battery direction (`1` charging, `2`
 discharging, `0` idle), while `power.bat` is an unsigned magnitude.
 
 Battery controls use Hoymiles' unofficial asynchronous cloud setting API.
-Changing the reserve SOC or mode sends a real command to the inverter. The
+Changing the reserve SOC or mode sends a real command to the HiBattery. The
 integration preserves the complete settings block for the selected mode and
 reads it back after every write. Undocumented backend-only modes are not
 offered as writable choices.
