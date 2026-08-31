@@ -57,6 +57,8 @@ class HoymilesBatteryReserveSocNumber(
         return (
             super().available
             and settings.get("readable") is True
+            and settings.get("writable") is True
+            and settings.get("reserve_soc_verified") is True
             and isinstance(active, dict)
             and isinstance(active.get("reserve_soc"), (int, float))
         )

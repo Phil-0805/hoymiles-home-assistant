@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
 from datetime import UTC, datetime
 from typing import Any
 
@@ -11,15 +12,18 @@ from argon2.low_level import Type, hash_secret_raw
 
 from .battery import (
     BatterySettingsError,
-    battery_setting_command_data,
     battery_setting_targets,
+    confirmed_reserve_soc,
     parse_battery_settings,
+    reserve_soc_candidates,
 )
 from .const import (
     AUTH_BASE_URL,
+    BATTERY_CONFIG_URL,
     BATTERY_SETTINGS_ACTION,
     BATTERY_SETTINGS_MAX_POLLS,
     BATTERY_SETTINGS_POLL_INTERVAL,
+    BATTERY_USER_SETTINGS_URLS,
     DATA_BASE_URL,
     TOKEN_LIFETIME,
     USER_AGENT,
@@ -239,6 +243,78 @@ class HoymilesHomeClient:
                 str(message or f"Battery settings write returned {status.get('code')}")
             )
 
+    async def _async_verify_battery_settings(
+        self, station_id: int, settings: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Verify action-1013 data against current S-Miles Home app settings."""
+        probes: list[dict[str, Any]] = []
+        candidates: list[dict[str, Any]] = []
+
+        for url in BATTERY_USER_SETTINGS_URLS:
+            endpoint = url.rsplit("/", 1)[-1]
+            try:
+                response = await self._json(url, {"sid": station_id})
+                payload = self._unwrap(response)
+            except (HoymilesAuthError, HoymilesConnectionError) as err:
+                probes.append(
+                    {"endpoint": endpoint, "status": "error", "error": str(err)}
+                )
+                continue
+
+            found = reserve_soc_candidates(payload)
+            probes.append(
+                {
+                    "endpoint": endpoint,
+                    "status": "ok",
+                    "reserve_soc_candidates": found,
+                }
+            )
+            candidates.extend(found)
+
+        verified = confirmed_reserve_soc(candidates, settings.get("mode"))
+        verified_source = "station_user_settings"
+        active = settings.get("active_settings")
+        if (
+            verified is None
+            and settings.get("request_method") == "station"
+            and isinstance(active, dict)
+            and isinstance(active.get("reserve_soc"), (int, float))
+            and not isinstance(active.get("reserve_soc"), bool)
+        ):
+            # A station-addressed result is the authoritative configuration.
+            # Only the device-addressed fallback has proven stale on HiBattery.
+            verified = int(active["reserve_soc"])
+            verified_source = "station_action_1013"
+        settings["app_user_agent"] = USER_AGENT
+        settings["user_setting_probes"] = probes
+        settings["reserve_soc_verified"] = verified is not None
+        settings["writable"] = verified is not None
+
+        mode_settings = settings.get("mode_settings")
+        mode = settings.get("mode")
+        if verified is not None:
+            if isinstance(active, dict):
+                active["reserve_soc"] = verified
+            if (
+                isinstance(mode_settings, dict)
+                and isinstance(mode_settings.get(mode), dict)
+            ):
+                mode_settings[mode]["reserve_soc"] = verified
+            settings["reserve_soc_source"] = verified_source
+            return settings
+
+        if isinstance(active, dict):
+            legacy_value = active.pop("reserve_soc", None)
+            if legacy_value is not None:
+                settings["unverified_action_1013_reserve_soc"] = legacy_value
+        if (
+            isinstance(mode_settings, dict)
+            and isinstance(mode_settings.get(mode), dict)
+        ):
+            mode_settings[mode].pop("reserve_soc", None)
+        settings["reserve_soc_source"] = "unverified_action_1013"
+        return settings
+
     async def async_battery_settings(self, station_id: int) -> dict[str, Any]:
         """Read battery settings, with a HiBattery-addressed fallback."""
         await self.async_ensure_login()
@@ -247,9 +323,10 @@ class HoymilesHomeClient:
             "data": {"sid": station_id},
         }
         try:
-            return await self._async_battery_settings_request(
+            settings = await self._async_battery_settings_request(
                 station_payload, "station"
             )
+            return await self._async_verify_battery_settings(station_id, settings)
         except HoymilesConnectionError as err:
             if "device list is empty" not in str(err).lower():
                 raise
@@ -269,8 +346,11 @@ class HoymilesHomeClient:
                 "data": {"sid": station_id},
             }
             try:
-                return await self._async_battery_settings_request(
+                settings = await self._async_battery_settings_request(
                     device_payload, "device"
+                )
+                return await self._async_verify_battery_settings(
+                    station_id, settings
                 )
             except HoymilesConnectionError as device_error:
                 serial = str(target["dev_sn"])
@@ -286,40 +366,15 @@ class HoymilesHomeClient:
         *,
         request_method: str | None,
     ) -> None:
-        """Write a complete battery mode payload using the proven read target."""
+        """Write a complete battery mode payload through the current app API."""
         await self.async_ensure_login()
-        command_data = battery_setting_command_data(
-            station_id, mode, mode_data
+        response = await self._json(
+            BATTERY_CONFIG_URL,
+            {"sid": station_id, "mode": mode, "data": deepcopy(mode_data)},
         )
-
-        if request_method == "device":
-            targets = battery_setting_targets(
-                await self.async_device_tree(station_id)
-            )
-            if not targets:
-                raise HoymilesConnectionError(
-                    "No compatible HiBattery target found for battery settings"
-                )
-            errors: list[str] = []
-            for target in targets:
-                payload = {
-                    "action": BATTERY_SETTINGS_ACTION,
-                    **target,
-                    "data": command_data,
-                }
-                try:
-                    await self._async_write_battery_settings_request(payload)
-                    return
-                except HoymilesConnectionError as err:
-                    serial = str(target["dev_sn"])
-                    errors.append(f"device …{serial[-4:]}: {err}")
-            raise HoymilesConnectionError("; ".join(errors))
-
-        payload = {
-            "action": BATTERY_SETTINGS_ACTION,
-            "data": command_data,
-        }
-        await self._async_write_battery_settings_request(payload)
+        result = self._unwrap(response)
+        if result is False:
+            raise HoymilesConnectionError("Battery configuration was rejected")
 
 
 def microinverters(tree: Any) -> list[dict[str, Any]]:

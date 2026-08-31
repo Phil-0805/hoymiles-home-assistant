@@ -69,6 +69,7 @@ class HoymilesBatteryModeSelect(
         return (
             super().available
             and self.coordinator.battery_settings.get("readable") is True
+            and self.coordinator.battery_settings.get("writable") is True
             and bool(self._mode_options())
         )
 

@@ -106,6 +106,12 @@ def _battery_settings_attributes(data: dict[str, Any]) -> dict[str, Any]:
             "active_settings",
             "mode_settings",
             "request_method",
+            "writable",
+            "reserve_soc_verified",
+            "reserve_soc_source",
+            "unverified_action_1013_reserve_soc",
+            "app_user_agent",
+            "user_setting_probes",
             "error",
         )
         if settings.get(key) is not None

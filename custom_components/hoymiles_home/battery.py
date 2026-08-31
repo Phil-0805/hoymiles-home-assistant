@@ -20,6 +20,53 @@ class BatterySettingsError(ValueError):
     """Raised when a battery settings payload is incomplete."""
 
 
+def reserve_soc_candidates(payload: Any) -> list[dict[str, Any]]:
+    """Return non-sensitive reserve-SOC evidence from an app settings payload."""
+    candidates: list[dict[str, Any]] = []
+
+    def visit(value: Any, path: str) -> None:
+        if isinstance(value, list):
+            for index, item in enumerate(value):
+                visit(item, f"{path}[{index}]")
+            return
+        if not isinstance(value, dict):
+            return
+
+        for key, item in value.items():
+            item_path = f"{path}.{key}" if path else str(key)
+            if (
+                key == "reserve_soc"
+                and isinstance(item, (int, float))
+                and not isinstance(item, bool)
+                and 0 <= float(item) <= 100
+            ):
+                candidates.append({"path": item_path, "value": int(item)})
+            else:
+                visit(item, item_path)
+
+    visit(payload, "")
+    return candidates
+
+
+def confirmed_reserve_soc(
+    candidates: list[dict[str, Any]], mode: int | None
+) -> int | None:
+    """Choose an unambiguous app reserve SOC, preferring the active mode."""
+    if mode is not None:
+        mode_values = {
+            item["value"]
+            for item in candidates
+            if f"k_{mode}" in str(item.get("path"))
+        }
+        if len(mode_values) == 1:
+            return int(mode_values.pop())
+
+    values = {item["value"] for item in candidates}
+    if len(values) == 1:
+        return int(values.pop())
+    return None
+
+
 def battery_setting_targets(tree: Any) -> list[dict[str, Any]]:
     """Return HiBattery device-addressed targets from a Home device tree.
 

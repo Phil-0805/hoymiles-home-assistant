@@ -9,7 +9,13 @@ CONF_STATION_ID = "station_id"
 
 AUTH_BASE_URL = "https://euapi.hoymiles.com"
 DATA_BASE_URL = "https://neapi.hoymiles.com"
-USER_AGENT = "sma/ad/2.9.0/159/0"
+USER_AGENT = "sma/ad/2.12.1/159/0"
+
+BATTERY_USER_SETTINGS_URLS = (
+    f"{DATA_BASE_URL}/pvmc/api/0/station/setting/get_user_setting_c",
+    f"{DATA_BASE_URL}/pvm/api/0/station/setting/get_user_setting",
+)
+BATTERY_CONFIG_URL = f"{DATA_BASE_URL}/pvm/api/0/station/setting/battery_config"
 
 LIVE_MIN_INTERVAL = timedelta(seconds=3)
 MODULE_INTERVAL = timedelta(minutes=5)

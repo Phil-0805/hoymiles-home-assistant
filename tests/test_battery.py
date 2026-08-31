@@ -32,6 +32,22 @@ class TestBatterySettings(unittest.TestCase):
         with self.assertRaises(battery.BatterySettingsError):
             battery.parse_battery_settings({"code": 0})
 
+    def test_finds_and_confirms_user_setting_reserve_soc(self):
+        candidates = battery.reserve_soc_candidates(
+            {"battery": {"mode": 1, "data": {"k_1": {"reserve_soc": 12}}}}
+        )
+        self.assertEqual(
+            candidates,
+            [{"path": "battery.data.k_1.reserve_soc", "value": 12}],
+        )
+        self.assertEqual(battery.confirmed_reserve_soc(candidates, 1), 12)
+
+    def test_does_not_guess_between_conflicting_reserve_soc_values(self):
+        candidates = battery.reserve_soc_candidates(
+            {"first": {"reserve_soc": 12}, "second": {"reserve_soc": 30}}
+        )
+        self.assertIsNone(battery.confirmed_reserve_soc(candidates, 1))
+
     def test_finds_hibattery_device_addressed_targets(self):
         tree = [
             {

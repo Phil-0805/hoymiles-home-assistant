@@ -198,6 +198,10 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     ) -> None:
         """Write battery settings, read them back and notify entities."""
         async with self._battery_settings_lock:
+            if self.battery_settings.get("writable") is not True:
+                raise HoymilesConnectionError(
+                    "Battery settings are not verified against current app data"
+                )
             request_method = self.battery_settings.get("request_method")
             await self.client.async_write_battery_settings(
                 self.station_id,
