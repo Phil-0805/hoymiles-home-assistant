@@ -48,6 +48,29 @@ def reserve_soc_candidates(payload: Any) -> list[dict[str, Any]]:
     return candidates
 
 
+def soc_setting_candidates(payload: Any) -> list[dict[str, Any]]:
+    """Return non-sensitive scalar values whose setting name contains SOC."""
+    candidates: list[dict[str, Any]] = []
+
+    def visit(value: Any, path: str) -> None:
+        if isinstance(value, list):
+            for index, item in enumerate(value):
+                visit(item, f"{path}[{index}]")
+            return
+        if not isinstance(value, dict):
+            return
+
+        for key, item in value.items():
+            item_path = f"{path}.{key}" if path else str(key)
+            if "soc" in str(key).lower() and isinstance(item, (str, int, float, bool)):
+                candidates.append({"path": item_path, "value": item})
+            else:
+                visit(item, item_path)
+
+    visit(payload, "")
+    return candidates[:100]
+
+
 def confirmed_reserve_soc(
     candidates: list[dict[str, Any]], mode: int | None
 ) -> int | None:
@@ -61,9 +84,8 @@ def confirmed_reserve_soc(
         if len(mode_values) == 1:
             return int(mode_values.pop())
 
-    values = {item["value"] for item in candidates}
-    if len(values) == 1:
-        return int(values.pop())
+    # A bare bms_data.reserve_soc is a separate/stale consumer setting on the
+    # HMS-2000-4WB and must not be treated as the active mode's discharge floor.
     return None
 
 

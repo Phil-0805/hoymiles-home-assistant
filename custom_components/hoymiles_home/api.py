@@ -16,6 +16,7 @@ from .battery import (
     confirmed_reserve_soc,
     parse_battery_settings,
     reserve_soc_candidates,
+    soc_setting_candidates,
 )
 from .const import (
     AUTH_BASE_URL,
@@ -285,6 +286,7 @@ class HoymilesHomeClient:
                     "request_key": request_key,
                     "status": "ok",
                     "reserve_soc_candidates": found,
+                    "soc_setting_candidates": soc_setting_candidates(payload),
                 }
             )
             candidates.extend(found)

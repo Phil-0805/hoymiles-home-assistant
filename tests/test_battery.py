@@ -48,6 +48,23 @@ class TestBatterySettings(unittest.TestCase):
         )
         self.assertIsNone(battery.confirmed_reserve_soc(candidates, 1))
 
+    def test_does_not_trust_bare_bms_reserve_soc(self):
+        candidates = battery.reserve_soc_candidates(
+            {"bms_data": {"reserve_soc": 30}}
+        )
+        self.assertIsNone(battery.confirmed_reserve_soc(candidates, 1))
+
+    def test_reports_all_soc_named_settings_for_diagnostics(self):
+        self.assertEqual(
+            battery.soc_setting_candidates(
+                {"bms_data": {"reserve_soc": 30, "minimum_soc": 12}}
+            ),
+            [
+                {"path": "bms_data.reserve_soc", "value": 30},
+                {"path": "bms_data.minimum_soc", "value": 12},
+            ],
+        )
+
     def test_finds_hibattery_device_addressed_targets(self):
         tree = [
             {
