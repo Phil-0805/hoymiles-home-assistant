@@ -32,6 +32,28 @@ class TestBatterySettings(unittest.TestCase):
         with self.assertRaises(battery.BatterySettingsError):
             battery.parse_battery_settings({"code": 0})
 
+    def test_parses_current_app_work_mode_reserve_soc(self):
+        parsed = battery.parse_work_mode_settings(
+            {
+                "code": 0,
+                "data": {
+                    "mode": 2,
+                    "k_2": {"soc_l": 12, "soc_h": 100},
+                    "k_3": {"mode": 1},
+                },
+            }
+        )
+        self.assertEqual(parsed["mode_name"], "Self-Consumption")
+        self.assertEqual(parsed["active_settings"]["reserve_soc"], 12)
+        self.assertEqual(parsed["reserve_soc_source"], "station_action_83_k_2_soc_l")
+        self.assertTrue(parsed["writable"])
+
+    def test_rejects_non_self_consumption_work_mode(self):
+        with self.assertRaises(battery.BatterySettingsError):
+            battery.parse_work_mode_settings(
+                {"code": 0, "data": {"mode": 3, "k_3": {"soc_l": 12}}}
+            )
+
     def test_finds_and_confirms_user_setting_reserve_soc(self):
         candidates = battery.reserve_soc_candidates(
             {"battery": {"mode": 1, "data": {"k_1": {"reserve_soc": 12}}}}

@@ -243,6 +243,8 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             raise HoymilesConnectionError("Active battery settings are unavailable")
         updated = deepcopy(active_settings)
         updated["reserve_soc"] = int(reserve_soc)
+        if self.battery_settings.get("request_method") == "station_action_83":
+            updated["soc_l"] = int(reserve_soc)
         await self._async_apply_battery_settings(mode, updated)
 
     async def async_set_battery_mode(self, mode: int) -> None:

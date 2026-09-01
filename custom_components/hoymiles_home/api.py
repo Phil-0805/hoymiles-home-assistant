@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from copy import deepcopy
 from datetime import UTC, datetime
+import json
 from typing import Any
 
 from aiohttp import ClientError, ClientSession, ClientTimeout
@@ -15,6 +16,7 @@ from .battery import (
     battery_setting_targets,
     confirmed_reserve_soc,
     parse_battery_settings,
+    parse_work_mode_settings,
     reserve_soc_candidates,
     soc_setting_candidates,
 )
@@ -26,8 +28,12 @@ from .const import (
     BATTERY_SETTINGS_POLL_INTERVAL,
     BATTERY_USER_SETTINGS_URLS,
     DATA_BASE_URL,
+    STATION_SETTING_READ_URL,
+    STATION_SETTING_STATUS_URL,
+    STATION_SETTING_WRITE_URL,
     TOKEN_LIFETIME,
     USER_AGENT,
+    WORK_MODE_SETTINGS_ACTION,
 )
 from .protobuf import latest_values
 
@@ -224,6 +230,41 @@ class HoymilesHomeClient:
             return status
         raise HoymilesConnectionError("Battery settings request timed out")
 
+    async def _async_poll_station_setting_job(self, job_id: str) -> dict[str, Any]:
+        """Poll the command-status endpoint used by the current Home app."""
+        for _attempt in range(BATTERY_SETTINGS_MAX_POLLS):
+            await asyncio.sleep(BATTERY_SETTINGS_POLL_INTERVAL)
+            response = await self._json(STATION_SETTING_STATUS_URL, {"id": job_id})
+            status = self._unwrap(response)
+            if isinstance(status, str):
+                try:
+                    status = json.loads(status)
+                except ValueError as err:
+                    raise HoymilesConnectionError(
+                        "Work mode returned invalid JSON"
+                    ) from err
+            if not isinstance(status, dict):
+                raise HoymilesConnectionError("Work mode returned an invalid status")
+            if status.get("code") == 2:
+                continue
+            return status
+        raise HoymilesConnectionError("Work mode request timed out")
+
+    async def _async_work_mode_settings(self, station_id: int) -> dict[str, Any]:
+        """Read the real Eigenverbrauch settings exactly as the Home app does."""
+        response = await self._json(
+            STATION_SETTING_READ_URL,
+            {"action": WORK_MODE_SETTINGS_ACTION, "data": {"sid": station_id}},
+        )
+        job_id = self._unwrap(response)
+        if not isinstance(job_id, (str, int)):
+            raise HoymilesConnectionError("Work mode read returned no command id")
+        status = await self._async_poll_station_setting_job(str(job_id))
+        try:
+            return parse_work_mode_settings(status)
+        except BatterySettingsError as err:
+            raise HoymilesConnectionError(str(err)) from err
+
     async def _async_write_battery_settings_request(
         self, payload: dict[str, Any]
     ) -> None:
@@ -338,6 +379,12 @@ class HoymilesHomeClient:
     async def async_battery_settings(self, station_id: int) -> dict[str, Any]:
         """Read battery settings, with a HiBattery-addressed fallback."""
         await self.async_ensure_login()
+        try:
+            return await self._async_work_mode_settings(station_id)
+        except HoymilesConnectionError:
+            # Retain the older read path for devices/firmware that do not
+            # implement the consumer app's command-83 work-mode protocol.
+            pass
         station_payload = {
             "action": BATTERY_SETTINGS_ACTION,
             "data": {"sid": station_id},
@@ -388,6 +435,35 @@ class HoymilesHomeClient:
     ) -> None:
         """Write a complete battery mode payload through the current app API."""
         await self.async_ensure_login()
+        if request_method == "station_action_83":
+            reserve_soc = mode_data.get("reserve_soc")
+            if (
+                mode != 1
+                or not isinstance(reserve_soc, (int, float))
+                or isinstance(reserve_soc, bool)
+            ):
+                raise HoymilesConnectionError("Unsupported work mode write")
+            response = await self._json(
+                STATION_SETTING_WRITE_URL,
+                {
+                    "action": WORK_MODE_SETTINGS_ACTION,
+                    "data": {
+                        "sid": station_id,
+                        "mode": 2,
+                        "soc_l": int(reserve_soc),
+                        "soc_h": int(mode_data.get("soc_h", 100)),
+                    },
+                },
+            )
+            job_id = self._unwrap(response)
+            if not isinstance(job_id, (str, int)):
+                raise HoymilesConnectionError("Work mode write returned no command id")
+            status = await self._async_poll_station_setting_job(str(job_id))
+            if status.get("code") != 0:
+                raise HoymilesConnectionError(
+                    str(status.get("message") or "Work mode write failed")
+                )
+            return
         response = await self._json(
             BATTERY_CONFIG_URL,
             {"sid": station_id, "mode": mode, "data": deepcopy(mode_data)},

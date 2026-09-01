@@ -175,6 +175,59 @@ def parse_battery_settings(result: Any) -> dict[str, Any]:
     }
 
 
+def parse_work_mode_settings(result: Any) -> dict[str, Any]:
+    """Normalize the current S-Miles Home work-mode command response.
+
+    The consumer app uses station command 83 for the actual Eigenverbrauch
+    discharge floor. In that protocol, work mode 2 is self-consumption and
+    ``k_2.soc_l`` is the value shown by the app.
+    """
+    if not isinstance(result, dict):
+        raise BatterySettingsError("Missing work mode settings result")
+    if result.get("code") != 0:
+        raise BatterySettingsError(
+            str(result.get("message") or "Work mode settings are not ready")
+        )
+    data = result.get("data")
+    if not isinstance(data, dict):
+        raise BatterySettingsError("Missing work mode settings payload")
+
+    app_mode = data.get("mode")
+    mode_data = data.get(f"k_{app_mode}")
+    if not isinstance(app_mode, int) or not isinstance(mode_data, dict):
+        raise BatterySettingsError("Missing active work mode settings")
+    soc_l = mode_data.get("soc_l")
+    if (
+        app_mode != 2
+        or not isinstance(soc_l, (int, float))
+        or isinstance(soc_l, bool)
+        or not 0 <= float(soc_l) <= 100
+    ):
+        raise BatterySettingsError("Unsupported or incomplete work mode settings")
+
+    reserve_soc = int(soc_l)
+    active = {
+        "reserve_soc": reserve_soc,
+        "soc_l": reserve_soc,
+        "soc_h": int(mode_data.get("soc_h", 100)),
+    }
+    return {
+        "readable": True,
+        "writable": True,
+        # Keep the integration's established mode id for entity compatibility.
+        "mode": 1,
+        "mode_name": BATTERY_MODE_NAMES[1],
+        "app_work_mode": app_mode,
+        "available_modes": [1],
+        "available_mode_names": [BATTERY_MODE_NAMES[1]],
+        "active_settings": active,
+        "mode_settings": {1: active.copy()},
+        "request_method": "station_action_83",
+        "reserve_soc_verified": True,
+        "reserve_soc_source": "station_action_83_k_2_soc_l",
+    }
+
+
 def battery_setting_command_data(
     station_id: int, mode: int, mode_data: dict[str, Any]
 ) -> dict[str, Any]:
