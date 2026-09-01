@@ -112,6 +112,7 @@ def _battery_settings_attributes(data: dict[str, Any]) -> dict[str, Any]:
             "unverified_action_1013_reserve_soc",
             "app_user_agent",
             "user_setting_probes",
+            "work_mode_request_error",
             "error",
         )
         if settings.get(key) is not None

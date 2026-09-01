@@ -381,7 +381,7 @@ class HoymilesHomeClient:
         await self.async_ensure_login()
         try:
             return await self._async_work_mode_settings(station_id)
-        except HoymilesConnectionError:
+        except HoymilesConnectionError as work_mode_error:
             # Retain the older read path for devices/firmware that do not
             # implement the consumer app's command-83 work-mode protocol.
             pass
@@ -393,13 +393,18 @@ class HoymilesHomeClient:
             settings = await self._async_battery_settings_request(
                 station_payload, "station"
             )
-            return await self._async_verify_battery_settings(station_id, settings)
+            verified = await self._async_verify_battery_settings(station_id, settings)
+            verified["work_mode_request_error"] = str(work_mode_error)
+            return verified
         except HoymilesConnectionError as err:
             if "device list is empty" not in str(err).lower():
                 raise
             station_error = err
 
-        errors = [f"station request: {station_error}"]
+        errors = [
+            f"work mode request: {work_mode_error}",
+            f"station request: {station_error}",
+        ]
         targets = battery_setting_targets(await self.async_device_tree(station_id))
         if not targets:
             raise HoymilesConnectionError(
@@ -416,9 +421,11 @@ class HoymilesHomeClient:
                 settings = await self._async_battery_settings_request(
                     device_payload, "device"
                 )
-                return await self._async_verify_battery_settings(
+                verified = await self._async_verify_battery_settings(
                     station_id, settings
                 )
+                verified["work_mode_request_error"] = str(work_mode_error)
+                return verified
             except HoymilesConnectionError as device_error:
                 serial = str(target["dev_sn"])
                 errors.append(f"device …{serial[-4:]}: {device_error}")
