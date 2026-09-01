@@ -54,6 +54,25 @@ class TestBatterySettings(unittest.TestCase):
                 {"code": 0, "data": {"mode": 3, "k_3": {"soc_l": 12}}}
             )
 
+    def test_confirms_delayed_work_mode_write(self):
+        settings = battery.parse_work_mode_settings(
+            {"code": 0, "data": {"mode": 2, "k_2": {"soc_l": 12}}}
+        )
+        self.assertTrue(
+            battery.battery_settings_confirmed(
+                settings,
+                1,
+                {"reserve_soc": 12, "soc_l": 12, "soc_h": 100},
+            )
+        )
+        self.assertFalse(
+            battery.battery_settings_confirmed(
+                settings,
+                1,
+                {"reserve_soc": 15, "soc_l": 15, "soc_h": 100},
+            )
+        )
+
     def test_finds_and_confirms_user_setting_reserve_soc(self):
         candidates = battery.reserve_soc_candidates(
             {"battery": {"mode": 1, "data": {"k_1": {"reserve_soc": 12}}}}

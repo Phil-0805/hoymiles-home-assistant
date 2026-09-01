@@ -228,6 +228,20 @@ def parse_work_mode_settings(result: Any) -> dict[str, Any]:
     }
 
 
+def battery_settings_confirmed(
+    settings: dict[str, Any], mode: int, requested: dict[str, Any]
+) -> bool:
+    """Return whether a delayed app-setting write is visible in a fresh read."""
+    if settings.get("mode") != mode:
+        return False
+    active = settings.get("active_settings")
+    if not isinstance(active, dict):
+        return False
+    return all(
+        active.get(key) == value
+        for key, value in requested.items()
+        if isinstance(value, (str, int, float, bool))
+    )
 def battery_setting_command_data(
     station_id: int, mode: int, mode_data: dict[str, Any]
 ) -> dict[str, Any]:

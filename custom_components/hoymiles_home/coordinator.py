@@ -19,6 +19,7 @@ from .api import (
     HoymilesHomeClient,
     microinverters,
 )
+from .battery import battery_settings_confirmed
 from .const import (
     BATTERY_SETTINGS_INTERVAL,
     BATTERY_ENERGY_CALCULATION_VERSION,
@@ -34,6 +35,9 @@ from .const import (
 from .energy import integrate_battery_energy, integrate_positive_energy
 
 _LOGGER = logging.getLogger(__name__)
+
+BATTERY_WRITE_CONFIRM_ATTEMPTS = 8
+BATTERY_WRITE_CONFIRM_INTERVAL = 3
 
 
 class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -209,31 +213,23 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 mode_data,
                 request_method=request_method,
             )
-            refreshed = await self.client.async_battery_settings(self.station_id)
-            self.battery_settings = refreshed
-            if self.data is not None:
-                self.async_set_updated_data(
-                    {
-                        **self.data,
-                        "battery_settings": refreshed,
-                    }
-                )
-            if refreshed.get("mode") != mode:
-                raise HoymilesConnectionError(
-                    "Battery did not confirm the requested mode"
-                )
-            confirmed = refreshed.get("active_settings")
-            if not isinstance(confirmed, dict):
-                raise HoymilesConnectionError(
-                    "Battery returned no active settings after the write"
-                )
-            for key, requested in mode_data.items():
-                if isinstance(requested, (str, int, float, bool)) and (
-                    confirmed.get(key) != requested
-                ):
-                    raise HoymilesConnectionError(
-                        f"Battery did not confirm the requested {key}"
+            for attempt in range(BATTERY_WRITE_CONFIRM_ATTEMPTS):
+                refreshed = await self.client.async_battery_settings(self.station_id)
+                self.battery_settings = refreshed
+                if self.data is not None:
+                    self.async_set_updated_data(
+                        {
+                            **self.data,
+                            "battery_settings": refreshed,
+                        }
                     )
+                if battery_settings_confirmed(refreshed, mode, mode_data):
+                    return
+                if attempt + 1 < BATTERY_WRITE_CONFIRM_ATTEMPTS:
+                    await asyncio.sleep(BATTERY_WRITE_CONFIRM_INTERVAL)
+            raise HoymilesConnectionError(
+                "Battery did not confirm the requested settings in time"
+            )
 
     async def async_set_battery_reserve_soc(self, reserve_soc: int) -> None:
         """Set reserve SOC for the active battery mode."""
