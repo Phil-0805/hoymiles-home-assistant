@@ -1,0 +1,67 @@
+{
+  "title": "Hoymiles S-Miles Home",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to S-Miles Home",
+        "description": "Use your S-Miles Home account. The station ID is the numeric ID of your plant, not the inverter serial number.",
+        "data": {
+          "username": "Email",
+          "password": "Password",
+          "station_id": "Station ID"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not connect to Hoymiles",
+      "invalid_auth": "Invalid S-Miles Home credentials",
+      "invalid_station": "No devices were found for this station ID. Check the number and account access.",
+      "unknown": "Unexpected error"
+    },
+    "abort": {"already_configured": "This station is already configured"}
+  },
+  "exceptions": {
+    "battery_setting_write_failed": {
+      "message": "The battery setting could not be saved: {error}"
+    },
+    "battery_mode_unavailable": {
+      "message": "Battery mode {mode} is unavailable."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "pv_power": {"name": "PV power"},
+      "load_power": {"name": "Load power"},
+      "load_energy_today": {"name": "Home consumption today"},
+      "grid_power": {"name": "Grid power"},
+      "battery_power": {"name": "Battery power"},
+      "battery_charge_power": {"name": "Battery charge power"},
+      "battery_discharge_power": {"name": "Battery discharge power"},
+      "battery_soc": {"name": "Battery state of charge"},
+      "battery_charge_energy_today": {"name": "Battery energy charged today"},
+      "battery_discharge_energy_today": {"name": "Battery energy discharged today"},
+      "battery_settings_access": {"name": "Battery settings access"},
+      "battery_mode": {"name": "Battery mode"},
+      "battery_reserve_soc": {"name": "Battery reserve SOC"},
+      "battery_max_power": {"name": "Battery maximum power"},
+      "ems": {"name": "EMS status"},
+      "brs": {"name": "Battery relay status"},
+      "chs": {"name": "Charge status"},
+      "bhs": {"name": "Battery health status"},
+      "today_energy": {"name": "Energy today"},
+      "month_energy": {"name": "Energy this month"},
+      "year_energy": {"name": "Energy this year"},
+      "total_energy": {"name": "Total energy"},
+      "module_power": {"name": "PV{port} power"},
+      "module_voltage": {"name": "PV{port} voltage"},
+      "module_current": {"name": "PV{port} current"}
+    },
+    "number": {
+      "battery_reserve_soc": {"name": "Reserve SOC"}
+    },
+    "select": {
+      "battery_mode": {"name": "Battery mode"}
+    },
+    "binary_sensor": {"connected": {"name": "Connection"}}
+  }
+}

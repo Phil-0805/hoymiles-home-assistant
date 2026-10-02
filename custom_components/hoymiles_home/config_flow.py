@@ -33,14 +33,16 @@ class HoymilesHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
             try:
                 await client.async_login()
-                await client.async_device_tree(user_input[CONF_STATION_ID])
+                devices = await client.async_device_tree(user_input[CONF_STATION_ID])
+                if not devices:
+                    errors["base"] = "invalid_station"
             except HoymilesAuthError:
                 errors["base"] = "invalid_auth"
             except HoymilesConnectionError:
                 errors["base"] = "cannot_connect"
             except Exception:  # noqa: BLE001
                 errors["base"] = "unknown"
-            else:
+            if not errors:
                 await self.async_set_unique_id(
                     f"{user_input[CONF_USERNAME].lower()}_{user_input[CONF_STATION_ID]}"
                 )

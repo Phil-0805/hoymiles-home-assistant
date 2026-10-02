@@ -36,6 +36,7 @@ from .const import (
     WORK_MODE_SETTINGS_ACTION,
 )
 from .protobuf import latest_values
+from .security import trusted_hoymiles_url
 
 
 class HoymilesError(Exception):
@@ -76,10 +77,18 @@ class HoymilesHomeClient:
         return headers
 
     async def _json(self, url: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if not trusted_hoymiles_url(url):
+            raise HoymilesConnectionError("Untrusted Hoymiles API URL")
         try:
             async with self._session.post(
-                url, json=payload, headers=self.headers, timeout=ClientTimeout(total=30)
+                url,
+                json=payload,
+                headers=self.headers,
+                timeout=ClientTimeout(total=30),
+                allow_redirects=False,
             ) as response:
+                if 300 <= response.status < 400:
+                    raise HoymilesConnectionError("Hoymiles API redirected unexpectedly")
                 response.raise_for_status()
                 data = await response.json(content_type=None)
         except (ClientError, TimeoutError, ValueError) as err:
@@ -149,6 +158,8 @@ class HoymilesHomeClient:
         uri = (self._unwrap(response) or {}).get("uri")
         if not uri:
             raise HoymilesConnectionError("Live API returned no URI")
+        if not isinstance(uri, str) or not trusted_hoymiles_url(uri):
+            raise HoymilesConnectionError("Live API returned an untrusted URI")
         return uri
 
     async def async_live(self, station_id: int) -> dict[str, Any]:
@@ -181,7 +192,10 @@ class HoymilesHomeClient:
                 },
                 headers=self.headers,
                 timeout=ClientTimeout(total=30),
+                allow_redirects=False,
             ) as response:
+                if 300 <= response.status < 400:
+                    raise HoymilesConnectionError("Hoymiles API redirected unexpectedly")
                 response.raise_for_status()
                 raw = await response.read()
         except (ClientError, TimeoutError) as err:
