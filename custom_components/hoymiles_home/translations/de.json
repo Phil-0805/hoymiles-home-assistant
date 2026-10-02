@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Mit S-Miles Home verbinden",
-        "description": "Gib das Konto der S-Miles-Home-App und die numerische Anlagen-ID ein.",
+        "description": "Verwende dein S-Miles-Home-Konto. Die Anlagen-ID ist die numerische ID deiner Anlage, nicht die Seriennummer des Wechselrichters.",
         "data": {
           "username": "E-Mail",
           "password": "Passwort",
@@ -15,6 +15,7 @@
     "error": {
       "cannot_connect": "Verbindung zu Hoymiles fehlgeschlagen",
       "invalid_auth": "Ungültige S-Miles-Home-Zugangsdaten",
+      "invalid_station": "Für diese Anlagen-ID wurden keine Geräte gefunden. Prüfe die Nummer und den Kontozugriff.",
       "unknown": "Unerwarteter Fehler"
     },
     "abort": {"already_configured": "Diese Anlage ist bereits eingerichtet"}

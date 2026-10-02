@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Connect to S-Miles Home",
-        "description": "Enter the account used by the S-Miles Home app and the numeric station ID.",
+        "description": "Use your S-Miles Home account. The station ID is the numeric ID of your plant, not the inverter serial number.",
         "data": {
           "username": "Email",
           "password": "Password",
@@ -15,6 +15,7 @@
     "error": {
       "cannot_connect": "Could not connect to Hoymiles",
       "invalid_auth": "Invalid S-Miles Home credentials",
+      "invalid_station": "No devices were found for this station ID. Check the number and account access.",
       "unknown": "Unexpected error"
     },
     "abort": {"already_configured": "This station is already configured"}
