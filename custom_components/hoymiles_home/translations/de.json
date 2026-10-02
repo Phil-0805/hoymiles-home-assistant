@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Mit S-Miles Home verbinden",
-        "description": "Gib das Konto der S-Miles-Home-App und die numerische Anlagen-ID ein.",
+        "description": "Verwende dein S-Miles-Home-Konto. Die Anlagen-ID ist die numerische ID deiner Anlage, nicht die Seriennummer des Wechselrichters.",
         "data": {
           "username": "E-Mail",
           "password": "Passwort",
@@ -15,14 +15,24 @@
     "error": {
       "cannot_connect": "Verbindung zu Hoymiles fehlgeschlagen",
       "invalid_auth": "Ungültige S-Miles-Home-Zugangsdaten",
+      "invalid_station": "Für diese Anlagen-ID wurden keine Geräte gefunden. Prüfe die Nummer und den Kontozugriff.",
       "unknown": "Unerwarteter Fehler"
     },
     "abort": {"already_configured": "Diese Anlage ist bereits eingerichtet"}
+  },
+  "exceptions": {
+    "battery_setting_write_failed": {
+      "message": "Die Batterieeinstellung konnte nicht gespeichert werden: {error}"
+    },
+    "battery_mode_unavailable": {
+      "message": "Der Batteriemodus {mode} ist nicht verfügbar."
+    }
   },
   "entity": {
     "sensor": {
       "pv_power": {"name": "PV-Leistung"},
       "load_power": {"name": "Hausverbrauch"},
+      "load_energy_today": {"name": "Hausverbrauch heute"},
       "grid_power": {"name": "Netzleistung"},
       "battery_power": {"name": "Batterieleistung"},
       "battery_charge_power": {"name": "Batterie Ladeleistung"},
@@ -30,6 +40,10 @@
       "battery_soc": {"name": "Batterieladestand"},
       "battery_charge_energy_today": {"name": "Batterie heute geladen"},
       "battery_discharge_energy_today": {"name": "Batterie heute entladen"},
+      "battery_settings_access": {"name": "Batterieeinstellungen Zugriff"},
+      "battery_mode": {"name": "Batteriemodus"},
+      "battery_reserve_soc": {"name": "Batterie Reserve-SOC"},
+      "battery_max_power": {"name": "Batterie maximale Leistung"},
       "ems": {"name": "EMS-Status"},
       "brs": {"name": "Batterierelais-Status"},
       "chs": {"name": "Ladestatus"},
@@ -41,6 +55,12 @@
       "module_power": {"name": "PV{port} Leistung"},
       "module_voltage": {"name": "PV{port} Spannung"},
       "module_current": {"name": "PV{port} Strom"}
+    },
+    "number": {
+      "battery_reserve_soc": {"name": "Reserve-SOC"}
+    },
+    "select": {
+      "battery_mode": {"name": "Batteriemodus"}
     },
     "binary_sensor": {"connected": {"name": "Verbindung"}}
   }

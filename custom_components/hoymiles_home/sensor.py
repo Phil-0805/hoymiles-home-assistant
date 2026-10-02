@@ -27,6 +27,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_STATION_ID, DOMAIN
 from .coordinator import HoymilesHomeCoordinator
+from .energy import split_battery_power
 
 
 def _number(value: Any) -> float | int | None:
@@ -50,7 +51,7 @@ def _station(key: str) -> Callable[[dict[str, Any]], Any]:
     return lambda data: _number(data.get("station", {}).get(key))
 
 
-def _battery_energy(key: str) -> Callable[[dict[str, Any]], Any]:
+def _calculated_energy(key: str) -> Callable[[dict[str, Any]], Any]:
     return lambda data: _number(data.get("battery_energy", {}).get(key))
 
 
@@ -63,13 +64,27 @@ def _pv_power(data: dict[str, Any]) -> float | int | None:
 def _battery_charge_power(data: dict[str, Any]) -> float | int | None:
     """Return charging power as a positive value."""
     value = _live("bat")(data)
-    return max(value, 0) if value is not None else None
+    if value is None:
+        return None
+    relay_status = _number(data.get("live", {}).get("brs"))
+    charge, _discharge = split_battery_power(
+        float(value),
+        int(relay_status) if relay_status is not None else None,
+    )
+    return charge
 
 
 def _battery_discharge_power(data: dict[str, Any]) -> float | int | None:
     """Return discharging power as a positive value."""
     value = _live("bat")(data)
-    return max(-value, 0) if value is not None else None
+    if value is None:
+        return None
+    relay_status = _number(data.get("live", {}).get("brs"))
+    _charge, discharge = split_battery_power(
+        float(value),
+        int(relay_status) if relay_status is not None else None,
+    )
+    return discharge
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -77,6 +92,31 @@ class HoymilesDescription(SensorEntityDescription):
     """Describe a station sensor."""
 
     value_fn: Callable[[dict[str, Any]], Any]
+    attributes_fn: Callable[[dict[str, Any]], dict[str, Any]] | None = None
+
+
+def _battery_settings_attributes(data: dict[str, Any]) -> dict[str, Any]:
+    settings = data.get("battery_settings", {})
+    return {
+        key: settings.get(key)
+        for key in (
+            "mode",
+            "available_modes",
+            "available_mode_names",
+            "active_settings",
+            "mode_settings",
+            "request_method",
+            "writable",
+            "reserve_soc_verified",
+            "reserve_soc_source",
+            "unverified_action_1013_reserve_soc",
+            "app_user_agent",
+            "user_setting_probes",
+            "work_mode_request_error",
+            "error",
+        )
+        if settings.get(key) is not None
+    }
 
 
 STATION_SENSORS = (
@@ -95,6 +135,14 @@ STATION_SENSORS = (
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=_live("load"),
+    ),
+    HoymilesDescription(
+        key="load_energy_today",
+        translation_key="load_energy_today",
+        native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        value_fn=_calculated_energy("consumption_wh"),
     ),
     HoymilesDescription(
         key="grid_power",
@@ -142,7 +190,7 @@ STATION_SENSORS = (
         native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
-        value_fn=_battery_energy("charge_wh"),
+        value_fn=_calculated_energy("charge_wh"),
     ),
     HoymilesDescription(
         key="battery_discharge_energy_today",
@@ -150,7 +198,47 @@ STATION_SENSORS = (
         native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
-        value_fn=_battery_energy("discharge_wh"),
+        value_fn=_calculated_energy("discharge_wh"),
+    ),
+    HoymilesDescription(
+        key="battery_settings_access",
+        translation_key="battery_settings_access",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: (
+            "readable"
+            if data.get("battery_settings", {}).get("readable")
+            else "unavailable"
+        ),
+        attributes_fn=_battery_settings_attributes,
+    ),
+    HoymilesDescription(
+        key="battery_mode",
+        translation_key="battery_mode",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.get("battery_settings", {}).get("mode_name"),
+        attributes_fn=_battery_settings_attributes,
+    ),
+    HoymilesDescription(
+        key="battery_reserve_soc",
+        translation_key="battery_reserve_soc",
+        native_unit_of_measurement=PERCENTAGE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: _number(
+            data.get("battery_settings", {})
+            .get("active_settings", {})
+            .get("reserve_soc")
+        ),
+    ),
+    HoymilesDescription(
+        key="battery_max_power",
+        translation_key="battery_max_power",
+        native_unit_of_measurement=PERCENTAGE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: _number(
+            data.get("battery_settings", {})
+            .get("active_settings", {})
+            .get("max_power")
+        ),
     ),
     *(
         HoymilesDescription(
@@ -257,6 +345,12 @@ class HoymilesStationSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEn
     @property
     def native_value(self):
         return self.entity_description.value_fn(self.coordinator.data or {})
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        if self.entity_description.attributes_fn is None:
+            return None
+        return self.entity_description.attributes_fn(self.coordinator.data or {})
 
 
 class HoymilesModuleSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEntity):
