@@ -8,6 +8,25 @@ required. Developed and tested on an HMS-2000-4WB with HiBattery. A user has
 also reported success with an 800 W microinverter, but that model and its
 available sensors have not yet been independently verified here.
 
+## Station selection beta (0.4.0b1)
+
+This beta adds plant selection after login. Enter your S-Miles Home email and
+password, then select a plant from the dropdown showing its name and numeric
+station ID. To add another plant, add the integration again and select that plant.
+Existing configured stations keep working without being added again.
+
+You can also type a numeric station ID into the dropdown. If discovery fails or
+returns no plants, setup offers manual station-ID entry instead. The selected
+ID is checked against the account's device tree before it is saved.
+
+Discovery uses the unofficial S-Miles Home station-list endpoint and is not yet
+live-verified with the maintainer's account. Please report beta setup problems
+without including passwords, tokens or unredacted network captures.
+
+The beta will be published as a GitHub **pre-release**. Stable HACS users remain
+on stable releases; select the beta explicitly in HACS when it is available,
+then restart Home Assistant. Keep a Home Assistant backup before testing.
+
 ## Features
 
 - Live PV, load, grid and battery power when the station supplies these values
@@ -29,11 +48,13 @@ available sensors have not yet been independently verified here.
 2. Open the HACS menu and choose **Custom repositories**.
 3. Add `https://github.com/Phil-0805/hoymiles-home-assistant` with category
    **Integration**.
-4. Install **Hoymiles S-Miles Home**. You do **not** need to enable beta versions.
+4. Install **Hoymiles S-Miles Home**. To test station selection, explicitly
+   choose the **0.4.0b1 pre-release** when it is available in HACS.
 5. Restart Home Assistant.
 6. Under **Settings → Devices & services → Add integration**, search for
-   **Hoymiles S-Miles Home** and enter your S-Miles Home email, password and
-   numeric station ID (see [Finding your station ID](#finding-your-station-id)).
+   **Hoymiles S-Miles Home**, enter your S-Miles Home email and password, then
+   select your plant. For manual setup, see
+   [Finding your station ID](#finding-your-station-id).
 
 HACS can then offer subsequent releases. The integration is not in HACS's
 default catalog; adding the custom repository remains necessary.
