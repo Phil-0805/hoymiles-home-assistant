@@ -8,24 +8,20 @@ required. Developed and tested on an HMS-2000-4WB with HiBattery. A user has
 also reported success with an 800 W microinverter, but that model and its
 available sensors have not yet been independently verified here.
 
-## Station selection beta (0.4.0b1)
+## Select your plant during setup
 
-This beta adds plant selection after login. Enter your S-Miles Home email and
-password, then select a plant from the dropdown showing its name and numeric
-station ID. To add another plant, add the integration again and select that plant.
-Existing configured stations keep working without being added again.
+From version 0.4.0, sign in with your S-Miles Home account, then select a plant
+by name and numeric station ID. To add another plant, add the integration again.
+Existing configured stations and their identifiers are preserved.
 
-You can also type a numeric station ID into the dropdown. If discovery fails or
-returns no plants, setup offers manual station-ID entry instead. The selected
-ID is checked against the account's device tree before it is saved.
+You can also type a numeric station ID into the dropdown. If discovery is
+unavailable or returns no plants, setup offers manual ID entry. Before saving,
+the ID is checked against the account's device tree.
 
-Discovery uses the unofficial S-Miles Home station-list endpoint and is not yet
-live-verified with the maintainer's account. Please report beta setup problems
-without including passwords, tokens or unredacted network captures.
-
-The beta will be published as a GitHub **pre-release**. Stable HACS users remain
-on stable releases; select the beta explicitly in HACS when it is available,
-then restart Home Assistant. Keep a Home Assistant backup before testing.
+The maintainer verified plant selection and duplicate detection with his account
+on 26 October 2026; existing history and measurements were preserved. Other
+accounts and device models may behave differently with this unofficial API.
+For manual setup, see [Finding your station ID](#finding-your-station-id).
 
 ## Features
 
@@ -48,8 +44,7 @@ then restart Home Assistant. Keep a Home Assistant backup before testing.
 2. Open the HACS menu and choose **Custom repositories**.
 3. Add `https://github.com/Phil-0805/hoymiles-home-assistant` with category
    **Integration**.
-4. Install **Hoymiles S-Miles Home**. To test station selection, explicitly
-   choose the **0.4.0b1 pre-release** when it is available in HACS.
+4. Install **Hoymiles S-Miles Home**. Beta versions are not required.
 5. Restart Home Assistant.
 6. Under **Settings → Devices & services → Add integration**, search for
    **Hoymiles S-Miles Home**, enter your S-Miles Home email and password, then

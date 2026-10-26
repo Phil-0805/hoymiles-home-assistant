@@ -9,27 +9,21 @@ HMS-2000-4WB mit HiBattery. Ein Nutzer hat außerdem den erfolgreichen Einsatz
 mit einem 800-W-Mikrowechselrichter gemeldet. Dieses Modell und die verfügbaren
 Sensoren wurden hier jedoch noch nicht unabhängig überprüft.
 
-## Beta mit Anlagenauswahl (0.4.0b1)
+## Anlage beim Einrichten auswählen
 
-Diese Beta ergänzt eine Anlagenauswahl nach dem Login. Zuerst E-Mail-Adresse
-und Passwort des S-Miles-Home-Kontos eingeben, danach die Anlage im Auswahlfeld
-anhand von Name und numerischer Station-ID auswählen. Für eine weitere Anlage
-die Integration erneut hinzufügen und diese Anlage auswählen.
-Bereits eingerichtete Anlagen bleiben ohne erneute Einrichtung erhalten.
+Ab Version 0.4.0 zuerst mit dem S-Miles-Home-Konto anmelden und anschließend die
+Anlage anhand von Name und numerischer Station-ID auswählen. Für eine weitere
+Anlage die Integration erneut hinzufügen. Bereits eingerichtete Anlagen und
+bestehende Kennungen bleiben erhalten.
 
-Die Station-ID lässt sich auch direkt in das Auswahlfeld eingeben. Falls die
-Erkennung fehlschlägt oder keine Anlagen liefert, bietet die Einrichtung eine
-manuelle ID-Eingabe an. Vor dem Speichern wird die ID anhand der Geräteliste
-des Kontos geprüft.
+Die Station-ID lässt sich alternativ direkt in das Auswahlfeld eingeben. Falls
+keine Anlagen erkannt werden, bietet die Einrichtung eine manuelle ID-Eingabe.
+Vor dem Speichern wird die ID anhand der Geräteliste des Kontos geprüft.
 
-Die Erkennung nutzt einen inoffiziellen S-Miles-Home-Endpunkt und wurde noch
-nicht live mit dem Konto des Maintainers geprüft. Bei Beta-Problemen bitte
-keine Passwörter, Tokens oder ungeschwärzten Netzwerkaufzeichnungen veröffentlichen.
-
-Die Beta wird als GitHub-**Vorabversion** veröffentlicht. HACS-Nutzer mit stabilen
-Versionen erhalten weiterhin stabile Releases. Die Beta muss nach ihrer
-Veröffentlichung ausdrücklich in HACS ausgewählt werden; anschließend
-Home Assistant neu starten. Vor dem Testen ein Home-Assistant-Backup anlegen.
+Anlagenauswahl und Duplikaterkennung wurden vom Maintainer am 26. Oktober 2026
+mit seinem Konto getestet; vorhandener Verlauf und Messwerte blieben erhalten.
+Andere Konten und Anlagenmodelle können sich bei dieser inoffiziellen API anders
+verhalten. Für die manuelle Einrichtung siehe [Station-ID finden](#station-id-finden).
 
 ## Funktionen
 
@@ -52,8 +46,7 @@ Home Assistant neu starten. Vor dem Testen ein Home-Assistant-Backup anlegen.
 2. Im HACS-Menü **Benutzerdefinierte Repositories** öffnen.
 3. `https://github.com/Phil-0805/hoymiles-home-assistant` mit der Kategorie
    **Integration** hinzufügen.
-4. **Hoymiles S-Miles Home** installieren. Zum Testen der Anlagenauswahl
-   ausdrücklich die **Vorabversion 0.4.0b1** auswählen, sobald sie in HACS verfügbar ist.
+4. **Hoymiles S-Miles Home** installieren. Beta-Versionen sind nicht erforderlich.
 5. Home Assistant neu starten.
 6. Unter **Einstellungen → Geräte & Dienste → Integration hinzufügen** nach
    **Hoymiles S-Miles Home** suchen. Die E-Mail-Adresse und das Passwort des
