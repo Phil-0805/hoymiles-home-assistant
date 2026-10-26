@@ -1,6 +1,7 @@
 {
   "domain": "hoymiles_home",
   "name": "Hoymiles S-Miles Home",
+  "categories": ["energy.solar_batteries"],
   "codeowners": ["@Phil-0805"],
   "config_flow": true,
   "documentation": "https://github.com/Phil-0805/hoymiles-home-assistant",
@@ -8,5 +9,5 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/Phil-0805/hoymiles-home-assistant/issues",
   "requirements": ["argon2-cffi==25.1.0"],
-  "version": "0.3.0"
+  "version": "0.3.1"
 }
