@@ -1,5 +1,7 @@
 # Hoymiles S-Miles Home for Home Assistant
 
+**English** | [Deutsch](README.de.md)
+
 Unofficial Home Assistant integration for **S-Miles Home** accounts. It reads
 Hoymiles cloud data directly; Node-RED, MQTT and local inverter access are not
 required. Developed and tested on an HMS-2000-4WB with HiBattery. A user has
@@ -31,7 +33,7 @@ available sensors have not yet been independently verified here.
 5. Restart Home Assistant.
 6. Under **Settings → Devices & services → Add integration**, search for
    **Hoymiles S-Miles Home** and enter your S-Miles Home email, password and
-   numeric station ID (not the inverter serial number).
+   numeric station ID (see [Finding your station ID](#finding-your-station-id)).
 
 HACS can then offer subsequent releases. The integration is not in HACS's
 default catalog; adding the custom repository remains necessary.
@@ -43,11 +45,31 @@ Home Assistant configuration directory as `custom_components/hoymiles_home`.
 Restart Home Assistant, then add **Hoymiles S-Miles Home** under
 **Settings → Devices & services**.
 
-If you previously used the Node-RED `hoymiles-watch` node, its `sid` is the
-station ID. Otherwise look for the numeric station ID in your S-Miles Home
-installation details. The integration reports an error if that ID has no
-devices for the signed-in account. Never post your password, login token, or
-unredacted diagnostics in a public issue.
+## Finding your station ID
+
+Setup requires the numeric **station ID** (`sid`) of your plant, not the
+inverter serial number or an individual device's numeric `id`.
+
+1. Sign in to [S-Miles Cloud](https://global.hoymiles.com) in a desktop browser.
+2. Open **Plant** (**Anlage** in German) and select your installation.
+3. On the plant detail page, check the address bar. The maintainer has confirmed
+   that the station ID can be obtained from the selected plant's URL:
+   `https://global.hoymiles.com/website/plant/detail/<station-id>`.
+   Copy the numeric station ID into the Home Assistant setup form.
+4. For orientation, the portal also displays an ID directly below the plant
+   name in the top-left corner. The maintainer's German interface labels it
+   **Mikro-Energiespeicher ID**. A user in [issue #2](https://github.com/Phil-0805/hoymiles-home-assistant/issues/2)
+   reports **PV microinverter ID** instead. Do not assume that every field
+   with either label is the API station ID; use the confirmed URL value.
+
+If you already use the Node-RED `hoymiles-watch` node successfully for this
+plant, its configured `sid` is the station ID. Node-RED is not required.
+
+Setup checks that the signed-in account can retrieve a non-empty device tree
+for the entered ID. After setup, check that the devices and measurements match
+your plant. If the URL differs or you cannot identify a numeric station ID, ask
+in issue #2 rather than entering a serial number. Never post passwords, login
+tokens or unredacted diagnostics in a public issue.
 
 ## What to expect
 
