@@ -4,11 +4,24 @@
     "step": {
       "user": {
         "title": "Mit S-Miles Home verbinden",
-        "description": "Verwende dein S-Miles-Home-Konto. Die Anlagen-ID ist die numerische ID deiner Anlage, nicht die Seriennummer des Wechselrichters.",
+        "description": "Melde dich mit deinem S-Miles-Home-Konto an. Anschließend kannst du eine Anlage auswählen.",
         "data": {
           "username": "E-Mail",
-          "password": "Passwort",
-          "station_id": "Anlagen-ID"
+          "password": "Passwort"
+        }
+      },
+      "select_station": {
+        "title": "Anlage auswählen",
+        "description": "Wähle eine Anlage anhand von Name und Station-ID. Du kannst alternativ eine numerische Station-ID direkt in das Auswahlfeld eingeben. Verwende keine Wechselrichter-Seriennummer.",
+        "data": {
+          "station_id": "Anlage (Station-ID)"
+        }
+      },
+      "manual_station": {
+        "title": "Station-ID manuell eingeben",
+        "description": "Gib die numerische Station-ID deiner Anlage ein. Du findest sie in S-Miles Cloud nach Auswahl der Anlage in der URL der Detailseite. Sie ist nicht die Seriennummer des Wechselrichters.",
+        "data": {
+          "station_id": "Station-ID"
         }
       }
     },
@@ -16,9 +29,14 @@
       "cannot_connect": "Verbindung zu Hoymiles fehlgeschlagen",
       "invalid_auth": "Ungültige S-Miles-Home-Zugangsdaten",
       "invalid_station": "Für diese Anlagen-ID wurden keine Geräte gefunden. Prüfe die Nummer und den Kontozugriff.",
-      "unknown": "Unerwarteter Fehler"
+      "unknown": "Unerwarteter Fehler",
+      "discovery_failed": "Die Anlagenliste konnte nicht geladen werden. Du kannst die Station-ID manuell eingeben.",
+      "no_stations": "Das Konto hat keine Anlagen in der Liste zurückgegeben. Falls du deine Station-ID kennst, kannst du sie manuell eingeben.",
+      "invalid_station_id": "Gib eine positive numerische Station-ID ein."
     },
-    "abort": {"already_configured": "Diese Anlage ist bereits eingerichtet"}
+    "abort": {
+      "already_configured": "Diese Anlage ist bereits eingerichtet"
+    }
   },
   "exceptions": {
     "battery_setting_write_failed": {

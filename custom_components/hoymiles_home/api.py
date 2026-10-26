@@ -143,6 +143,53 @@ class HoymilesHomeClient:
         )
         return self._unwrap(response) or []
 
+    async def async_list_stations(self) -> list[dict[str, Any]]:
+        """Discover Home-account stations, without confusing device IDs with sids."""
+        await self.async_ensure_login()
+        stations: dict[int, dict[str, Any]] = {}
+        page_size = 100
+        # Bound discovery even if the undocumented endpoint repeats a full page.
+        for page in range(1, 21):
+            response = await self._json(
+                f"{DATA_BASE_URL}/pvmc/api/0/station/select_by_page_c",
+                {"page": page, "page_size": page_size},
+            )
+            data = self._unwrap(response)
+            if not isinstance(data, dict) or not isinstance(data.get("list"), list):
+                raise HoymilesConnectionError("Unexpected station list response")
+            rows = data["list"]
+            if not rows:
+                return list(stations.values())
+            previous_count = len(stations)
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                # This is a station-list endpoint: id is a station ID here only.
+                # Prefer the Home API's sid; never fall back from an invalid sid.
+                raw_id = row.get("sid", row.get("id"))
+                if isinstance(raw_id, bool) or not isinstance(raw_id, (int, str)):
+                    continue
+                if isinstance(raw_id, str):
+                    raw_id = raw_id.strip()
+                    if not raw_id.isascii() or not raw_id.isdecimal():
+                        continue
+                try:
+                    station_id = int(raw_id)
+                except (TypeError, ValueError):
+                    continue
+                if station_id <= 0:
+                    continue
+                name = row.get("name")
+                stations[station_id] = {
+                    "sid": station_id,
+                    "name": name.strip() if isinstance(name, str) else "",
+                }
+            if len(stations) == previous_count:
+                raise HoymilesConnectionError("Station list has no new valid station IDs")
+            if len(rows) < page_size:
+                return list(stations.values())
+        raise HoymilesConnectionError("Station discovery exceeded its page limit")
+
     async def async_station_realtime(self, station_id: int) -> dict[str, Any]:
         await self.async_ensure_login()
         response = await self._json(

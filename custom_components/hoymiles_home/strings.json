@@ -4,10 +4,23 @@
     "step": {
       "user": {
         "title": "Connect to S-Miles Home",
-        "description": "Use your S-Miles Home account. The station ID is the numeric ID of your plant, not the inverter serial number.",
+        "description": "Sign in with your S-Miles Home account, then choose a plant.",
         "data": {
           "username": "Email",
-          "password": "Password",
+          "password": "Password"
+        }
+      },
+      "select_station": {
+        "title": "Select your plant",
+        "description": "Choose a plant by its name and station ID. You can also type a numeric station ID directly into the dropdown. Do not use an inverter serial number.",
+        "data": {
+          "station_id": "Plant (station ID)"
+        }
+      },
+      "manual_station": {
+        "title": "Enter your station ID",
+        "description": "Enter the numeric station ID of your plant. In S-Miles Cloud, select your plant and check the URL of its detail page. This is not the inverter serial number.",
+        "data": {
           "station_id": "Station ID"
         }
       }
@@ -16,9 +29,14 @@
       "cannot_connect": "Could not connect to Hoymiles",
       "invalid_auth": "Invalid S-Miles Home credentials",
       "invalid_station": "No devices were found for this station ID. Check the number and account access.",
-      "unknown": "Unexpected error"
+      "unknown": "Unexpected error",
+      "discovery_failed": "Could not load the plant list. You can enter the station ID manually.",
+      "no_stations": "The account returned no plants in its list. If you know your station ID, you can enter it manually.",
+      "invalid_station_id": "Enter a positive numeric station ID."
     },
-    "abort": {"already_configured": "This station is already configured"}
+    "abort": {
+      "already_configured": "This station is already configured"
+    }
   },
   "exceptions": {
     "battery_setting_write_failed": {

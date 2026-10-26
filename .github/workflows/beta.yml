@@ -1,0 +1,72 @@
+name: Beta release
+
+on:
+  push:
+    branches:
+      - beta/station-selection
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hacs/action@main
+        with:
+          category: integration
+      - uses: home-assistant/actions/hassfest@master
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - run: python -m pip install -r requirements-test.txt
+      - run: python -m unittest discover -s tests -v
+      - run: python -m pytest tests/ha -q
+
+  release:
+    if: github.ref == 'refs/heads/beta/station-selection'
+    needs: [validate, test]
+    concurrency:
+      group: hoymiles-beta-release
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const manifest = JSON.parse(fs.readFileSync('custom_components/hoymiles_home/manifest.json', 'utf8'));
+            const version = manifest.version;
+            if (!/^\d+\.\d+\.\d+b\d+$/.test(version)) {
+              throw new Error('Refusing to publish a non-beta version from the beta branch');
+            }
+            const tag = `v${version}`;
+            const repo = context.repo;
+            try {
+              await github.rest.repos.getReleaseByTag({...repo, tag});
+              core.notice(`${tag} already exists; leaving its release and tag unchanged. Bump the beta version for a new release.`);
+              return;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            const body = fs.readFileSync(`docs/release-${version}.md`, 'utf8');
+            const result = await github.rest.repos.createRelease({
+              ...repo,
+              tag_name: tag,
+              target_commitish: context.sha,
+              name: `${tag} — station selection beta`,
+              body,
+              prerelease: true,
+              make_latest: 'false',
+            });
+            core.notice(`Published beta: ${result.data.html_url}`);
