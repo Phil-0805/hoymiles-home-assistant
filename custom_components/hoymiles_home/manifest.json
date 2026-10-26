@@ -1,7 +1,6 @@
 {
   "domain": "hoymiles_home",
   "name": "Hoymiles S-Miles Home",
-  "categories": ["energy.solar_batteries"],
   "codeowners": ["@Phil-0805"],
   "config_flow": true,
   "documentation": "https://github.com/Phil-0805/hoymiles-home-assistant",
