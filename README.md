@@ -8,6 +8,12 @@ required. Developed and tested on an HMS-2000-4WB with HiBattery. A user has
 also reported success with an 800 W microinverter, but that model and its
 available sensors have not yet been independently verified here.
 
+A user reported a **HiBattery 4020-X with one additional storage unit** working
+on 27 October 2026: sensors, Self Consumption mode, SOC settings and diagnostics.
+This is a community report, not an independent test by the maintainer; the
+installed version and firmware were not provided, and other functions remain
+unverified.
+
 ## Select your plant during setup
 
 From version 0.4.0, sign in with your S-Miles Home account, then select a plant
