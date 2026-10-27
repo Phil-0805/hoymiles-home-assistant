@@ -9,6 +9,12 @@ HMS-2000-4WB mit HiBattery. Ein Nutzer hat außerdem den erfolgreichen Einsatz
 mit einem 800-W-Mikrowechselrichter gemeldet. Dieses Modell und die verfügbaren
 Sensoren wurden hier jedoch noch nicht unabhängig überprüft.
 
+Ein Nutzer meldete am 27. Oktober 2026 den erfolgreichen Einsatz einer
+**HiBattery 4020-X mit einem Zusatzspeicher**: Sensoren, Self-Consumption-Modus,
+SOC-Einstellungen und Diagnose. Dies ist ein Community-Bericht, kein eigener
+Test des Maintainers; installierte Version und Firmware wurden nicht genannt.
+Weitere Funktionen sind für dieses Modell noch nicht bestätigt.
+
 ## Anlage beim Einrichten auswählen
 
 Ab Version 0.4.0 zuerst mit dem S-Miles-Home-Konto anmelden und anschließend die
