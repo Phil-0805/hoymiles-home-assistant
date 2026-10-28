@@ -28,6 +28,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import CONF_STATION_ID, DOMAIN
 from .coordinator import HoymilesHomeCoordinator
 from .energy import split_battery_power
+from .inverter import inverter_model, inverter_ports
 
 
 def _number(value: Any) -> float | int | None:
@@ -308,7 +309,7 @@ async def async_setup_entry(
         for description in STATION_SENSORS
     ]
     for inverter in coordinator.inverters:
-        for port in range(1, 5):
+        for port in inverter_ports(inverter):
             for key, quota, unit, device_class in MODULE_SENSORS:
                 entities.append(
                     HoymilesModuleSensor(
@@ -383,7 +384,7 @@ class HoymilesModuleSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEnt
             identifiers={(DOMAIN, f"inverter_{self._inverter_id}")},
             manufacturer="Hoymiles",
             name="Hoymiles microinverter",
-            model="HMS-2000-4WB",
+            model=inverter_model(inverter),
             serial_number=inverter.get("sn"),
             via_device=(DOMAIN, f"station_{entry.data[CONF_STATION_ID]}"),
         )
