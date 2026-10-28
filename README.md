@@ -142,6 +142,21 @@ Hoymiles does not publish a reliable meaning for every numeric state. On the
 tested HMS-2000-4WB, `brs` carries the battery direction (`1` charging, `2`
 discharging, `0` idle), while `power.bat` is an unsigned magnitude.
 
+From v0.4.3b2 (beta), **Battery activity** also displays this `brs` mapping as
+Idle / Charging / Discharging; unknown codes remain unrecognized. The mapping
+is verified on the HMS-2000-4WB setup, not every battery model. Existing raw
+status sensors remain unchanged; EMS, charge and health codes are not guessed.
+
+For PV troubleshooting in this beta, compare the **PV power** attributes `pv`
+and `pv2` with the S-Miles Home app at the same time. Under **Settings →
+Devices & services → Hoymiles S-Miles Home → Configure**, select the matching
+**PV power source** for that station. Automatic keeps the previous behavior
+(`pv2` when available, otherwise `pv`, including valid zeros); explicit `pv`
+or `pv2` never substitutes another field. These fields are not assumed to be
+additive or physical PV input numbers. Downloaded diagnostics include both
+values, the selected source, numeric battery codes and settings availability,
+without raw cloud payloads or account/device identifiers.
+
 Battery controls use Hoymiles' unofficial asynchronous cloud setting API.
 Changing the reserve SOC or mode sends a real command to the HiBattery. The
 integration preserves the complete settings block for the selected mode and

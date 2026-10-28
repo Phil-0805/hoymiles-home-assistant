@@ -29,19 +29,7 @@ from .const import CONF_STATION_ID, DOMAIN
 from .coordinator import HoymilesHomeCoordinator
 from .energy import split_battery_power
 from .inverter import inverter_model, inverter_ports
-
-
-def _number(value: Any) -> float | int | None:
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, (int, float)):
-        return value
-    if isinstance(value, str):
-        try:
-            return float(value)
-        except ValueError:
-            return None
-    return None
+from .telemetry import battery_activity, number as _number, pv_power_details, status_codes
 
 
 def _live(key: str) -> Callable[[dict[str, Any]], Any]:
@@ -57,9 +45,18 @@ def _calculated_energy(key: str) -> Callable[[dict[str, Any]], Any]:
 
 
 def _pv_power(data: dict[str, Any]) -> float | int | None:
-    power = data.get("live", {}).get("power", {})
-    value = _number(power.get("pv2"))
-    return value if value is not None else _number(power.get("pv"))
+    return pv_power_details(data)["value"]
+
+
+def _pv_attributes(data: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in pv_power_details(data).items() if key != "value"}
+
+
+def _status_attributes(data: dict[str, Any]) -> dict[str, Any]:
+    return {"raw_codes": status_codes(data.get("live", {})),
+            "direction_mapping": "brs: 0=idle, 1=charging, 2=discharging",
+            "mapping_verified_on": "HMS-2000-4WB",
+            "other_status_meanings": "unverified"}
 
 
 def _battery_charge_power(data: dict[str, Any]) -> float | int | None:
@@ -128,6 +125,7 @@ STATION_SENSORS = (
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=_pv_power,
+        attributes_fn=_pv_attributes,
     ),
     HoymilesDescription(
         key="load_power",
@@ -241,12 +239,22 @@ STATION_SENSORS = (
             .get("max_power")
         ),
     ),
+    HoymilesDescription(
+        key="battery_activity",
+        translation_key="battery_activity",
+        device_class=SensorDeviceClass.ENUM,
+        options=["idle", "charging", "discharging", "unrecognized"],
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: battery_activity(data.get("live", {})),
+        attributes_fn=_status_attributes,
+    ),
     *(
         HoymilesDescription(
             key=key,
             translation_key=key,
             entity_category=EntityCategory.DIAGNOSTIC,
             value_fn=lambda data, field=key: data.get("live", {}).get(field),
+            attributes_fn=_status_attributes,
         )
         for key in ("ems", "brs", "chs", "bhs")
     ),

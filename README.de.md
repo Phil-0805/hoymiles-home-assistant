@@ -160,6 +160,24 @@ Bedeutung veröffentlicht. Beim getesteten HMS-2000-4WB beschreibt `brs` die
 Batterierichtung (`1` Laden, `2` Entladen, `0` Leerlauf), während
 `power.bat` den vorzeichenlosen Betrag der Leistung enthält.
 
+Ab v0.4.3b2 (Beta) zeigt **Batterieaktivität** diese `brs`-Zuordnung zusätzlich
+als Leerlauf / Laden / Entladen an; unbekannte Codes bleiben als solche
+erkennbar. Die Zuordnung ist am HMS-2000-4WB-Aufbau geprüft, nicht an jedem
+Batteriemodell. Die bisherigen Rohwert-Sensoren bleiben erhalten. EMS-, Lade-
+und Zustandsmeldungen werden ohne bestätigte Zuordnung nicht übersetzt.
+
+Zur PV-Diagnose in dieser Beta die Attribute `pv` und `pv2` des Sensors
+**PV-Leistung** zeitgleich mit der S-Miles-Home-App vergleichen. Unter
+**Einstellungen → Geräte & Dienste → Hoymiles S-Miles Home → Konfigurieren**
+die passende **Quelle der PV-Leistung** für die Anlage wählen. Automatisch
+behält das bisherige Verhalten bei (`pv2`, falls verfügbar, sonst `pv`,
+einschließlich gültiger Nullwerte). Bei expliziter Auswahl von `pv` oder `pv2`
+wird kein anderer Wert eingesetzt. Die Felder werden weder addiert noch mit
+physischen PV-Eingängen gleichgesetzt. Die herunterladbare Diagnose enthält
+beide Werte, die gewählte Quelle, numerische Batteriecodes und die
+Verfügbarkeit der Einstellungen, ohne rohe Cloud-Antworten oder Konto- und
+Gerätekennungen.
+
 Die Batteriesteuerung nutzt die inoffizielle asynchrone Cloud-API von Hoymiles
 für Einstellungen. Änderungen am Reserve-SOC oder Modus senden einen echten
 Steuerbefehl an die HiBattery. Die Integration erhält den vollständigen

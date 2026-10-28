@@ -48,6 +48,7 @@
   },
   "entity": {
     "sensor": {
+      "battery_activity": {"name": "Batterieaktivität", "state": {"idle": "Leerlauf", "charging": "Laden", "discharging": "Entladen", "unrecognized": "Unbekannter Code"}},
       "pv_power": {"name": "PV-Leistung"},
       "load_power": {"name": "Hausverbrauch"},
       "load_energy_today": {"name": "Hausverbrauch heute"},
@@ -81,5 +82,25 @@
       "battery_mode": {"name": "Batteriemodus"}
     },
     "binary_sensor": {"connected": {"name": "Verbindung"}}
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "PV-Anzeige",
+        "description": "Vergleiche die Attribute pv und pv2 des Sensors PV-Leistung mit der S-Miles-Home-App. Wähle eine andere Quelle nur, wenn der Vergleich das bestätigt. Automatisch behält das bisherige Verhalten bei: pv2, falls verfügbar, sonst pv; auch 0 ist ein gültiger Wert. Die Auswahl ändert nur die Anzeige in HA.",
+        "data": {
+          "pv_power_source": "Quelle der PV-Leistung"
+        }
+      }
+    }
+  },
+  "selector": {
+    "pv_power_source": {
+      "options": {
+        "auto": "Automatisch (bisheriges Verhalten)",
+        "pv": "Cloud-Feld pv",
+        "pv2": "Cloud-Feld pv2"
+      }
+    }
   }
 }

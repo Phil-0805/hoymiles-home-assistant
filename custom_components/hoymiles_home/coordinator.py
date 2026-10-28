@@ -33,6 +33,7 @@ from .const import (
 )
 from .energy import integrate_battery_energy, integrate_positive_energy
 from .inverter import inverter_ports
+from .telemetry import PV_POWER_SOURCE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,7 +44,10 @@ BATTERY_WRITE_CONFIRM_INTERVAL = 3
 class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Coordinate fast live data and slower chart data."""
 
-    def __init__(self, hass, client: HoymilesHomeClient, station_id: int) -> None:
+    def __init__(
+        self, hass, client: HoymilesHomeClient, station_id: int,
+        pv_power_source: str = "auto",
+    ) -> None:
         super().__init__(
             hass,
             _LOGGER,
@@ -52,6 +56,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self.client = client
         self.station_id = station_id
+        self.pv_power_source = pv_power_source
         self.device_tree: list[dict[str, Any]] = []
         self.inverters: list[dict[str, Any]] = []
         self.modules: dict[int, dict[int, dict[str, float | None]]] = {}
@@ -323,6 +328,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._modules_updated = now
 
             return {
+                PV_POWER_SOURCE: self.pv_power_source,
                 "live": live,
                 "station": self.station,
                 "device_tree": self.device_tree,
