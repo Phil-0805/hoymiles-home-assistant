@@ -5,9 +5,10 @@
 Inoffizielle Home-Assistant-Integration für **S-Miles-Home**-Konten. Sie liest
 Daten direkt aus der Hoymiles-Cloud; Node-RED, MQTT und lokaler Zugriff auf den
 Wechselrichter sind nicht erforderlich. Entwickelt und getestet mit einem
-HMS-2000-4WB mit HiBattery. Ein Nutzer hat außerdem den erfolgreichen Einsatz
-mit einem 800-W-Mikrowechselrichter gemeldet. Dieses Modell und die verfügbaren
-Sensoren wurden hier jedoch noch nicht unabhängig überprüft.
+HMS-2000-4WB mit HiBattery. Im Betatest für 0.4.2 am 28. Oktober 2026 bestätigte
+der Maintainer die korrekten Modellanzeigen und PV-Messwerte an Anlagen mit
+HMS-2000-4WB und HMS-800-2WB. Damit sind nicht sämtliche Funktionen oder alle
+Firmware- und Kontokombinationen bestätigt.
 
 Ein Nutzer meldete am 27. Oktober 2026 den erfolgreichen Einsatz einer
 **HiBattery 4020-X mit einem Zusatzspeicher**: Sensoren, Self-Consumption-Modus,
@@ -105,13 +106,11 @@ ungeschwärzte Diagnosedaten in einem öffentlichen Issue veröffentlichen.
 
 ## Was zu erwarten ist
 
-- **Beta zur Modellerkennung (0.4.2b1):** liest `model_no` und fragt bei fehlender
+- Ab Version 0.4.2 liest die Modellerkennung `model_no` und fragt bei fehlender
   Modellangabe optional ausführlichere Web-Gerätedaten ab. Manche Konten haben
-  darauf keinen Zugriff. Nach Installation der Beta über HACS Home Assistant
-  neu starten und die Modellzeile auf der Geräteseite prüfen. Falls sie weiterhin
-  allgemein bleibt, die Integrationsdiagnose unter **Einstellungen → Geräte & Dienste**
-  herunterladen; der Abschnitt `inverters` enthält nur Modellergebnis und Abrufstatus.
-  Die bestehende Einrichtung behalten. v0.4.1 bleibt die stabile Version.
+  darauf keinen Zugriff. Falls die Modellanzeige allgemein bleibt, die
+  Integrationsdiagnose unter **Einstellungen → Geräte & Dienste** herunterladen;
+  der Abschnitt `inverters` enthält nur Modellergebnis und Abrufstatus.
 - Die Modellanzeige verwendet eine eindeutige HMS-Modellnummer aus den
   Gerätedaten, andernfalls "Hoymiles microinverter". Bei bekannten Modellen
   wird die physische Anzahl der PV-Eingänge verwendet. Ohne Modellangabe bleiben
