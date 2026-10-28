@@ -105,6 +105,11 @@ ungeschwärzte Diagnosedaten in einem öffentlichen Issue veröffentlichen.
 
 ## Was zu erwarten ist
 
+- Die Modellanzeige verwendet eine eindeutige HMS-Modellnummer aus den
+  Gerätedaten, andernfalls "Hoymiles microinverter". Bei bekannten Modellen
+  wird die physische Anzahl der PV-Eingänge verwendet. Ohne Modellangabe bleiben
+  die bisherigen Diagrammabfragen für vier Eingänge erhalten; daraus folgt keine
+  Erkennung von vier Eingängen oder 2000 W. Geräte- und Sensor-Kennungen bleiben erhalten.
 - Aktuelle Daten folgen dem von Hoymiles vorgegebenen Intervall, normalerweise
   etwa drei Sekunden. Moduldiagrammwerte werden üblicherweise alle fünf Minuten
   aktualisiert. Dies ist Cloud-Polling und keine Garantie für Echtzeitdaten

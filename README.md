@@ -95,6 +95,11 @@ tokens or unredacted diagnostics in a public issue.
 
 ## What to expect
 
+- Inverter model names are taken from explicit HMS model numbers in device
+  metadata; otherwise the device is labelled "Hoymiles microinverter". Known
+  models use their physical PV input count. Without a model, the integration
+  retains its four-input chart probing; this does not mean four inputs or a
+  2000 W rating were detected. Existing sensor and device identifiers are retained.
 - Live data follows the interval supplied by Hoymiles, normally about three
   seconds. Module chart values typically refresh every five minutes. This is
   cloud polling, not a guarantee of true inverter-side real time.

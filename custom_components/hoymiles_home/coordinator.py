@@ -23,7 +23,6 @@ from .battery import battery_settings_confirmed
 from .const import (
     BATTERY_SETTINGS_INTERVAL,
     BATTERY_ENERGY_CALCULATION_VERSION,
-    DEFAULT_PORT_COUNT,
     DOMAIN,
     ENERGY_SAVE_INTERVAL,
     LIVE_MIN_INTERVAL,
@@ -33,6 +32,7 @@ from .const import (
     STORAGE_VERSION,
 )
 from .energy import integrate_battery_energy, integrate_positive_energy
+from .inverter import inverter_ports
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -297,7 +297,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 for inverter in self.inverters:
                     inverter_id = inverter["id"]
                     modules.setdefault(inverter_id, {})
-                    for port in range(1, DEFAULT_PORT_COUNT + 1):
+                    for port in inverter_ports(inverter):
                         try:
                             modules[inverter_id][port] = (
                                 await self.client.async_module_values(
