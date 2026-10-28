@@ -67,7 +67,7 @@ jobs:
               ...repo,
               tag_name: tag,
               target_commitish: context.sha,
-              name: prerelease ? `${tag} — station selection beta` : `${tag} — easier setup`,
+              name: prerelease ? `${tag} — station selection beta` : `${tag}`,
               body,
               prerelease,
               make_latest: prerelease ? 'false' : 'true',
