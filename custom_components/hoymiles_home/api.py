@@ -514,10 +514,11 @@ class HoymilesHomeClient:
         await self.async_ensure_login()
         try:
             return await self._async_work_mode_settings(station_id)
-        except HoymilesConnectionError as work_mode_error:
+        except HoymilesConnectionError as err:
             # Retain the older read path for devices/firmware that do not
             # implement the consumer app's command-83 work-mode protocol.
-            pass
+            # Python clears the exception target when leaving an except block.
+            work_mode_error = str(err)
         station_payload = {
             "action": BATTERY_SETTINGS_ACTION,
             "data": {"sid": station_id},
@@ -527,7 +528,7 @@ class HoymilesHomeClient:
                 station_payload, "station"
             )
             verified = await self._async_verify_battery_settings(station_id, settings)
-            verified["work_mode_request_error"] = str(work_mode_error)
+            verified["work_mode_request_error"] = work_mode_error
             return verified
         except HoymilesConnectionError as err:
             if "device list is empty" not in str(err).lower():
@@ -557,7 +558,7 @@ class HoymilesHomeClient:
                 verified = await self._async_verify_battery_settings(
                     station_id, settings
                 )
-                verified["work_mode_request_error"] = str(work_mode_error)
+                verified["work_mode_request_error"] = work_mode_error
                 return verified
             except HoymilesConnectionError as device_error:
                 serial = str(target["dev_sn"])

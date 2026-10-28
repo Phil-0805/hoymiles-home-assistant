@@ -6,6 +6,7 @@ on:
       - main
       - beta/station-selection
       - beta/inverter-model-discovery
+      - beta/battery-settings-fallback
   workflow_dispatch:
 
 permissions:
@@ -33,7 +34,7 @@ jobs:
       - run: python -m pytest tests/ha -q
 
   release:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/beta/station-selection' || github.ref == 'refs/heads/beta/inverter-model-discovery'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/beta/station-selection' || github.ref == 'refs/heads/beta/inverter-model-discovery' || github.ref == 'refs/heads/beta/battery-settings-fallback'
     needs: [validate, test]
     concurrency:
       group: hoymiles-release
@@ -72,7 +73,7 @@ jobs:
               ...repo,
               tag_name: tag,
               target_commitish: context.sha,
-              name: prerelease ? `${tag} — inverter model discovery beta` : `${tag}`,
+              name: prerelease ? `${tag} — beta` : `${tag}`,
               body,
               prerelease,
               make_latest: prerelease ? 'false' : 'true',
