@@ -268,6 +268,9 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if not self.device_tree:
                 self.device_tree = await self.client.async_device_tree(self.station_id)
                 self.inverters = microinverters(self.device_tree)
+                self.inverters = await self.client.async_enrich_inverters(
+                    self.station_id, self.inverters
+                )
 
             if now - self._station_updated >= STATION_INTERVAL:
                 try:

@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - beta/station-selection
+      - beta/inverter-model-discovery
   workflow_dispatch:
 
 permissions:
@@ -32,7 +33,7 @@ jobs:
       - run: python -m pytest tests/ha -q
 
   release:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/beta/station-selection'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/beta/station-selection' || github.ref == 'refs/heads/beta/inverter-model-discovery'
     needs: [validate, test]
     concurrency:
       group: hoymiles-release
@@ -50,8 +51,12 @@ jobs:
             const version = manifest.version;
             const prerelease = /^\d+\.\d+\.\d+b\d+$/.test(version);
             const stable = /^\d+\.\d+\.\d+$/.test(version);
-            if ((!stable && !prerelease) || (context.ref !== 'refs/heads/main' && !prerelease)) {
+            if (!stable && !prerelease) {
               throw new Error('Version does not match the release channel');
+            }
+            if (context.ref !== 'refs/heads/main' && !prerelease) {
+              core.notice('Stable version prepared on a beta branch; publish only after merge to main.');
+              return;
             }
             const tag = `v${version}`;
             const repo = context.repo;
@@ -67,7 +72,7 @@ jobs:
               ...repo,
               tag_name: tag,
               target_commitish: context.sha,
-              name: prerelease ? `${tag} — station selection beta` : `${tag}`,
+              name: prerelease ? `${tag} — inverter model discovery beta` : `${tag}`,
               body,
               prerelease,
               make_latest: prerelease ? 'false' : 'true',

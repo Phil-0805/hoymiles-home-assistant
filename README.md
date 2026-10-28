@@ -4,9 +4,10 @@
 
 Unofficial Home Assistant integration for **S-Miles Home** accounts. It reads
 Hoymiles cloud data directly; Node-RED, MQTT and local inverter access are not
-required. Developed and tested on an HMS-2000-4WB with HiBattery. A user has
-also reported success with an 800 W microinverter, but that model and its
-available sensors have not yet been independently verified here.
+required. Developed and tested on an HMS-2000-4WB with HiBattery. During the
+0.4.2 beta test on 28 October 2026, the maintainer verified the correct model
+labels and PV readings on HMS-2000-4WB and HMS-800-2WB installations. This does
+not confirm every function or every firmware/account combination.
 
 A user reported a **HiBattery 4020-X with one additional storage unit** working
 on 27 October 2026: sensors, Self Consumption mode, SOC settings and diagnostics.
@@ -95,6 +96,11 @@ tokens or unredacted diagnostics in a public issue.
 
 ## What to expect
 
+- From version 0.4.2, model discovery reads `model_no` and tries optional
+  read-only web device metadata when the Home tree lacks a model. Some accounts
+  may not have access. Download integration diagnostics under **Settings →
+  Devices & services** if the model remains generic; the `inverters` section
+  reports the result without raw account/device data.
 - Inverter model names are taken from explicit HMS model numbers in device
   metadata; otherwise the device is labelled "Hoymiles microinverter". Known
   models use their physical PV input count. Without a model, the integration

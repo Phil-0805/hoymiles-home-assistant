@@ -14,7 +14,7 @@ _HMS_MODEL = re.compile(r"\bHMS-\d+(?:DW|W)?-([124])(?:WB|T)\b", re.IGNORECASE)
 
 def inverter_model(inverter: dict[str, Any]) -> str:
     """Use an explicit HMS model, otherwise avoid claiming a specific device."""
-    for key in ("model", "model_name", "name"):
+    for key in ("model_no", "model", "model_name", "name"):
         value = inverter.get(key)
         if isinstance(value, str) and (match := _HMS_MODEL.search(value)):
             return match.group(0).upper()
