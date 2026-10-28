@@ -105,6 +105,13 @@ ungeschwärzte Diagnosedaten in einem öffentlichen Issue veröffentlichen.
 
 ## Was zu erwarten ist
 
+- **Beta zur Modellerkennung (0.4.2b1):** liest `model_no` und fragt bei fehlender
+  Modellangabe optional ausführlichere Web-Gerätedaten ab. Manche Konten haben
+  darauf keinen Zugriff. Nach Installation der Beta über HACS Home Assistant
+  neu starten und die Modellzeile auf der Geräteseite prüfen. Falls sie weiterhin
+  allgemein bleibt, die Integrationsdiagnose unter **Einstellungen → Geräte & Dienste**
+  herunterladen; der Abschnitt `inverters` enthält nur Modellergebnis und Abrufstatus.
+  Die bestehende Einrichtung behalten. v0.4.1 bleibt die stabile Version.
 - Die Modellanzeige verwendet eine eindeutige HMS-Modellnummer aus den
   Gerätedaten, andernfalls "Hoymiles microinverter". Bei bekannten Modellen
   wird die physische Anzahl der PV-Eingänge verwendet. Ohne Modellangabe bleiben

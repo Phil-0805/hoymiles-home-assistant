@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - beta/station-selection
+      - beta/inverter-model-discovery
   workflow_dispatch:
 
 permissions:
@@ -32,7 +33,7 @@ jobs:
       - run: python -m pytest tests/ha -q
 
   release:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/beta/station-selection'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/beta/station-selection' || github.ref == 'refs/heads/beta/inverter-model-discovery'
     needs: [validate, test]
     concurrency:
       group: hoymiles-release
@@ -67,7 +68,7 @@ jobs:
               ...repo,
               tag_name: tag,
               target_commitish: context.sha,
-              name: prerelease ? `${tag} — station selection beta` : `${tag}`,
+              name: prerelease ? `${tag} — inverter model discovery beta` : `${tag}`,
               body,
               prerelease,
               make_latest: prerelease ? 'false' : 'true',

@@ -36,6 +36,7 @@ from .const import (
     WORK_MODE_SETTINGS_ACTION,
 )
 from .protobuf import latest_values
+from .inverter import inverter_model
 from .security import trusted_hoymiles_url
 
 
@@ -142,6 +143,77 @@ class HoymilesHomeClient:
             f"{DATA_BASE_URL}/pvmc/api/0/station/select_device_c", {"sid": station_id}
         )
         return self._unwrap(response) or []
+
+    async def async_enrich_inverters(
+        self, station_id: int, inverters: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Try read-only web metadata without making Home-account setup depend on it.
+
+        The consumer tree often omits model_no. Web endpoints may expose it,
+        but some Home accounts cannot access them. Probe only during initial
+        discovery, with a shared time budget and no raw payload/error logging.
+        Never replace identity fields from a supplemental response.
+        """
+        enriched = [dict(inverter) for inverter in inverters]
+        pending = []
+        for inverter in enriched:
+            if inverter_model(inverter) != "Hoymiles microinverter":
+                inverter["_model_discovery"] = {"result": "identified", "source": "home_tree"}
+            else:
+                inverter["_model_discovery"] = {"result": "unresolved", "source": "none"}
+                pending.append(inverter)
+        if not pending:
+            return enriched
+
+        def apply(inverter: dict[str, Any], candidate: Any, source: str) -> bool:
+            if not isinstance(candidate, dict):
+                return False
+            if candidate.get("id", inverter["id"]) != inverter["id"]:
+                return False
+            if inverter.get("sn") and candidate.get("sn") and inverter["sn"] != candidate["sn"]:
+                return False
+            model = inverter_model(candidate)
+            if model == "Hoymiles microinverter":
+                return False
+            inverter["model_no"] = model
+            inverter["_model_discovery"].update(result="identified", source=source)
+            return True
+
+        try:
+            async with asyncio.timeout(12):
+                try:
+                    tree = self._unwrap(await self._json(
+                        f"{DATA_BASE_URL}/pvm/api/0/station/select_device_of_tree",
+                        {"id": station_id},
+                    ))
+                except HoymilesError:
+                    for inverter in pending:
+                        inverter["_model_discovery"]["web_tree"] = "unavailable"
+                else:
+                    candidates = {node["id"]: node for node in microinverters(tree)}
+                    for inverter in pending:
+                        found = apply(inverter, candidates.get(inverter["id"]), "web_tree")
+                        inverter["_model_discovery"]["web_tree"] = "identified" if found else "no_model"
+
+                # Bound supplemental requests on unusually large plants.
+                for inverter in pending[:20]:
+                    if inverter["_model_discovery"]["result"] == "identified":
+                        continue
+                    try:
+                        detail = self._unwrap(await self._json(
+                            f"{DATA_BASE_URL}/pvm/api/0/dev/micro/find",
+                            {"id": inverter["id"], "sid": station_id},
+                        ))
+                    except HoymilesError:
+                        inverter["_model_discovery"]["detail"] = "unavailable"
+                    else:
+                        found = apply(inverter, detail, "micro_detail")
+                        inverter["_model_discovery"]["detail"] = "identified" if found else "no_model"
+        except TimeoutError:
+            for inverter in pending:
+                if inverter["_model_discovery"]["result"] != "identified":
+                    inverter["_model_discovery"]["timeout"] = True
+        return enriched
 
     async def async_list_stations(self) -> list[dict[str, Any]]:
         """Discover Home-account stations, without confusing device IDs with sids."""

@@ -95,6 +95,10 @@ tokens or unredacted diagnostics in a public issue.
 
 ## What to expect
 
+- **Model-discovery beta (0.4.2b1):** reads `model_no` and tries optional
+  read-only web device metadata when the Home tree lacks a model. Some accounts
+  may not have access. See the [beta test instructions](docs/release-0.4.2b1.md).
+  Model-discovery diagnostics report the result without raw account/device data.
 - Inverter model names are taken from explicit HMS model numbers in device
   metadata; otherwise the device is labelled "Hoymiles microinverter". Known
   models use their physical PV input count. Without a model, the integration
