@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from .errors import HoymilesAuthError, HoymilesConnectionError, HoymilesRateLimitError
 from .const import MODULE_INTERVAL
 from .inverter import inverter_ports
+from .telemetry import number
 
 
 class ModulePoller:
@@ -15,6 +16,7 @@ class ModulePoller:
         self.hass, self.client, self.station_id = hass, client, station_id
         self.timezone, self.detailed, self.on_update = timezone, detailed, on_update
         self.modules, self.updated, self.details, self.detail_updated = {}, {}, {}, {}
+        self.detail_field_updated = {}
         self.task = None
         self.stopped = False
         self.next_allowed = datetime.min.replace(tzinfo=UTC)
@@ -42,8 +44,9 @@ class ModulePoller:
         stamp = self.updated.get((device_id, port))
         return stamp is not None and datetime.now(UTC) - stamp <= MODULE_INTERVAL * 2
 
-    def detail_is_fresh(self, device_id):
-        stamp = self.detail_updated.get(device_id)
+    def detail_is_fresh(self, device_id, key=None):
+        stamp = (self.detail_updated.get(device_id) if key is None
+                 else self.detail_field_updated.get((device_id, key)))
         if stamp is None:
             return False
         age = datetime.now(UTC) - stamp
@@ -89,7 +92,10 @@ class ModulePoller:
             self.details_status = "unavailable"
             return
         known = {item["id"] for item in inverters}
-        details, updated = {}, {}
+        # Missing fields must not erase still-fresh samples of another metric.
+        details = {key: dict(value) for key, value in self.details.items() if key in known}
+        updated = {key: value for key, value in self.detail_updated.items() if key in known}
+        self.detail_field_updated = {key: value for key, value in self.detail_field_updated.items() if key[0] in known}
         for device_id, values in snapshot["inverters"].items():
             if device_id not in known:
                 continue
@@ -99,7 +105,16 @@ class ModulePoller:
             # Never present a remote future point as a fresh sample.
             if stamp > datetime.now(UTC) + timedelta(minutes=1):
                 continue
-            details[device_id] = {**values, "sample_time": stamp.isoformat()}
-            updated[device_id] = stamp
+            for key in ("frequency", "temperature", "voltage"):
+                value = number(values.get(key))
+                previous = self.detail_field_updated.get((device_id, key))
+                if value is None or (previous is not None and stamp < previous):
+                    continue
+                details.setdefault(device_id, {})[key] = value
+                details[device_id][f"{key}_sample_time"] = stamp.isoformat()
+                self.detail_field_updated[(device_id, key)] = stamp
+                updated[device_id] = max(stamp, updated.get(device_id, stamp))
+            if device_id in updated:
+                details[device_id]["sample_time"] = updated[device_id].isoformat()
         self.details, self.detail_updated = details, updated
         self.details_status = "readable" if details else "no_data"

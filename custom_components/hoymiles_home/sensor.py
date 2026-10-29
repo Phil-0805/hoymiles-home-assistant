@@ -470,7 +470,7 @@ class HoymilesInverterDetailSensor(CoordinatorEntity[HoymilesHomeCoordinator], S
         return (
             super().available
             and live_connected((self.coordinator.data or {}).get("live", {}))
-            and self.coordinator.module_polling.detail_is_fresh(self._inverter_id)
+            and self.coordinator.module_polling.detail_is_fresh(self._inverter_id, self._key)
         )
 
     @property
@@ -483,4 +483,4 @@ class HoymilesInverterDetailSensor(CoordinatorEntity[HoymilesHomeCoordinator], S
     def extra_state_attributes(self):
         return {"sample_time": (self.coordinator.data or {}).get("inverter_details", {}).get(
             self._inverter_id, {}
-        ).get("sample_time")}
+        ).get(f"{self._key}_sample_time")}

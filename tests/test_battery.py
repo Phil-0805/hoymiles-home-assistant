@@ -48,7 +48,7 @@ class TestBatterySettings(unittest.TestCase):
         self.assertEqual(parsed["reserve_soc_source"], "station_action_83_k_2_soc_l")
         self.assertTrue(parsed["writable"])
 
-    def test_rejects_non_self_consumption_work_mode(self):
+    def test_rejects_incomplete_tou_work_mode(self):
         with self.assertRaises(battery.BatterySettingsError):
             battery.parse_work_mode_settings(
                 {"code": 0, "data": {"mode": 3, "k_3": {"soc_l": 12}}}

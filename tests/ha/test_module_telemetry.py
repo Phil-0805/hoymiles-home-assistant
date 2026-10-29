@@ -133,3 +133,28 @@ def test_daily_energy_uses_station_timezone(hass):
     coordinator._energy_store.async_delay_save = MagicMock()
     coordinator._update_battery_energy({}, datetime(2026, 10, 29, 23, 30, tzinfo=UTC))
     assert coordinator._energy_date == "2026-10-30"
+
+
+async def test_sparse_frequency_keeps_own_timestamp_until_expiry(hass, freezer):
+    freezer.move_to("2026-10-29 10:01:00+00:00")
+    api = AsyncMock()
+    api.async_module_values.return_value = {}
+    api.async_module_snapshot.return_value = {"inverters": {99: {"time": "10:00", "frequency": 50, "temperature": 20}}}
+    poller = ModulePoller(hass, api, 123, ZoneInfo("UTC"), True, MagicMock())
+    inverters = [{"id": 99, "model_no": "HMS-800-2WB"}]
+    await poller._async_details(inverters, "2026-10-29")
+    freezer.move_to("2026-10-29 10:06:00+00:00")
+    api.async_module_snapshot.return_value = {"inverters": {99: {"time": "10:05", "frequency": None, "temperature": 21}}}
+    await poller._async_details(inverters, "2026-10-29")
+    assert poller.details[99]["frequency"] == 50
+    assert poller.details[99]["frequency_sample_time"] == "2026-10-29T10:00:00+00:00"
+    assert poller.detail_is_fresh(99, "frequency")
+    assert poller.details[99]["temperature"] == 21
+    freezer.move_to("2026-10-29 10:11:00+00:00")
+    assert not poller.detail_is_fresh(99, "frequency")
+    assert poller.detail_is_fresh(99, "temperature")
+    api.async_module_snapshot.return_value = {"inverters": {}}
+    await poller._async_details(inverters, "2026-10-29")
+    assert not poller.detail_is_fresh(99, "frequency")
+    assert poller.detail_is_fresh(99, "temperature")
+    await poller.async_shutdown()

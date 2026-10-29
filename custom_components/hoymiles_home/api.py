@@ -17,6 +17,7 @@ from .battery import (
     confirmed_reserve_soc,
     parse_battery_settings,
     parse_work_mode_settings,
+    work_mode_command_data,
     reserve_soc_candidates,
     soc_setting_candidates,
 )
@@ -693,24 +694,13 @@ class HoymilesHomeClient:
         """Write a complete battery mode payload through the current app API."""
         await self.async_ensure_login()
         if request_method == "station_action_83":
-            reserve_soc = mode_data.get("reserve_soc")
-            if (
-                mode != 1
-                or not isinstance(reserve_soc, (int, float))
-                or isinstance(reserve_soc, bool)
-            ):
-                raise HoymilesConnectionError("Unsupported work mode write")
+            try:
+                command_data = work_mode_command_data(mode, mode_data)
+            except BatterySettingsError as err:
+                raise HoymilesConnectionError(str(err)) from err
             response = await self._json(
                 STATION_SETTING_WRITE_URL,
-                {
-                    "action": WORK_MODE_SETTINGS_ACTION,
-                    "data": {
-                        "sid": station_id,
-                        "mode": 2,
-                        "soc_l": int(reserve_soc),
-                        "soc_h": int(mode_data.get("soc_h", 100)),
-                    },
-                },
+                {"action": WORK_MODE_SETTINGS_ACTION, "data": {"sid": station_id, **command_data}},
             )
             job_id = self._unwrap(response)
             if not isinstance(job_id, (str, int)):

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 from math import isfinite
+from copy import deepcopy
+import json
 
 BATTERY_MODE_NAMES = {
     1: "Self-Consumption",
@@ -186,63 +188,96 @@ def parse_battery_settings(result: Any) -> dict[str, Any]:
     }
 
 
-def parse_work_mode_settings(result: Any) -> dict[str, Any]:
-    """Normalize the current S-Miles Home work-mode command response.
+def _tou_settings(raw: Any, *, command: bool = False) -> dict[str, Any]:
+    """Reuse an existing action-83 TOU selection; never create a schedule."""
+    if not isinstance(raw, dict) or type(raw.get("mode")) is not int:
+        raise BatterySettingsError("Missing TOU configuration")
+    submode = raw["mode"]
+    if submode == 1:
+        return {"mode": 1}  # Existing recommended configuration.
+    if submode == 2:
+        plan = raw.get("data" if command else "k_2")
+        if (not isinstance(plan, dict) or type(plan.get("id")) is not int
+                or plan["id"] <= 0 or not isinstance(plan.get("week"), list)
+                or not 1 <= len(plan["week"]) <= 7
+                or not all(isinstance(day, dict) for day in plan["week"])):
+            raise BatterySettingsError("TOU basic plan must already be configured in the app")
+        result = {"mode": 2, "data": {"id": plan["id"], "week": deepcopy(plan["week"])}}
+        try:
+            if len(json.dumps(result, allow_nan=False)) > 65536:
+                raise ValueError("oversized schedule")
+        except (ValueError, TypeError, RecursionError) as err:
+            raise BatterySettingsError("Invalid TOU schedule") from err
+        return result
+    if submode == 3:
+        plan = raw if command else raw.get("k_3")
+        if not isinstance(plan, dict) or type(plan.get("id")) is not int or plan["id"] <= 0:
+            raise BatterySettingsError("TOU advanced plan must already be configured in the app")
+        return {"mode": 3, "id": plan["id"]}
+    raise BatterySettingsError("Unsupported TOU submode")
 
-    The consumer app uses station command 83 for the actual Eigenverbrauch
-    discharge floor. In that protocol, work mode 2 is self-consumption and
-    ``k_2.soc_l`` is the value shown by the app.
-    """
-    if not isinstance(result, dict):
-        raise BatterySettingsError("Missing work mode settings result")
-    if result.get("code") != 0:
-        raise BatterySettingsError(
-            str(result.get("message") or "Work mode settings are not ready")
-        )
-    data = result.get("data")
-    if not isinstance(data, dict):
-        raise BatterySettingsError("Missing work mode settings payload")
 
-    app_mode = data.get("mode")
-    mode_data = data.get(f"k_{app_mode}")
-    if isinstance(app_mode, bool) or not isinstance(app_mode, int) or not isinstance(mode_data, dict):
-        raise BatterySettingsError("Missing active work mode settings")
-    soc_l = mode_data.get("soc_l")
-    if (
-        app_mode != 2
-        or not isinstance(soc_l, (int, float))
-        or isinstance(soc_l, bool)
-        or not 0 <= float(soc_l) <= 100
-    ):
-        raise BatterySettingsError("Unsupported or incomplete work mode settings")
-
-    reserve_soc = int(soc_l)
-    soc_h = mode_data.get("soc_h", 100)
-    if (
-        isinstance(soc_h, bool) or not isinstance(soc_h, (int, float))
-        or not reserve_soc <= soc_h <= 100 or not isfinite(soc_h)
-        or int(soc_h) != soc_h or reserve_soc != soc_l
-    ):
+def work_mode_command_data(mode: int, settings: dict[str, Any]) -> dict[str, Any]:
+    """Build only the command-83 payloads observed in Hoymiles' web client."""
+    if type(mode) is not int:
+        raise BatterySettingsError("Invalid work mode")
+    if mode == 8:
+        return {"mode": 3, "data": _tou_settings(settings.get("tou_settings"), command=True)}
+    if mode != 1:
+        raise BatterySettingsError("Unsupported work mode write")
+    lower, upper = settings.get("reserve_soc"), settings.get("soc_h", 100)
+    if (isinstance(lower, bool) or isinstance(upper, bool)
+            or not isinstance(lower, (int, float)) or not isinstance(upper, (int, float))
+            or not 0 <= lower <= upper <= 100 or not isfinite(lower) or not isfinite(upper)
+            or int(lower) != lower or int(upper) != upper):
         raise BatterySettingsError("Invalid work mode SOC limits")
-    active = {
-        "reserve_soc": reserve_soc,
-        "soc_l": reserve_soc,
-        "soc_h": int(soc_h),
-    }
+    return {"mode": 2, "soc_l": int(lower), "soc_h": int(upper)}
+
+
+def parse_work_mode_settings(result: Any) -> dict[str, Any]:
+    """Read action 83: app mode 2 is self-consumption, 3 is TOU (not BMS ids)."""
+    if not isinstance(result, dict) or result.get("code") != 0:
+        raise BatterySettingsError("Work mode settings are not ready")
+    data = result.get("data")
+    if not isinstance(data, dict) or type(data.get("mode")) is not int or data["mode"] not in (2, 3):
+        raise BatterySettingsError("Unsupported work mode settings")
+    modes = {}
+    # Both layouts have been observed: the existing k_2 bucket and the current
+    # web client's top-level SOC fields. Conflicting evidence is rejected.
+    self_data = data.get("k_2")
+    source = "station_action_83_k_2_soc_l"
+    if "soc_l" in data:
+        if isinstance(self_data, dict) and any(key in self_data and self_data[key] != data[key]
+                                              for key in ("soc_l", "soc_h") if key in data):
+            raise BatterySettingsError("Conflicting work mode SOC settings")
+        self_data = data
+        source = "station_action_83_soc_l"
+    if isinstance(self_data, dict):
+        candidate = {"reserve_soc": self_data.get("soc_l"), "soc_h": self_data.get("soc_h", 100)}
+        try:
+            payload = work_mode_command_data(1, candidate)
+            modes[1] = {"reserve_soc": payload["soc_l"], "soc_l": payload["soc_l"], "soc_h": payload["soc_h"]}
+        except BatterySettingsError:
+            if data["mode"] == 2:
+                raise
+    try:
+        modes[8] = {"tou_settings": _tou_settings(data.get("k_3"))}
+    except BatterySettingsError:
+        if data["mode"] == 3:
+            raise
+    mode = 1 if data["mode"] == 2 else 8
+    if mode not in modes:
+        raise BatterySettingsError("Missing active work mode settings")
     return {
-        "readable": True,
-        "writable": True,
-        # Keep the integration's established mode id for entity compatibility.
-        "mode": 1,
-        "mode_name": BATTERY_MODE_NAMES[1],
-        "app_work_mode": app_mode,
-        "available_modes": [1],
-        "available_mode_names": [BATTERY_MODE_NAMES[1]],
-        "active_settings": active,
-        "mode_settings": {1: active.copy()},
+        "readable": True, "writable": True,
+        "mode": mode, "mode_name": BATTERY_MODE_NAMES[mode],
+        "app_work_mode": data["mode"],
+        "available_modes": list(modes),
+        "available_mode_names": [BATTERY_MODE_NAMES[item] for item in modes],
+        "active_settings": deepcopy(modes[mode]), "mode_settings": modes,
         "request_method": "station_action_83",
-        "reserve_soc_verified": True,
-        "reserve_soc_source": "station_action_83_k_2_soc_l",
+        "reserve_soc_verified": mode == 1,
+        "reserve_soc_source": source if mode == 1 else None,
     }
 
 

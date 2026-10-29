@@ -286,6 +286,21 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     ) -> None:
         """Write battery settings, read them back and notify entities."""
         async with self._battery_settings_lock:
+            # Refresh before a mode switch so a schedule edited in the app is
+            # never replaced by our thirty-minute settings cache.
+            if reserve_soc is None:
+                if type(mode) is not int or mode not in writable_modes(self.battery_settings):
+                    raise HoymilesConnectionError("Battery mode is not supported for writing")
+                method = self.battery_settings.get("request_method")
+                fresh = await self.client.async_battery_settings(self.station_id)
+                if fresh.get("readable") is not True or fresh.get("request_method") != method:
+                    raise HoymilesConnectionError("Fresh battery mode settings are unavailable")
+                self.battery_settings = fresh
+                if self.data is not None:
+                    self.data["battery_settings"] = fresh
+                    self.async_update_listeners()
+                if fresh.get("mode") == mode:
+                    return
             # Build the payload after taking the lock, using the latest readback.
             if reserve_soc is not None:
                 mode = self.battery_settings.get("mode")
