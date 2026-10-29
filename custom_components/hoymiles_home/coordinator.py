@@ -20,6 +20,7 @@ from .api import (
     HoymilesRateLimitError,
     microinverters,
 )
+from .battery_telemetry import BatteryTelemetryPoller
 from .battery import battery_settings_confirmed, writable_modes
 from .const import (
     BATTERY_SETTINGS_INTERVAL,
@@ -49,6 +50,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self, hass, client: HoymilesHomeClient, station_id: int,
         pv_power_source: str = "auto",
         inverter_details: bool = False, station_timezone: str | None = None,
+        battery_temperatures: bool = False,
     ) -> None:
         super().__init__(
             hass,
@@ -63,6 +65,9 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.inverters: list[dict[str, Any]] = []
         self.station_timezone = ZoneInfo(station_timezone or hass.config.time_zone)
         self.inverter_details = inverter_details
+        self.battery_telemetry = BatteryTelemetryPoller(
+            hass, client, station_id, battery_temperatures, self._publish_modules
+        )
         self.module_polling = ModulePoller(
             hass, client, station_id, self.station_timezone, inverter_details,
             self._publish_modules,
@@ -118,6 +123,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._stopped = True
         await super().async_shutdown()
         await self.module_polling.async_shutdown()
+        await self.battery_telemetry.async_shutdown()
         if self._battery_settings_task and not self._battery_settings_task.done():
             self._battery_settings_task.cancel()
             try:
@@ -395,6 +401,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._battery_settings_updated = now
                 self._start_battery_settings_refresh()
 
+            self.battery_telemetry.start()
             if now - self._modules_updated >= MODULE_INTERVAL:
                 self._modules_updated = now
                 self.module_polling.start(self.inverters)

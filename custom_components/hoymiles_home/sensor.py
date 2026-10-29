@@ -351,6 +351,20 @@ async def async_setup_entry(
                     coordinator, entry, inverter, key, unit, device_class
                 ))
     async_add_entities(entities)
+    if coordinator.battery_telemetry.enabled:
+        known_batteries = set()
+
+        def add_battery_sensors():
+            new = []
+            for serial, record in coordinator.battery_telemetry.values.items():
+                if serial not in known_batteries:
+                    known_batteries.add(serial)
+                    new.append(HoymilesBatteryTemperatureSensor(coordinator, entry, serial, record["parent"]))
+            if new:
+                async_add_entities(new)
+
+        entry.async_on_unload(coordinator.async_add_listener(add_battery_sensors))
+        add_battery_sensors()
 
 
 class HoymilesStationSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEntity):
@@ -484,3 +498,41 @@ class HoymilesInverterDetailSensor(CoordinatorEntity[HoymilesHomeCoordinator], S
         return {"sample_time": (self.coordinator.data or {}).get("inverter_details", {}).get(
             self._inverter_id, {}
         ).get(f"{self._key}_sample_time")}
+
+
+class HoymilesBatteryTemperatureSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEntity):
+    """Celsius temperature for one battery or expansion pack, never an inverter."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "battery_temperature"
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 1
+
+    def __init__(self, coordinator, entry, serial, parent):
+        super().__init__(coordinator)
+        self._serial = serial
+        self._attr_unique_id = f"{entry.entry_id}_battery_{serial}_temperature"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"battery_{entry.data[CONF_STATION_ID]}_{serial}")},
+            serial_number=serial, manufacturer="Hoymiles",
+            name="Hoymiles battery pack" if parent else "Hoymiles battery",
+            via_device=(DOMAIN, f"battery_{entry.data[CONF_STATION_ID]}_{parent}" if parent else f"station_{entry.data[CONF_STATION_ID]}"),
+        )
+
+    @property
+    def available(self):
+        return (super().available
+                and live_connected((self.coordinator.data or {}).get("live", {}))
+                and self.coordinator.battery_telemetry.is_fresh(self._serial))
+
+    @property
+    def native_value(self):
+        return self.coordinator.battery_telemetry.values.get(self._serial, {}).get("temperature")
+
+    @property
+    def extra_state_attributes(self):
+        stamp = self.coordinator.battery_telemetry.updated.get(self._serial)
+        return {"fetched_at": stamp.isoformat() if stamp else None,
+                "source": "battery_device_api", "freshness_basis": "cloud_response"}

@@ -61,6 +61,7 @@
       "battery_power": {"name": "Battery power"},
       "battery_charge_power": {"name": "Battery charge power"},
       "battery_discharge_power": {"name": "Battery discharge power"},
+      "battery_temperature": {"name": "Battery temperature"},
       "battery_soc": {"name": "Battery state of charge"},
       "battery_charge_energy_today": {"name": "Battery energy charged today"},
       "battery_discharge_energy_today": {"name": "Battery energy discharged today"},
@@ -95,6 +96,7 @@
         "description": "Compare the PV power sensor attributes pv and pv2 with the S-Miles Home app. Select another source only after confirming the match. Automatic preserves the existing behavior: pv2 when available, otherwise pv; zero is a valid value. This changes only the display in HA.Additional telemetry is optional and read at most every five minutes. Select the actual station timezone for daily boundaries and charts.",
         "data": {
           "pv_power_source": "PV power source",
+          "battery_temperatures": "Battery temperatures (beta, one extra request every five minutes)",
           "inverter_details": "Additional inverter telemetry (beta)",
           "station_timezone": "Station timezone"
         }

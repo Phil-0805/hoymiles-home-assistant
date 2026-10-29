@@ -11,6 +11,7 @@ from typing import Any
 from aiohttp import ClientError, ClientResponseError, ClientSession, ClientTimeout
 from argon2.low_level import Type, hash_secret_raw
 
+from .battery_telemetry import parse_battery_temperatures
 from .battery import (
     BatterySettingsError,
     battery_setting_targets,
@@ -326,6 +327,14 @@ class HoymilesHomeClient:
             {"sid": station_id},
         )
         return self._unwrap(response) or {}
+
+    async def async_battery_temperatures(self, station_id: int) -> dict:
+        """Read the battery device list used by the official topology display."""
+        await self.async_ensure_login()
+        response = await self._json(
+            f"{DATA_BASE_URL}/pvm/api/0/dev/au_inv/au_s_c", {"id": station_id}
+        )
+        return parse_battery_temperatures(self._unwrap(response))
 
     async def _get_live_uri(self, station_id: int) -> str:
         response = await self._json(

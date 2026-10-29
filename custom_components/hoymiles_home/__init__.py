@@ -9,7 +9,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import HoymilesHomeClient
 from .cloud_runtime import AccountPool
-from .const import CONF_INVERTER_DETAILS, CONF_STATION_ID, CONF_STATION_TIMEZONE, DOMAIN, PLATFORMS
+from .const import CONF_BATTERY_TEMPERATURES, CONF_INVERTER_DETAILS, CONF_STATION_ID, CONF_STATION_TIMEZONE, DOMAIN, PLATFORMS
 from .coordinator import HoymilesHomeCoordinator
 from .telemetry import PV_POWER_SOURCE
 
@@ -29,6 +29,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         coordinator = HoymilesHomeCoordinator(
             hass, client, entry.data[CONF_STATION_ID],
             pv_power_source=entry.options.get(PV_POWER_SOURCE, "auto"),
+            battery_temperatures=entry.options.get(CONF_BATTERY_TEMPERATURES, False) is True,
             inverter_details=entry.options.get(CONF_INVERTER_DETAILS, False),
             station_timezone=entry.options.get(CONF_STATION_TIMEZONE, hass.config.time_zone),
         )

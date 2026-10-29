@@ -63,7 +63,7 @@ async def test_options_flow_preserves_entry_and_other_options(hass, source):
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options == {"other_option": "keep", "pv_power_source": source,
-                             "inverter_details": False, "station_timezone": hass.config.time_zone}
+                             "inverter_details": False, "battery_temperatures": False, "station_timezone": hass.config.time_zone}
     assert entry.data == data
     assert entry.unique_id == "existing-id"
 

@@ -73,6 +73,11 @@ async def async_get_config_entry_diagnostics(
             "minimum_http_start_interval_seconds": 1,
             "maximum_concurrent_http_requests": 2,
         },
+        "battery_telemetry": {
+            "enabled": getattr(getattr(coordinator, "battery_telemetry", None), "enabled", False),
+            "status": getattr(getattr(coordinator, "battery_telemetry", None), "status", "disabled"),
+            "device_count": len(getattr(getattr(coordinator, "battery_telemetry", None), "values", {})),
+        },
         "pv_power": pv_power_details(data),
         "battery": {
             "power": number(live_power(data).get("bat")),

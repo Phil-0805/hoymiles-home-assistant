@@ -61,6 +61,7 @@
       "battery_power": {"name": "Batterieleistung"},
       "battery_charge_power": {"name": "Batterie Ladeleistung"},
       "battery_discharge_power": {"name": "Batterie Entladeleistung"},
+      "battery_temperature": {"name": "Batterietemperatur"},
       "battery_soc": {"name": "Batterieladestand"},
       "battery_charge_energy_today": {"name": "Batterie heute geladen"},
       "battery_discharge_energy_today": {"name": "Batterie heute entladen"},
@@ -95,6 +96,7 @@
         "description": "Vergleiche die Attribute pv und pv2 des Sensors PV-Leistung mit der S-Miles-Home-App. Wähle eine andere Quelle nur, wenn der Vergleich das bestätigt. Automatisch behält das bisherige Verhalten bei: pv2, falls verfügbar, sonst pv; auch 0 ist ein gültiger Wert. Die Auswahl ändert nur die Anzeige in HA. Zusätzliche Messwerte sind optional und werden höchstens alle fünf Minuten gelesen. Wähle die tatsächliche Zeitzone der Anlage für Tagesgrenzen und Diagramme.",
         "data": {
           "pv_power_source": "Quelle der PV-Leistung",
+          "battery_temperatures": "Batterietemperaturen (Beta, zusätzliche Abfrage alle fünf Minuten)",
           "inverter_details": "Zusätzliche Wechselrichter-Messwerte (Beta)",
           "station_timezone": "Zeitzone der Anlage"
         }
