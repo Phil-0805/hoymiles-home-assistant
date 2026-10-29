@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import asyncio
 from copy import deepcopy
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import json
 from typing import Any
 
-from aiohttp import ClientError, ClientSession, ClientTimeout
+from aiohttp import ClientError, ClientResponseError, ClientSession, ClientTimeout
 from argon2.low_level import Type, hash_secret_raw
 
 from .battery import (
@@ -36,6 +36,7 @@ from .const import (
     WORK_MODE_SETTINGS_ACTION,
 )
 from .protobuf import latest_values
+from .telemetry import number
 from .inverter import inverter_model
 from .security import trusted_hoymiles_url
 
@@ -52,6 +53,14 @@ class HoymilesConnectionError(HoymilesError):
     """Connection or response error."""
 
 
+class HoymilesRateLimitError(HoymilesConnectionError):
+    """Temporary server limit; do not ask the user to replace credentials."""
+
+    def __init__(self, message: str, retry_after: float = 60) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
 class HoymilesHomeClient:
     """Client for the consumer S-Miles Home API."""
 
@@ -63,6 +72,7 @@ class HoymilesHomeClient:
         self._token_expires = datetime.min.replace(tzinfo=UTC)
         self._live_uri: str | None = None
         self._lock = asyncio.Lock()
+        self._login_retry_at = datetime.min.replace(tzinfo=UTC)
 
     @property
     def headers(self) -> dict[str, str]:
@@ -92,8 +102,24 @@ class HoymilesHomeClient:
                     raise HoymilesConnectionError("Hoymiles API redirected unexpectedly")
                 response.raise_for_status()
                 data = await response.json(content_type=None)
+        except ClientResponseError as err:
+            if err.status == 429:
+                delay = number((err.headers or {}).get("Retry-After"))
+                raise HoymilesRateLimitError(
+                    "Hoymiles request rate limit reached",
+                    min(86400, max(60, delay or 60)),
+                ) from err
+            if err.status == 401:
+                self._token_expires = datetime.min.replace(tzinfo=UTC)
+                raise HoymilesAuthError("Hoymiles authentication expired (HTTP 401)") from err
+            raise HoymilesConnectionError(
+                f"Hoymiles API request failed (HTTP {err.status})"
+            ) from err
         except (ClientError, TimeoutError, ValueError) as err:
-            raise HoymilesConnectionError(str(err)) from err
+            # aiohttp exception strings may include signed URLs or tokens.
+            raise HoymilesConnectionError(
+                f"Hoymiles request failed ({type(err).__name__})"
+            ) from err
         if not isinstance(data, dict):
             raise HoymilesConnectionError("Unexpected API response")
         return data
@@ -102,40 +128,58 @@ class HoymilesHomeClient:
     def _unwrap(response: dict[str, Any]) -> Any:
         if str(response.get("status")) not in {"0", "100"}:
             message = str(response.get("message") or "Hoymiles API rejected request")
+            if "logins exceeds the daily maximum limit" in message.lower():
+                raise HoymilesRateLimitError("Hoymiles daily login limit reached", 3600)
             if "login" in message.lower() or "token" in message.lower():
                 raise HoymilesAuthError(message)
             raise HoymilesConnectionError(message)
         return response.get("data")
 
     async def async_login(self) -> None:
-        """Authenticate using the app-compatible Argon2id challenge."""
+        """Authenticate explicitly, serializing account token changes."""
         async with self._lock:
-            pre = await self._json(
-                f"{AUTH_BASE_URL}/iam/pub/3/auth/pre-insp", {"u": self._email}
-            )
-            data = self._unwrap(pre) or {}
-            try:
-                salt = bytes.fromhex(data["a"])
-                nonce = data["n"]
-            except (KeyError, TypeError, ValueError) as err:
-                raise HoymilesAuthError("Incomplete pre-inspection response") from err
-            challenge = hash_secret_raw(
-                self._password.encode(), salt, 3, 32768, 1, 32, Type.ID
-            ).hex()
-            login = await self._json(
-                f"{AUTH_BASE_URL}/iam/pub/3/auth/login",
-                {"u": self._email, "ch": challenge, "n": nonce},
-            )
-            token = (self._unwrap(login) or {}).get("token")
-            if not token:
-                raise HoymilesAuthError("Login returned no token")
-            self._token = token
-            self._token_expires = datetime.now(UTC) + TOKEN_LIFETIME
-            self._live_uri = None
+            await self._async_login_unlocked()
+
+    async def _async_login_unlocked(self) -> None:
+        """Run Argon2 outside the event loop; caller holds the login lock."""
+        pre = await self._json(
+            f"{AUTH_BASE_URL}/iam/pub/3/auth/pre-insp", {"u": self._email}
+        )
+        data = self._unwrap(pre) or {}
+        try:
+            salt = bytes.fromhex(data["a"])
+            nonce = data["n"]
+        except (KeyError, TypeError, ValueError) as err:
+            raise HoymilesAuthError("Incomplete pre-inspection response") from err
+        challenge = (await asyncio.to_thread(
+            hash_secret_raw,
+            self._password.encode(), salt, 3, 32768, 1, 32, Type.ID
+        )).hex()
+        login = await self._json(
+            f"{AUTH_BASE_URL}/iam/pub/3/auth/login",
+            {"u": self._email, "ch": challenge, "n": nonce},
+        )
+        token = (self._unwrap(login) or {}).get("token")
+        if not token:
+            raise HoymilesAuthError("Login returned no token")
+        self._token = token
+        self._token_expires = datetime.now(UTC) + TOKEN_LIFETIME
+        self._live_uri = None
 
     async def async_ensure_login(self) -> None:
-        if not self._token or datetime.now(UTC) >= self._token_expires:
-            await self.async_login()
+        if self._token and datetime.now(UTC) < self._token_expires:
+            return
+        async with self._lock:
+            # Another coroutine may have refreshed the token while we waited.
+            if not self._token or datetime.now(UTC) >= self._token_expires:
+                remaining = (self._login_retry_at - datetime.now(UTC)).total_seconds()
+                if remaining > 0:
+                    raise HoymilesRateLimitError("Hoymiles login retry is paused", remaining)
+                try:
+                    await self._async_login_unlocked()
+                except HoymilesRateLimitError as err:
+                    self._login_retry_at = datetime.now(UTC) + timedelta(seconds=err.retry_after)
+                    raise
 
     async def async_device_tree(self, station_id: int) -> list[dict[str, Any]]:
         await self.async_ensure_login()
@@ -284,14 +328,33 @@ class HoymilesHomeClient:
     async def async_live(self, station_id: int) -> dict[str, Any]:
         await self.async_ensure_login()
         for _attempt in range(2):
-            if not self._live_uri:
-                self._live_uri = await self._get_live_uri(station_id)
-            response = await self._json(self._live_uri, {"sid": station_id, "m": 0})
+            try:
+                if not self._live_uri:
+                    self._live_uri = await self._get_live_uri(station_id)
+                response = await self._json(self._live_uri, {"sid": station_id, "m": 0})
+                payload = self._unwrap(response) if "status" in response else response
+            except HoymilesRateLimitError:
+                self._live_uri = None
+                raise
+            except HoymilesAuthError:
+                self._live_uri = None
+                if _attempt:
+                    raise
+                self._token_expires = datetime.min.replace(tzinfo=UTC)
+                await self.async_ensure_login()
+                continue
+            except HoymilesConnectionError:
+                self._live_uri = None
+                if _attempt:
+                    raise
+                continue
             # The realtime server returns the live values inside the regular
             # {status, data} envelope. The working Node-RED client unwraps that
             # envelope in postUrl(), so accept both forms here for resilience.
-            payload = self._unwrap(response) if "status" in response else response
-            if isinstance(payload, dict) and "flow" in payload:
+            if isinstance(payload, dict) and (
+                isinstance(payload.get("flow"), list)
+                or number(payload.get("con")) in (0, 1)
+            ):
                 return payload
             self._live_uri = None
         raise HoymilesConnectionError("Live URI expired")
@@ -315,13 +378,29 @@ class HoymilesHomeClient:
             ) as response:
                 if 300 <= response.status < 400:
                     raise HoymilesConnectionError("Hoymiles API redirected unexpectedly")
+                if response.status == 401:
+                    self._token_expires = datetime.min.replace(tzinfo=UTC)
+                    raise HoymilesAuthError("Hoymiles authentication expired (HTTP 401)")
                 response.raise_for_status()
                 raw = await response.read()
+        except ClientResponseError as err:
+            if err.status == 429:
+                raise HoymilesRateLimitError("Hoymiles chart rate limit reached") from err
+            raise HoymilesConnectionError(f"Chart request failed (HTTP {err.status})") from err
         except (ClientError, TimeoutError) as err:
-            raise HoymilesConnectionError(str(err)) from err
-        if raw.startswith(b"{"):
-            raise HoymilesConnectionError(raw.decode(errors="replace")[:500])
-        return latest_values(raw)
+            raise HoymilesConnectionError(
+                f"Hoymiles chart request failed ({type(err).__name__})"
+            ) from err
+        if raw.lstrip().startswith(b"{"):
+            try:
+                self._unwrap(json.loads(raw))
+            except (ValueError, TypeError) as err:
+                raise HoymilesConnectionError("Invalid chart error response") from err
+            raise HoymilesConnectionError("Chart endpoint returned no chart data")
+        try:
+            return latest_values(raw, device_id=device_id, port=port)
+        except (ValueError, UnicodeError) as err:
+            raise HoymilesConnectionError("Invalid chart response") from err
 
     async def _async_battery_settings_request(
         self, payload: dict[str, Any], request_method: str

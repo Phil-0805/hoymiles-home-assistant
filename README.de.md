@@ -148,6 +148,12 @@ werden abgelehnt. Home Assistant nur mit den üblichen Zugriffsschutzmaßnahmen
 
 ## Hinweise
 
+Ab v0.4.3b3 (Beta) liest der Diagnoseknopf **Batterieeinstellungen aktualisieren**
+die Einstellungen erneut, ohne einen Steuerbefehl zu senden. Bei gemeldeter
+Trennung sind aktuelle Messwerte nicht verfügbar; Modulwerte ebenfalls, wenn
+seit zehn Minuten keine erfolgreiche Antwort vorliegt. Tageszähler bleiben
+sichtbar. Details stehen im [Code-Review](docs/review-2026-10-29.md).
+
 Dieses Projekt verwendet eine inoffizielle Cloud-API und steht in keiner
 Verbindung zu Hoymiles. Der schnelle Endpunkt für aktuelle Daten folgt der vom
 Server vorgegebenen Wartezeit. Modulwerte werden alle fünf Minuten aktualisiert.

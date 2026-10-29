@@ -29,7 +29,15 @@ from .const import CONF_STATION_ID, DOMAIN
 from .coordinator import HoymilesHomeCoordinator
 from .energy import split_battery_power
 from .inverter import inverter_model, inverter_ports
-from .telemetry import battery_activity, number as _number, pv_power_details, status_codes
+from .telemetry import (
+    battery_activity, live_connected, number as _number, pv_power_details, status_codes,
+)
+
+LIVE_SENSOR_KEYS = {
+    "pv_power", "load_power", "grid_power", "battery_power",
+    "battery_charge_power", "battery_discharge_power", "battery_soc",
+    "battery_activity", "ems", "brs", "chs", "bhs",
+}
 
 
 def _live(key: str) -> Callable[[dict[str, Any]], Any]:
@@ -352,6 +360,13 @@ class HoymilesStationSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEn
         )
 
     @property
+    def available(self) -> bool:
+        return super().available and (
+            self.entity_description.key not in LIVE_SENSOR_KEYS
+            or live_connected((self.coordinator.data or {}).get("live", {}))
+        )
+
+    @property
     def native_value(self):
         return self.entity_description.value_fn(self.coordinator.data or {})
 
@@ -395,6 +410,14 @@ class HoymilesModuleSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEnt
             model=inverter_model(inverter),
             serial_number=inverter.get("sn"),
             via_device=(DOMAIN, f"station_{entry.data[CONF_STATION_ID]}"),
+        )
+
+    @property
+    def available(self) -> bool:
+        return (
+            super().available
+            and live_connected((self.coordinator.data or {}).get("live", {}))
+            and self.coordinator.module_is_fresh(self._inverter_id, self._port)
         )
 
     @property

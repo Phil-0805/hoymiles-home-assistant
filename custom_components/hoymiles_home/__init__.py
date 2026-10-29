@@ -40,6 +40,7 @@ async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     if await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        await hass.data[DOMAIN][entry.entry_id].async_shutdown()
         await hass.data[DOMAIN][entry.entry_id].async_save_energy()
         hass.data[DOMAIN].pop(entry.entry_id)
         return True

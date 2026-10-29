@@ -47,6 +47,7 @@
     }
   },
   "entity": {
+    "button": {"refresh_battery_settings": {"name": "Batterieeinstellungen aktualisieren"}},
     "sensor": {
       "battery_activity": {"name": "Batterieaktivität", "state": {"idle": "Leerlauf", "charging": "Laden", "discharging": "Entladen", "unrecognized": "Unbekannter Code"}},
       "pv_power": {"name": "PV-Leistung"},

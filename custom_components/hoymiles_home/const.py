@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 DOMAIN = "hoymiles_home"
-PLATFORMS = ["sensor", "binary_sensor", "number", "select"]
+PLATFORMS = ["sensor", "binary_sensor", "number", "select", "button"]
 
 CONF_STATION_ID = "station_id"
 

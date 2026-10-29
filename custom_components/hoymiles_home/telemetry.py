@@ -9,6 +9,11 @@ BATTERY_ACTIVITY = {0: "idle", 1: "charging", 2: "discharging"}
 STATUS_FIELDS = ("ems", "brs", "chs", "bhs")
 
 
+def live_connected(live: dict[str, Any]) -> bool:
+    """Honor an explicit offline/invalid flag; tolerate legacy missing flags."""
+    return "con" not in live or number(live["con"]) == 1
+
+
 def number(value: Any) -> float | int | None:
     """Accept finite numeric cloud values, excluding booleans."""
     if isinstance(value, bool) or not isinstance(value, (str, int, float)):

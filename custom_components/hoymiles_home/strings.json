@@ -47,6 +47,7 @@
     }
   },
   "entity": {
+    "button": {"refresh_battery_settings": {"name": "Refresh battery settings"}},
     "sensor": {
       "battery_activity": {"name": "Battery activity", "state": {"idle": "Idle", "charging": "Charging", "discharging": "Discharging", "unrecognized": "Unrecognized code"}},
       "pv_power": {"name": "PV power"},

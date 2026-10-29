@@ -132,6 +132,12 @@ Do not expose Home Assistant publicly without its normal access controls.
 
 ## Notes
 
+From v0.4.3b3 (beta), the diagnostic **Refresh battery settings** button reads
+settings again without sending a control command. Explicitly disconnected live
+measurements and module readings without a successful response for ten minutes
+become unavailable; daily counters remain visible. See the
+[preventive review](docs/review-2026-10-29.md) for fixes and remaining checks.
+
 This project uses an unofficial cloud API and is not affiliated with Hoymiles.
 The fast live endpoint follows the server-provided delay. Module values update
 every five minutes. Do not enable another fast cloud poller for the same station

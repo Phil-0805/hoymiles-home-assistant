@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from math import isfinite
 
 BATTERY_MODE_NAMES = {
     1: "Self-Consumption",
@@ -79,7 +80,7 @@ def confirmed_reserve_soc(
         mode_values = {
             item["value"]
             for item in candidates
-            if f"k_{mode}" in str(item.get("path"))
+            if f"k_{mode}" in str(item.get("path")).replace("[", ".").replace("]", "").split(".")
         }
         if len(mode_values) == 1:
             return int(mode_values.pop())
@@ -150,7 +151,7 @@ def parse_battery_settings(result: Any) -> dict[str, Any]:
         raise BatterySettingsError("Missing battery mode data")
 
     mode = payload.get("mode")
-    if not isinstance(mode, int):
+    if isinstance(mode, bool) or not isinstance(mode, int):
         mode = None
 
     modes: dict[int, dict[str, Any]] = {}
@@ -194,7 +195,7 @@ def parse_work_mode_settings(result: Any) -> dict[str, Any]:
 
     app_mode = data.get("mode")
     mode_data = data.get(f"k_{app_mode}")
-    if not isinstance(app_mode, int) or not isinstance(mode_data, dict):
+    if isinstance(app_mode, bool) or not isinstance(app_mode, int) or not isinstance(mode_data, dict):
         raise BatterySettingsError("Missing active work mode settings")
     soc_l = mode_data.get("soc_l")
     if (
@@ -206,10 +207,17 @@ def parse_work_mode_settings(result: Any) -> dict[str, Any]:
         raise BatterySettingsError("Unsupported or incomplete work mode settings")
 
     reserve_soc = int(soc_l)
+    soc_h = mode_data.get("soc_h", 100)
+    if (
+        isinstance(soc_h, bool) or not isinstance(soc_h, (int, float))
+        or not reserve_soc <= soc_h <= 100 or not isfinite(soc_h)
+        or int(soc_h) != soc_h or reserve_soc != soc_l
+    ):
+        raise BatterySettingsError("Invalid work mode SOC limits")
     active = {
         "reserve_soc": reserve_soc,
         "soc_l": reserve_soc,
-        "soc_h": int(mode_data.get("soc_h", 100)),
+        "soc_h": int(soc_h),
     }
     return {
         "readable": True,
