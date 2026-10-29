@@ -246,17 +246,32 @@ def parse_work_mode_settings(result: Any) -> dict[str, Any]:
     }
 
 
+def _setting_equal(actual: Any, expected: Any) -> bool:
+    """Compare complete values without treating boolean flags as numeric settings."""
+    if isinstance(expected, dict):
+        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(
+            _setting_equal(actual[key], value) for key, value in expected.items()
+        )
+    if isinstance(expected, list):
+        return isinstance(actual, list) and len(actual) == len(expected) and all(
+            _setting_equal(a, b) for a, b in zip(actual, expected, strict=True)
+        )
+    if isinstance(actual, bool) or isinstance(expected, bool):
+        return type(actual) is type(expected) and actual == expected
+    return actual == expected
+
+
 def battery_settings_confirmed(
     settings: dict[str, Any], mode: int, requested: dict[str, Any]
 ) -> bool:
     """Return whether a delayed app-setting write is visible in a fresh read."""
-    if settings.get("mode") != mode:
+    if type(settings.get("mode")) is not int or settings.get("mode") != mode:
         return False
     active = settings.get("active_settings")
     if not isinstance(active, dict):
         return False
     return all(
-        key in active and active[key] == value
+        key in active and _setting_equal(active[key], value)
         for key, value in requested.items()
     )
 def battery_setting_command_data(

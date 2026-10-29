@@ -60,7 +60,7 @@ class HoymilesBatteryModeSelect(
             and self.coordinator.battery_settings.get("readable") is True
             and self.coordinator.battery_settings.get("writable") is True
             and self.coordinator.battery_settings.get("mode") in self._mode_options().values()
-            and len(self._mode_options()) > 1
+            and bool(self._mode_options())
         )
 
     @property
@@ -74,6 +74,10 @@ class HoymilesBatteryModeSelect(
             return BATTERY_MODE_NAMES.get(mode, f"Unknown ({mode})")
         return None
 
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {"mode_change_available": self.available and len(self._mode_options()) > 1}
+
     async def async_select_option(self, option: str) -> None:
         mode = self._mode_options().get(option)
         if mode is None:
@@ -82,6 +86,8 @@ class HoymilesBatteryModeSelect(
                 translation_key="battery_mode_unavailable",
                 translation_placeholders={"mode": option},
             )
+        if mode == self.coordinator.battery_settings.get("mode"):
+            return  # Selecting the displayed mode never sends a redundant write.
         try:
             await self.coordinator.async_set_battery_mode(mode)
         except HoymilesError as err:

@@ -22,7 +22,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = None
     try:
         client = HoymilesHomeClient(
-            async_get_clientsession(hass),
+            async_get_clientsession(hass, verify_ssl=True),
             entry.data[CONF_USERNAME],
             entry.data[CONF_PASSWORD], runtime=runtime,
         )

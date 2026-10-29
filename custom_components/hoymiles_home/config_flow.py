@@ -52,7 +52,7 @@ class HoymilesHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_PASSWORD: user_input[CONF_PASSWORD],
             }
             self._client = HoymilesHomeClient(
-                async_get_clientsession(self.hass),
+                async_get_clientsession(self.hass, verify_ssl=True),
                 self._credentials[CONF_USERNAME],
                 self._credentials[CONF_PASSWORD],
             )

@@ -29,6 +29,13 @@ class TestTrustedHoymilesUrl(unittest.TestCase):
             "https://neapi.hoymiles.com:444/live",
             "https://neapi.hoymiles.com:invalid/live",
             "//neapi.hoymiles.com/live",
+            " https://neapi.hoymiles.com/live",
+            "https://neapi.hoymiles.com/\nlive",
+            "https://neapi.hoymiles.com/live#fragment",
+            "https://bad_label.hoymiles.com/live",
+            "https://.hoymiles.com/live",
+            "https://-bad.hoymiles.com/live",
+            "https://neapi.hoymiles.com/\\live",
         ):
             with self.subTest(url=url):
                 self.assertFalse(security.trusted_hoymiles_url(url))

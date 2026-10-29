@@ -321,7 +321,12 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if self.data is not None:
                     self.data["battery_settings"] = refreshed
                     self.async_update_listeners()
-                if battery_settings_confirmed(refreshed, mode, mode_data):
+                if (
+                    refreshed.get("readable") is True
+                    and refreshed.get("request_method") == request_method
+                    and (reserve_soc is None or refreshed.get("reserve_soc_verified") is True)
+                    and battery_settings_confirmed(refreshed, mode, mode_data)
+                ):
                     return
                 if attempt + 1 < BATTERY_WRITE_CONFIRM_ATTEMPTS:
                     await asyncio.sleep(BATTERY_WRITE_CONFIRM_INTERVAL)
