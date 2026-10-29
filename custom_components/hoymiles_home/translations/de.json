@@ -2,6 +2,13 @@
   "title": "Hoymiles S-Miles Home",
   "config": {
     "step": {
+      "reauth_confirm": {
+        "title": "S-Miles Home erneut anmelden",
+        "description": "Das Passwort für das bestehende Konto erneut eingeben. Anlage, Entitäten und Verlauf bleiben erhalten.",
+        "data": {
+          "password": "Passwort"
+        }
+      },
       "user": {
         "title": "Mit S-Miles Home verbinden",
         "description": "Melde dich mit deinem S-Miles-Home-Konto an. Anschließend kannst du eine Anlage auswählen.",
@@ -39,6 +46,7 @@
     }
   },
   "exceptions": {
+    "settings_refresh_wait": {"message": "Bitte warte mindestens 30 Sekunden zwischen manuellen Aktualisierungen."},
     "battery_setting_write_failed": {
       "message": "Die Batterieeinstellung konnte nicht gespeichert werden: {error}"
     },
@@ -47,7 +55,12 @@
     }
   },
   "entity": {
+    "button": {"refresh_battery_settings": {"name": "Batterieeinstellungen aktualisieren"}},
     "sensor": {
+      "inverter_voltage": {"name": "AC-Spannung"},
+      "inverter_frequency": {"name": "Netzfrequenz"},
+      "inverter_temperature": {"name": "Wechselrichtertemperatur"},
+      "battery_activity": {"name": "Batterieaktivität", "state": {"idle": "Leerlauf", "charging": "Laden", "discharging": "Entladen", "unrecognized": "Unbekannter Code"}},
       "pv_power": {"name": "PV-Leistung"},
       "load_power": {"name": "Hausverbrauch"},
       "load_energy_today": {"name": "Hausverbrauch heute"},
@@ -55,17 +68,18 @@
       "battery_power": {"name": "Batterieleistung"},
       "battery_charge_power": {"name": "Batterie Ladeleistung"},
       "battery_discharge_power": {"name": "Batterie Entladeleistung"},
+      "battery_temperature": {"name": "Batterietemperatur"},
       "battery_soc": {"name": "Batterieladestand"},
       "battery_charge_energy_today": {"name": "Batterie heute geladen"},
       "battery_discharge_energy_today": {"name": "Batterie heute entladen"},
       "battery_settings_access": {"name": "Batterieeinstellungen Zugriff"},
       "battery_mode": {"name": "Batteriemodus"},
       "battery_reserve_soc": {"name": "Batterie Reserve-SOC"},
-      "battery_max_power": {"name": "Batterie maximale Leistung"},
-      "ems": {"name": "EMS-Status"},
-      "brs": {"name": "Batterierelais-Status"},
-      "chs": {"name": "Ladestatus"},
-      "bhs": {"name": "Batteriezustand"},
+      "battery_max_power": {"name": "Maximale Leistungseinstellung (Rohwert)"},
+      "ems": {"name": "EMS-Status (Rohwert)"},
+      "brs": {"name": "Batterierelais-Status (Rohwert)"},
+      "chs": {"name": "Ladestatus (Rohwert)"},
+      "bhs": {"name": "Batteriezustand (Rohwert)"},
       "today_energy": {"name": "Energie heute"},
       "month_energy": {"name": "Energie Monat"},
       "year_energy": {"name": "Energie Jahr"},
@@ -81,5 +95,28 @@
       "battery_mode": {"name": "Batteriemodus"}
     },
     "binary_sensor": {"connected": {"name": "Verbindung"}}
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "PV-Anzeige",
+        "description": "Vergleiche die Attribute pv und pv2 des Sensors PV-Leistung mit der S-Miles-Home-App. Wähle eine andere Quelle nur, wenn der Vergleich das bestätigt. Automatisch behält das bisherige Verhalten bei: pv2, falls verfügbar, sonst pv; auch 0 ist ein gültiger Wert. Die Auswahl ändert nur die Anzeige in HA. Zusätzliche Messwerte sind optional und werden höchstens alle fünf Minuten gelesen. Wähle die tatsächliche Zeitzone der Anlage für Tagesgrenzen und Diagramme.",
+        "data": {
+          "pv_power_source": "Quelle der PV-Leistung",
+          "battery_temperatures": "Batterietemperaturen (Beta, zusätzliche Abfrage alle fünf Minuten)",
+          "inverter_details": "Zusätzliche Wechselrichter-Messwerte (Beta)",
+          "station_timezone": "Zeitzone der Anlage"
+        }
+      }
+    }
+  },
+  "selector": {
+    "pv_power_source": {
+      "options": {
+        "auto": "Automatisch (bisheriges Verhalten)",
+        "pv": "Cloud-Feld pv",
+        "pv2": "Cloud-Feld pv2"
+      }
+    }
   }
 }

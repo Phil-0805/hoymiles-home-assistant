@@ -1,0 +1,63 @@
+# Testplan für den größeren Release 0.5.0
+
+Kandidat: **0.5.0b6**, ausschließlich als Vorabversion. Die Implementierung und automatisierte Tests ersetzen keine Bestätigung am betroffenen Gerät. Stable bleibt 0.4.2.
+
+## Testen ohne Neueinrichtung
+
+1. In HACS Vorabversionen anzeigen, 0.5.0b6 installieren und Home Assistant neu starten. Die bestehende Integration behalten.
+2. Prüfen, ob Geräte, Entitäten, Verlauf und Tageszähler weiterhin vorhanden sind. Keine Geräte löschen, um Namensprobleme zu beheben.
+3. Unter Konfigurieren die tatsächliche Zeitzone der Anlage prüfen. Standard ist die HA-Zeitzone. Die optionalen zusätzlichen Wechselrichter-Messwerte sind zunächst ausgeschaltet.
+
+## Offene Nutzermeldungen bestätigen
+
+| Punkt | Konkreter Vergleich | Noch benötigte Bestätigung |
+| --- | --- | --- |
+| HMS-1000-2WB | Nach Neustart bei Tageslicht Modell und normale Messwerte prüfen. | Rückmeldung des betroffenen Nutzers zu Issue #6. |
+| Batterie-Absturz | Batterieeinstellungen aktualisieren; Logs auf `work_mode_error`/`UnboundLocalError` prüfen. | Betroffener 4020-X-Nutzer bestätigt, dass der Fehler ausbleibt und der Zugriffszustand plausibel ist. |
+| PV-Leistung | Bei Sonne HA-Attribute `pv`/`pv2` und App zeitgleich vergleichen. Bei belegtem Unterschied die passende Quelle konfigurieren. | Gewählte Quelle und beobachtete Leistungen dokumentieren. Keine Addition ohne Nachweis. |
+| Statuszahlen | Batterieaktivität bei Laden, Entladen und Leerlauf mit der App vergleichen. Rohcodes bleiben als solche bezeichnet. | Betroffener Nutzer bestätigt Anzeige/Dokumentation. Die Bedeutungen von `ems`/`chs` sind weiterhin nicht belegt. |
+| Maximale Leistung | Prüfen, ob die App für dieses Gerät/den Modus einen entsprechenden Wert anbietet. Diagnose enthält nur bekannte numerische Einstellungsfelder. | Verfügbarkeit oder die dokumentierte Einschränkung bestätigen; Einheit und Steuerbarkeit nicht erfinden. |
+| Betriebsmodus | Der aktuelle Modus bleibt sichtbar. Beim Zugriff über Stationsaktion 83 stehen Eigenverbrauch und TOU zur Auswahl, sofern eine unterstützte TOU-Konfiguration bereits gelesen wurde. | Gezielt in TOU und zurück wechseln; Modus, gespeicherten Zeitplan und SOC-Grenzen mit der App vergleichen. Keine neuen Pläne anlegen; nicht unterstützte Untermodi bleiben gesperrt. Der Reserve-SOC-Regler gilt nur für Eigenverbrauch. |
+| Tag/Nacht | Nachts Verfügbarkeit, morgens automatische Erholung sowie Tageszähler/Verlauf prüfen. | Testzeitraum und Ergebnis dokumentieren. |
+| Neue Messwerte | Optional aktivieren; Temperatur, Netzfrequenz und AC-Spannung mit App vergleichen. Bis zum ersten passenden Datenpunkt können sie unbekannt sein. | Reale Werte und Geräteversion dokumentieren. Die bisherige Validierung des zusätzlichen Datenformats ist synthetisch. |
+
+Eine Bestätigung sollte Kandidatenversion, Modell, durchgeführten Test und beobachtetes Ergebnis nennen. Im passenden GitHub-Issue dokumentieren; Kontodaten, Seriennummern, Zugangstoken und private Screenshots nicht veröffentlichen. Rückmeldungen von Facebook können vom Maintainer mit Herkunft und Ergebnis im Issue festgehalten werden. Ein automatisierter Test allein ist keine Nutzerbestätigung.
+
+## Abfragezeiten und Grenzen
+
+- Live-Leistung: mindestens drei Sekunden bzw. die längere serverseitige Wartezeit `dly`.
+- Moduldiagramme: höchstens alle fünf Minuten. Zusatzdaten bei ausdrücklicher Aktivierung ebenfalls höchstens alle fünf Minuten, eine zusätzliche Stationsabfrage je Durchlauf.
+- Batterieeinstellungen: regulär alle 30 Minuten. Manuell frühestens nach 30 Sekunden; gleichzeitig laufende Anforderungen werden zusammengefasst.
+- Pro identischen Zugangsdaten teilen Anlagen Token und Abfragebudget: mindestens eine Sekunde zwischen HTTP-Starts, höchstens zwei gleichzeitige HTTP-Abfragen. Das Budget gilt für diese Integration, nicht für andere Apps/Integrationen.
+- HTTP 429 pausiert das gesamte gemeinsame Budget entsprechend Retry-After, mit mindestens einer Minute Pause. Auch längere Pausen als ein Tag bleiben im Account-Budget erhalten; tägliches Wiederaufwachen startet dann keine HTTP-Abfrage. Beim täglichen Login-Limit wird die automatische Anmeldung eine Stunde zurückgestellt. Die tatsächlichen Hoymiles-Quoten sind nicht veröffentlicht; diese Maßnahmen garantieren daher keine bestimmte erlaubte Tageszahl.
+- Lesevorgänge dürfen begrenzt wiederholt werden. Schreibbefehle werden nicht automatisch wiederholt.
+
+## Node-RED-Vergleich reproduzieren
+
+`python scripts/compare_nodered_reference.py` lädt ausschließlich den per Commit und Prüfsumme festgelegten öffentlichen Node-RED-Decoder. Mit `--reference-file /pfad/module-data.js` läuft der Vergleich vollständig offline. Node.js muss verfügbar sein.
+
+Es wird derselbe synthetische Protobuf-Datensatz wie in den Python-Tests ausgewertet. Es werden weder Hoymiles-Konten kontaktiert noch Gerätebefehle gesendet. Das bestätigt das Datenformat, nicht die Funktionsfähigkeit an einem bestimmten Gerät.
+
+## Freigabe des Stable-Releases
+
+Die neun Prüfbereiche in `release-readiness.json` sind zunächst **unbestätigt**. Bestätigungen werden nur anhand tatsächlicher Rückmeldungen eingetragen, mit getesteter Kandidatenversion, bestätigender Person und Link auf den Issue-Kommentar. Bei fachlichen Codeänderungen nach dem Test muss die betroffene Prüfung erneut erfolgen.
+
+Der Stable-Workflow prüft diesen Nachweis und die separate Maintainer-Freigabe. Solange ein Nachweis fehlt, wird kein neuer Stable-Release veröffentlicht. Zusätzlich müssen Tests, HACS und Hassfest erfolgreich sein. Die Prüfung schützt vor versehentlicher Veröffentlichung; sie kann den Wahrheitsgehalt eines Gerätetests nicht selbst feststellen.
+
+Zusatzwerte werden weiter alle fünf Minuten abgefragt. Jeder Messwert behält seinen eigenen Messzeitpunkt; ein fehlender Frequenzwert darf einen noch gültigen Wert nicht löschen und eine neue Temperatur darf ihn nicht auffrischen. Nach zehn Minuten ohne neuen Messpunkt muss der betroffene Sensor nicht verfügbar werden. Details und Grenzen stehen in [den b3-Hinweisen](release-0.5.0b3.md).
+
+Batterietemperatur (b4): In den Integrationsoptionen **Batterietemperaturen (Beta)** aktivieren. Für jede gelieferte Batterie bzw. jedes identifizierbare Erweiterungspack entsteht ein eigener Temperatursensor. Nach höchstens dem normalen Fünf-Minuten-Zyklus mit der App vergleichen; auch 0 °C muss korrekt angezeigt werden. Fehlende Werte werden nicht als null interpretiert. `fetched_at` beschreibt den Cloud-Abrufzeitpunkt, nicht den Messzeitpunkt im Akku. Moduswechsel auf dem eigenen System wurde vom Maintainer mit b3 als funktionierend zurückgemeldet; die Bestätigungen für andere betroffene Geräte bleiben offen.
+
+b5-Gruppierung: Batterietemperaturen erscheinen unter dem vorhandenen S-Miles-Home-Gerät. Beim Update von b4 müssen bestehende Temperatur-Entitäten dieselbe Entitäts-ID behalten; ein ausschließlich hierfür angelegtes, danach leeres Batterie-Gerät verschwindet. Geräte mit weiteren Entitäten oder abhängigen Geräten bleiben erhalten. Die Batterietemperaturanzeige mit b4 hat der Maintainer als funktionierend zurückgemeldet. Keine Integration löschen oder neu einrichten.
+
+
+## Zusätzliche Prüfung ab b6
+
+- In der App im Eigenverbrauch die obere SOC-Grenze ändern, anschließend in HA den Reserve-SOC ändern. HA muss die neue obere Grenze erhalten. Während dieses Tests die App nicht gleichzeitig weiter bearbeiten: die Cloud bietet keine atomare Vergleichsbedingung für konkurrierende Änderungen.
+- Steht die App inzwischen auf TOU, darf ein aus alter HA-Anzeige ausgelöster Reserve-SOC-Aufruf nicht zurück auf Eigenverbrauch schalten. Ein abgelehnter/unklarer Schreibvorgang wird nicht automatisch wiederholt. Zuerst den tatsächlichen App-Zustand kontrollieren.
+- Wiederanmeldung nach geänderten Zugangsdaten am bestehenden Eintrag prüfen. Entitäts-IDs, Namen, deaktivierte Entitäten und Verlauf müssen erhalten bleiben. Jede weitere Anlage desselben Kontos benötigt gegebenenfalls ebenfalls das neue Passwort.
+- Bei einer Netzunterbrechung entstehen bewusst Lücken in berechneter Energie. Stationssummen werden nach zwei Minuten ohne erfolgreiche Antwort nicht verfügbar; Tages-/Monats-/Jahreswerte zusätzlich beim jeweiligen lokalen Periodenwechsel. Nach Erholung müssen aktuelle Werte zurückkehren.
+
+Moduswechsel und Batterietemperatur wurden vom Maintainer auf seinem System als funktionierend zurückgemeldet. Diese Rückmeldung gilt nicht pauschal für andere Geräte und ersetzt keine b6-Prüfung nach den Änderungen. Die beiden Bereiche haben jetzt eigene offene Nachweiszeilen im Stable-Freigabedatensatz.
+
+Normale Moduldiagramme verwenden bisher das Alter der Cloud-Antwort, nicht sicher den Messzeitpunkt des Geräts. Wiederholt die Cloud einen alten Diagrammpunkt, kann diese Grenze das nicht erkennen. Für die belastbare Zuordnung werden anonymisierte Diagramm-Labels und zugehörige Serienlängen samt zeitgleichem App-Messzeitpunkt benötigt. Keine Zugangsdaten, signierten URLs oder Seriennummern veröffentlichen. Details: [Gesamtprüfung b6](review-0.5.0b6.de.md).
