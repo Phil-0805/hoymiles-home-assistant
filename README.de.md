@@ -148,6 +148,13 @@ werden abgelehnt. Home Assistant nur mit den üblichen Zugriffsschutzmaßnahmen
 
 ## Hinweise
 
+Aktueller Kandidat: **v0.5.0b6**. Zum Testen in HACS Vorabversionen aktivieren; Standard-Stable bleibt v0.4.2. Der Maintainer meldet funktionierende Moduswechsel und Batterietemperaturen auf seinem System; andere Geräte-/Kontokombinationen sind damit nicht bestätigt.
+
+Die optionale Einstellung **Batterietemperaturen** liest separate Batterie-/Packwerte alle fünf Minuten und ordnet die Sensoren dem bestehenden S-Miles-Home-Gerät zu. `fetched_at` beschreibt das Alter der Cloud-Antwort, nicht der physischen Messung. Auch normale PV-Eingangsdiagramme verwenden das Antwortalter; wiederholte alte Diagrammpunkte sind noch nicht zuverlässig erkennbar. Zusätzliche Wechselrichterwerte verwenden ihre Hersteller-Messzeitpunkte.
+
+Vor jedem Steuerbefehl, einschließlich Reserve-SOC, liest b6 aktuelle Einstellungen und prüft das Ergebnis anschließend durch Rücklesen. Während eines Befehls gleichzeitige App-Änderungen vermeiden. Die Wiederanmeldung aktualisiert das Passwort am bestehenden Eintrag und erhält Identitäten/Verlauf. Cloud-Energiezähler werden nach zwei Minuten ohne erfolgreiche Antwort sowie beim lokalen Tages-/Monats-/Jahreswechsel nicht verfügbar; berechnete Tageszähler bleiben gespeichert. [Gesamtprüfung b6](docs/review-0.5.0b6.de.md) beschreibt Anfragezahlen, Korrekturen und offene Freigabepunkte.
+
+
 Die **0.5.0-Beta** ergänzt optional Wechselrichtertemperatur, Netzfrequenz und
 AC-Spannung (Konfigurieren → Zusätzliche Wechselrichter-Messwerte), zunächst
 ausgeschaltet. Dazu kommen Anlagenzeitzone, gemeinsame Abfragebegrenzung je

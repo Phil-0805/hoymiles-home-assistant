@@ -1,15 +1,80 @@
 {
   "schema_version": 1,
   "target_version": "0.5.0",
-  "candidate_version": "0.5.0b5",
+  "candidate_version": "0.5.0b6",
   "maintainer_approved": false,
   "reports": [
-    {"id": "hms1000_model", "description": "Affected user confirms HMS-1000-2WB model and normal readings", "confirmed": false, "confirmed_by": null, "evidence_url": null, "tested_version": null},
-    {"id": "battery_settings", "description": "Affected HiBattery 4020-X user confirms fallback crash gone and settings behavior", "confirmed": false, "confirmed_by": null, "evidence_url": null, "tested_version": null},
-    {"id": "pv_display", "description": "Affected user confirms PV source against simultaneous app readings in daylight", "confirmed": false, "confirmed_by": null, "evidence_url": null, "tested_version": null},
-    {"id": "status_documentation", "description": "Affected user confirms battery activity and the documented limitations of raw EMS/charge codes", "confirmed": false, "confirmed_by": null, "evidence_url": null, "tested_version": null},
-    {"id": "power_setting", "description": "Affected user verifies maximum-power capability or confirms its documented absence for the read path", "confirmed": false, "confirmed_by": null, "evidence_url": null, "tested_version": null},
-    {"id": "day_night_recovery", "description": "Maintainer confirms night/day recovery and daily energy/history preservation", "confirmed": false, "confirmed_by": null, "evidence_url": null, "tested_version": null},
-    {"id": "optional_telemetry", "description": "Opt-in temperature/frequency/voltage matched against app on real hardware", "confirmed": false, "confirmed_by": null, "evidence_url": null, "tested_version": null}
+    {
+      "id": "hms1000_model",
+      "description": "Affected user confirms HMS-1000-2WB model and normal readings",
+      "confirmed": false,
+      "confirmed_by": null,
+      "evidence_url": null,
+      "tested_version": null
+    },
+    {
+      "id": "battery_settings",
+      "description": "Affected HiBattery 4020-X user confirms fallback crash gone and settings behavior",
+      "confirmed": false,
+      "confirmed_by": null,
+      "evidence_url": null,
+      "tested_version": null
+    },
+    {
+      "id": "pv_display",
+      "description": "Affected user confirms PV source against simultaneous app readings in daylight",
+      "confirmed": false,
+      "confirmed_by": null,
+      "evidence_url": null,
+      "tested_version": null
+    },
+    {
+      "id": "status_documentation",
+      "description": "Affected user confirms battery activity and the documented limitations of raw EMS/charge codes",
+      "confirmed": false,
+      "confirmed_by": null,
+      "evidence_url": null,
+      "tested_version": null
+    },
+    {
+      "id": "power_setting",
+      "description": "Affected user verifies maximum-power capability or confirms its documented absence for the read path",
+      "confirmed": false,
+      "confirmed_by": null,
+      "evidence_url": null,
+      "tested_version": null
+    },
+    {
+      "id": "day_night_recovery",
+      "description": "Maintainer confirms night/day recovery and daily energy/history preservation",
+      "confirmed": false,
+      "confirmed_by": null,
+      "evidence_url": null,
+      "tested_version": null
+    },
+    {
+      "id": "optional_telemetry",
+      "description": "Opt-in temperature/frequency/voltage matched against app on real hardware",
+      "confirmed": false,
+      "confirmed_by": null,
+      "evidence_url": null,
+      "tested_version": null
+    },
+    {
+      "id": "mode_switch",
+      "description": "Affected user confirms switching both ways preserves the saved TOU plan and SOC limits",
+      "confirmed": false,
+      "confirmed_by": null,
+      "evidence_url": null,
+      "tested_version": null
+    },
+    {
+      "id": "battery_temperature",
+      "description": "Battery and expansion-pack temperatures matched against the app; b4/b5 identities and station grouping preserved",
+      "confirmed": false,
+      "confirmed_by": null,
+      "evidence_url": null,
+      "tested_version": null
+    }
   ]
 }

@@ -11,6 +11,7 @@ import gzip
 import io
 import re
 import struct
+import zlib
 
 from .protobuf import ProtobufDecodeError, iter_fields
 from .telemetry import number
@@ -47,7 +48,7 @@ def decode_module_snapshot(raw: bytes, station_id: int, date: str) -> dict:
         try:
             with gzip.GzipFile(fileobj=io.BytesIO(raw)) as stream:
                 raw = stream.read(MAX_MODULE_BYTES + 1)
-        except (OSError, EOFError) as err:
+        except (OSError, EOFError, zlib.error) as err:
             raise ProtobufDecodeError("Invalid compressed module response") from err
         if len(raw) > MAX_MODULE_BYTES:
             raise ProtobufDecodeError("Decoded module response exceeds size limit")

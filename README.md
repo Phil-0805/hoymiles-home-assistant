@@ -132,6 +132,13 @@ Do not expose Home Assistant publicly without its normal access controls.
 
 ## Notes
 
+Current candidate: **v0.5.0b6**. Enable prereleases in HACS to test it; the default stable release remains v0.4.2. The maintainer reports working mode switches and battery temperatures on their own setup; other device/account combinations remain unconfirmed.
+
+The optional **Battery temperatures** setting reads separate battery/pack values every five minutes and groups the sensors on the existing S-Miles Home device. `fetched_at` measures cloud response age, not physical sample age. Ordinary PV-input charts also use response age; repeated old chart points cannot yet be reliably detected. Additional inverter metrics use their vendor sample times.
+
+Before every control write, including reserve SOC, b6 reads current settings and verifies the result afterwards. Avoid simultaneous app edits during a command. Reauthentication updates the existing entry's password and preserves identities/history. Cloud energy totals expire after two minutes without a successful response and at local daily/monthly/yearly boundaries; calculated daily counters are retained. See the [b6 review](docs/review-0.5.0b6.de.md) for request counts, fixes and remaining release blockers.
+
+
 The **0.5.0 beta** adds optional inverter temperature, frequency and AC voltage
 (Configure → Additional inverter telemetry), disabled by default. Station
 timezone, shared account request limits and a settings-refresh cooldown are

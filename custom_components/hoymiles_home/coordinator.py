@@ -79,6 +79,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         }
         self._modules_updated = datetime.min.replace(tzinfo=UTC)
         self._station_updated = datetime.min.replace(tzinfo=UTC)
+        self._station_attempted = datetime.min.replace(tzinfo=UTC)
         self._battery_settings_updated = datetime.min.replace(tzinfo=UTC)
         self._energy_store: Store[dict[str, Any]] = Store(
             hass,
@@ -166,6 +167,21 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def module_is_fresh(self, inverter_id: int, port: int) -> bool:
         return self.module_polling.is_fresh(inverter_id, port)
+
+    def station_is_fresh(self, key: str) -> bool:
+        """Expire cloud totals without carrying a prior local day/month/year."""
+        now = datetime.now(UTC)
+        if not timedelta(0) <= now - self._station_updated <= STATION_INTERVAL * 2:
+            return False
+        current = now.astimezone(self.station_timezone)
+        stamp = self._station_updated.astimezone(self.station_timezone)
+        if key == "today_energy":
+            return current.date() == stamp.date()
+        if key == "month_energy":
+            return (current.year, current.month) == (stamp.year, stamp.month)
+        if key == "year_energy":
+            return current.year == stamp.year
+        return True
 
     def _publish_modules(self) -> None:
         if not self._stopped and self.data is not None:
@@ -292,21 +308,21 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     ) -> None:
         """Write battery settings, read them back and notify entities."""
         async with self._battery_settings_lock:
-            # Refresh before a mode switch so a schedule edited in the app is
-            # never replaced by our thirty-minute settings cache.
+            # Every write uses current cloud settings, including SOC changes.
+            # The lock only serializes HA tasks; it cannot protect app edits.
             if reserve_soc is None:
                 if type(mode) is not int or mode not in writable_modes(self.battery_settings):
                     raise HoymilesConnectionError("Battery mode is not supported for writing")
-                method = self.battery_settings.get("request_method")
-                fresh = await self.client.async_battery_settings(self.station_id)
-                if fresh.get("readable") is not True or fresh.get("request_method") != method:
-                    raise HoymilesConnectionError("Fresh battery mode settings are unavailable")
-                self.battery_settings = fresh
-                if self.data is not None:
-                    self.data["battery_settings"] = fresh
-                    self.async_update_listeners()
-                if fresh.get("mode") == mode:
-                    return
+            method = self.battery_settings.get("request_method")
+            fresh = await self.client.async_battery_settings(self.station_id)
+            if fresh.get("readable") is not True or fresh.get("request_method") != method:
+                raise HoymilesConnectionError("Fresh battery mode settings are unavailable")
+            self.battery_settings = fresh
+            if self.data is not None:
+                self.data["battery_settings"] = fresh
+                self.async_update_listeners()
+            if reserve_soc is None and fresh.get("mode") == mode:
+                return
             # Build the payload after taking the lock, using the latest readback.
             if reserve_soc is not None:
                 mode = self.battery_settings.get("mode")
@@ -385,7 +401,10 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     self.station_id, self.inverters
                 )
 
-            if now - self._station_updated >= STATION_INTERVAL:
+            if now - self._station_attempted >= STATION_INTERVAL:
+                # Failed totals must not turn a once-per-minute request into
+                # another request on every fast live poll.
+                self._station_attempted = now
                 try:
                     self.station = await self.client.async_station_realtime(
                         self.station_id
@@ -418,8 +437,17 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "battery_settings": self.battery_settings,
             }
         except HoymilesAuthError as err:
+            self._reset_energy_samples()
             raise ConfigEntryAuthFailed(str(err)) from err
         except HoymilesRateLimitError as err:
+            self._reset_energy_samples()
             raise UpdateFailed(str(err), retry_after=err.retry_after) from err
         except HoymilesConnectionError as err:
+            self._reset_energy_samples()
             raise UpdateFailed(str(err)) from err
+
+    def _reset_energy_samples(self) -> None:
+        """Do not integrate across a failed refresh, even a short interruption."""
+        self._last_battery_power = self._last_battery_sample = None
+        self._last_battery_relay_status = None
+        self._last_load_power = self._last_load_sample = None

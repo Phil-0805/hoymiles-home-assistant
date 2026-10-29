@@ -2,6 +2,13 @@
   "title": "Hoymiles S-Miles Home",
   "config": {
     "step": {
+      "reauth_confirm": {
+        "title": "S-Miles Home erneut anmelden",
+        "description": "Das Passwort für das bestehende Konto erneut eingeben. Anlage, Entitäten und Verlauf bleiben erhalten.",
+        "data": {
+          "password": "Passwort"
+        }
+      },
       "user": {
         "title": "Mit S-Miles Home verbinden",
         "description": "Melde dich mit deinem S-Miles-Home-Konto an. Anschließend kannst du eine Anlage auswählen.",

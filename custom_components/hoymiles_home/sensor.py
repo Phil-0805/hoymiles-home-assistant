@@ -77,7 +77,7 @@ def _battery_charge_power(data: dict[str, Any]) -> float | int | None:
     relay_status = _number(data.get("live", {}).get("brs"))
     charge, _discharge = split_battery_power(
         float(value),
-        int(relay_status) if relay_status is not None else None,
+        relay_status if relay_status in (0, 1, 2) else None,
     )
     return charge
 
@@ -90,7 +90,7 @@ def _battery_discharge_power(data: dict[str, Any]) -> float | int | None:
     relay_status = _number(data.get("live", {}).get("brs"))
     _charge, discharge = split_battery_power(
         float(value),
-        int(relay_status) if relay_status is not None else None,
+        relay_status if relay_status in (0, 1, 2) else None,
     )
     return discharge
 
@@ -388,6 +388,9 @@ class HoymilesStationSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEn
     def available(self) -> bool:
         if self.entity_description.key == "battery_max_power" and self.native_value is None:
             return False
+        if self.entity_description.key in {"today_energy", "month_energy", "year_energy", "total_energy"}:
+            if not self.coordinator.station_is_fresh(self.entity_description.key):
+                return False
         return super().available and (
             self.entity_description.key not in LIVE_SENSOR_KEYS
             or live_connected((self.coordinator.data or {}).get("live", {}))

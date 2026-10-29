@@ -47,6 +47,35 @@ from .errors import (
     HoymilesError, HoymilesAuthError, HoymilesConnectionError, HoymilesRateLimitError,
 )
 
+MAX_JSON_BYTES = 8 * 1024 * 1024
+MAX_JSON_DEPTH = 32
+
+
+async def _bounded_json(response) -> dict[str, Any]:
+    """Limit decoded HTTP bytes and nesting before recursive payload consumers."""
+    chunks, size = [], 0
+    async for chunk in response.content.iter_chunked(65536):
+        size += len(chunk)
+        if size > MAX_JSON_BYTES:
+            raise HoymilesConnectionError("JSON response exceeds size limit")
+        chunks.append(chunk)
+    try:
+        data = json.loads(b"".join(chunks))
+    except (ValueError, UnicodeError, RecursionError) as err:
+        raise HoymilesConnectionError("Invalid JSON response") from err
+    if not isinstance(data, dict):
+        raise HoymilesConnectionError("Unexpected API response")
+    pending = [(data, 0)]
+    while pending:
+        value, depth = pending.pop()
+        if depth > MAX_JSON_DEPTH:
+            raise HoymilesConnectionError("JSON response exceeds nesting limit")
+        if isinstance(value, dict):
+            pending.extend((item, depth + 1) for item in value.values() if isinstance(item, (dict, list)))
+        elif isinstance(value, list):
+            pending.extend((item, depth + 1) for item in value if isinstance(item, (dict, list)))
+    return data
+
 
 class HoymilesHomeClient:
     """Client for the consumer S-Miles Home API."""
@@ -115,25 +144,25 @@ class HoymilesHomeClient:
                     if 300 <= response.status < 400:
                         raise HoymilesConnectionError("Hoymiles API redirected unexpectedly")
                     response.raise_for_status()
-                    data = await response.json(content_type=None)
+                    data = await _bounded_json(response)
         except ClientResponseError as err:
             if err.status == 429:
                 retry_after = retry_delay((err.headers or {}).get("Retry-After"))
                 self.runtime.pause(retry_after)
                 raise HoymilesRateLimitError(
                     "Hoymiles request rate limit reached", retry_after
-                ) from err
+                ) from None
             if err.status == 401:
                 self._token_expires = datetime.min.replace(tzinfo=UTC)
-                raise HoymilesAuthError("Hoymiles authentication expired (HTTP 401)") from err
+                raise HoymilesAuthError("Hoymiles authentication expired (HTTP 401)") from None
             raise HoymilesConnectionError(
                 f"Hoymiles API request failed (HTTP {err.status})"
-            ) from err
+            ) from None
         except (ClientError, TimeoutError, ValueError) as err:
             # aiohttp exception strings may include signed URLs or tokens.
             raise HoymilesConnectionError(
                 f"Hoymiles request failed ({type(err).__name__})"
-            ) from err
+            ) from None
         if not isinstance(data, dict):
             raise HoymilesConnectionError("Unexpected API response")
         return data
@@ -145,8 +174,11 @@ class HoymilesHomeClient:
             if "logins exceeds the daily maximum limit" in message.lower():
                 raise HoymilesRateLimitError("Hoymiles daily login limit reached", 3600)
             if "login" in message.lower() or "token" in message.lower():
-                raise HoymilesAuthError(message)
-            raise HoymilesConnectionError(message)
+                raise HoymilesAuthError("Hoymiles authentication rejected")
+            if "device list is empty" in message.lower():
+                # Keep the known fallback signal, never the arbitrary text.
+                raise HoymilesConnectionError("Hoymiles device list is empty")
+            raise HoymilesConnectionError("Hoymiles API rejected request")
         return response.get("data")
 
     async def async_login(self) -> None:
@@ -163,6 +195,8 @@ class HoymilesHomeClient:
         try:
             salt = bytes.fromhex(data["a"])
             nonce = data["n"]
+            if not 8 <= len(salt) <= 64 or not isinstance(nonce, str) or not 1 <= len(nonce) <= 1024:
+                raise ValueError("Invalid authentication challenge")
         except (KeyError, TypeError, ValueError) as err:
             raise HoymilesAuthError("Incomplete pre-inspection response") from err
         challenge = (await asyncio.to_thread(
@@ -173,8 +207,9 @@ class HoymilesHomeClient:
             f"{AUTH_BASE_URL}/iam/pub/3/auth/login",
             {"u": self._email, "ch": challenge, "n": nonce},
         )
-        token = (self._unwrap(login) or {}).get("token")
-        if not token:
+        login_data = self._unwrap(login)
+        token = login_data.get("token") if isinstance(login_data, dict) else None
+        if not isinstance(token, str) or not 1 <= len(token) <= 16384:
             raise HoymilesAuthError("Login returned no token")
         self._token = token
         self._token_expires = datetime.now(UTC) + TOKEN_LIFETIME
@@ -193,6 +228,11 @@ class HoymilesHomeClient:
                     await self._async_login_unlocked()
                 except HoymilesRateLimitError as err:
                     self._login_retry_at = datetime.now(UTC) + timedelta(seconds=err.retry_after)
+                    raise
+                except HoymilesConnectionError:
+                    # A shared lock alone coalesces successful logins only.
+                    # Pause failed transport attempts across all station clients.
+                    self._login_retry_at = datetime.now(UTC) + timedelta(seconds=60)
                     raise
 
     async def async_device_tree(self, station_id: int) -> list[dict[str, Any]]:
@@ -326,7 +366,10 @@ class HoymilesHomeClient:
             f"{DATA_BASE_URL}/pvmc/api/0/station_data/count_station_real_data_c",
             {"sid": station_id},
         )
-        return self._unwrap(response) or {}
+        data = self._unwrap(response)
+        if data is not None and not isinstance(data, dict):
+            raise HoymilesConnectionError("Unexpected station totals response")
+        return data or {}
 
     async def async_battery_temperatures(self, station_id: int) -> dict:
         """Read the battery device list used by the official topology display."""
@@ -340,7 +383,8 @@ class HoymilesHomeClient:
         response = await self._json(
             f"{DATA_BASE_URL}/pvmc/api/0/station/get_sd_uri_c", {"sid": station_id}
         )
-        uri = (self._unwrap(response) or {}).get("uri")
+        data = self._unwrap(response)
+        uri = data.get("uri") if isinstance(data, dict) else None
         if not uri:
             raise HoymilesConnectionError("Live API returned no URI")
         if not isinstance(uri, str) or not trusted_hoymiles_url(uri):
@@ -408,16 +452,16 @@ class HoymilesHomeClient:
             if err.status == 429:
                 retry_after = retry_delay((err.headers or {}).get("Retry-After"))
                 self.runtime.pause(retry_after)
-                raise HoymilesRateLimitError("Hoymiles chart rate limit reached", retry_after) from err
-            raise HoymilesConnectionError(f"Chart request failed (HTTP {err.status})") from err
+                raise HoymilesRateLimitError("Hoymiles chart rate limit reached", retry_after) from None
+            raise HoymilesConnectionError(f"Chart request failed (HTTP {err.status})") from None
         except (ClientError, TimeoutError) as err:
             raise HoymilesConnectionError(
                 f"Hoymiles chart request failed ({type(err).__name__})"
-            ) from err
+            ) from None
         if raw.lstrip().startswith(b"{"):
             try:
                 self._unwrap(json.loads(raw))
-            except (ValueError, TypeError) as err:
+            except (ValueError, TypeError, RecursionError) as err:
                 raise HoymilesConnectionError("Invalid chart error response") from err
             raise HoymilesConnectionError("Chart endpoint returned no chart data")
         return raw
@@ -539,9 +583,8 @@ class HoymilesHomeClient:
             )
         status = await self._async_poll_battery_settings_job(str(result))
         if status.get("code") != 0:
-            message = status.get("message") or status.get("err_code")
             raise HoymilesConnectionError(
-                str(message or f"Battery settings write returned {status.get('code')}")
+                "Battery settings write failed"
             )
 
     async def _async_verify_battery_settings(
@@ -717,7 +760,7 @@ class HoymilesHomeClient:
             status = await self._async_poll_station_setting_job(str(job_id))
             if status.get("code") != 0:
                 raise HoymilesConnectionError(
-                    str(status.get("message") or "Work mode write failed")
+                    "Work mode write failed"
                 )
             return
         response = await self._json(

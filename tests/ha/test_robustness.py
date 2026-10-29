@@ -225,7 +225,7 @@ async def test_refresh_button_only_reads(hass):
 
 async def test_queued_write_uses_settings_after_lock_is_acquired(hass):
     api = AsyncMock()
-    api.async_battery_settings.return_value = {"mode": 1, "readable": True, "reserve_soc_verified": True, "request_method": "station_action_83", "active_settings": {"reserve_soc": 20, "soc_l": 20, "soc_h": 90}}
+    api.async_battery_settings.return_value = {"mode": 1, "readable": True, "writable": True, "reserve_soc_verified": True, "request_method": "station_action_83", "active_settings": {"reserve_soc": 20, "soc_l": 20, "soc_h": 90}}
     coordinator = HoymilesHomeCoordinator(hass, api, 123)
     coordinator.battery_settings = {"writable": True, "request_method": "station_action_83", "mode": 1,
                                     "reserve_soc_verified": True,

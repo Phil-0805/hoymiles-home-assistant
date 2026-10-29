@@ -151,7 +151,9 @@ def parse_battery_settings(result: Any) -> dict[str, Any]:
     code = result.get("code")
     if code not in (None, 0):
         raise BatterySettingsError(
-            str(result.get("message") or f"Battery settings returned code {code}")
+            "Battery settings device list is empty"
+            if "device list is empty" in str(result.get("message", "")).lower()
+            else "Battery settings request failed"
         )
 
     payload = result.get("data")

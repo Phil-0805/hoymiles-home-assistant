@@ -18,4 +18,6 @@ class HoymilesRateLimitError(HoymilesConnectionError):
 
     def __init__(self, message: str, retry_after: float = 60) -> None:
         super().__init__(message)
-        self.retry_after = retry_after
+        # Limit scheduler wake-up delays, never the account's HTTP pause.
+        # The runtime keeps the full server deadline, including multi-day waits.
+        self.retry_after = min(86400, max(1, retry_after))

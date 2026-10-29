@@ -2,6 +2,13 @@
   "title": "Hoymiles S-Miles Home",
   "config": {
     "step": {
+      "reauth_confirm": {
+        "title": "Reconnect to S-Miles Home",
+        "description": "Enter the password for the existing account. Your plant, entities and history are retained.",
+        "data": {
+          "password": "Password"
+        }
+      },
       "user": {
         "title": "Connect to S-Miles Home",
         "description": "Sign in with your S-Miles Home account, then choose a plant.",
@@ -93,7 +100,7 @@
     "step": {
       "init": {
         "title": "PV display",
-        "description": "Compare the PV power sensor attributes pv and pv2 with the S-Miles Home app. Select another source only after confirming the match. Automatic preserves the existing behavior: pv2 when available, otherwise pv; zero is a valid value. This changes only the display in HA.Additional telemetry is optional and read at most every five minutes. Select the actual station timezone for daily boundaries and charts.",
+        "description": "Compare the PV power sensor attributes pv and pv2 with the S-Miles Home app. Select another source only after confirming the match. Automatic preserves the existing behavior: pv2 when available, otherwise pv; zero is a valid value. This changes only the display in HA. Additional telemetry is optional and read at most every five minutes. Select the actual station timezone for daily boundaries and charts.",
         "data": {
           "pv_power_source": "PV power source",
           "battery_temperatures": "Battery temperatures (beta, one extra request every five minutes)",

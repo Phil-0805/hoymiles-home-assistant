@@ -11,7 +11,8 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 REQUIRED = {"hms1000_model", "battery_settings", "pv_display", "status_documentation",
-            "power_setting", "day_night_recovery", "optional_telemetry"}
+            "power_setting", "day_night_recovery", "optional_telemetry",
+            "mode_switch", "battery_temperature"}
 
 
 def validate(data, version):

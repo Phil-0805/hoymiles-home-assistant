@@ -13,7 +13,7 @@ from .telemetry import number
 
 
 def retry_delay(value):
-    """Parse Retry-After seconds or an HTTP date; use conservative bounds."""
+    """Parse Retry-After without shortening a server-directed account pause."""
     delay = number(value)
     if delay is None and isinstance(value, str):
         try:
@@ -23,7 +23,7 @@ def retry_delay(value):
             delay = (stamp - datetime.now(UTC)).total_seconds()
         except (TypeError, ValueError, OverflowError):
             pass
-    return min(86400, max(60, delay or 60))
+    return max(60, delay or 60)
 
 
 class AccountRuntime:

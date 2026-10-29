@@ -42,6 +42,37 @@ class HoymilesHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._credentials: dict[str, str] = {}
         self._stations: list[dict[str, Any]] = []
 
+    async def async_step_reauth(self, entry_data) -> ConfigFlowResult:
+        """Renew credentials on the existing entry, retaining all identities."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(self, user_input=None) -> ConfigFlowResult:
+        entry = self._get_reauth_entry()
+        errors = {}
+        if user_input is not None:
+            client = HoymilesHomeClient(
+                async_get_clientsession(self.hass, verify_ssl=True),
+                entry.data[CONF_USERNAME], user_input[CONF_PASSWORD],
+            )
+            try:
+                await client.async_login()
+                if not await client.async_device_tree(entry.data[CONF_STATION_ID]):
+                    errors["base"] = "invalid_station"
+            except HoymilesAuthError:
+                errors["base"] = "invalid_auth"
+            except HoymilesConnectionError:
+                errors["base"] = "cannot_connect"
+            if not errors:
+                return self.async_update_reload_and_abort(
+                    entry, data_updates={CONF_PASSWORD: user_input[CONF_PASSWORD]},
+                )
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema({vol.Required(CONF_PASSWORD): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.PASSWORD)
+            )}), errors=errors,
+        )
+
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:

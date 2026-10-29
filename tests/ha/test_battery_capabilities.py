@@ -73,7 +73,7 @@ async def test_unverified_readback_never_reports_write_success(hass, invalid):
     api = AsyncMock()
     active = {"reserve_soc": 20, "soc_l": 20, "soc_h": 100}
     snapshot = {"mode": 1, "readable": True, "writable": True, "request_method": "station_action_83", "reserve_soc_verified": True, "active_settings": active}
-    api.async_battery_settings.return_value = {**snapshot, **invalid}
+    api.async_battery_settings.side_effect = [snapshot, {**snapshot, **invalid}]
     coordinator = HoymilesHomeCoordinator(hass, api, 123)
     coordinator.battery_settings = snapshot
     from unittest.mock import patch
