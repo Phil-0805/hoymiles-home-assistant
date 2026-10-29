@@ -1,10 +1,10 @@
 # Testplan für den größeren Release 0.5.0
 
-Kandidat: **0.5.0b1**, ausschließlich als Vorabversion. Die Implementierung und automatisierte Tests ersetzen keine Bestätigung am betroffenen Gerät. Stable bleibt 0.4.2.
+Kandidat: **0.5.0b3**, ausschließlich als Vorabversion. Die Implementierung und automatisierte Tests ersetzen keine Bestätigung am betroffenen Gerät. Stable bleibt 0.4.2.
 
 ## Testen ohne Neueinrichtung
 
-1. In HACS Vorabversionen anzeigen, 0.5.0b1 installieren und Home Assistant neu starten. Die bestehende Integration behalten.
+1. In HACS Vorabversionen anzeigen, 0.5.0b3 installieren und Home Assistant neu starten. Die bestehende Integration behalten.
 2. Prüfen, ob Geräte, Entitäten, Verlauf und Tageszähler weiterhin vorhanden sind. Keine Geräte löschen, um Namensprobleme zu beheben.
 3. Unter Konfigurieren die tatsächliche Zeitzone der Anlage prüfen. Standard ist die HA-Zeitzone. Die optionalen zusätzlichen Wechselrichter-Messwerte sind zunächst ausgeschaltet.
 
@@ -17,7 +17,7 @@ Kandidat: **0.5.0b1**, ausschließlich als Vorabversion. Die Implementierung und
 | PV-Leistung | Bei Sonne HA-Attribute `pv`/`pv2` und App zeitgleich vergleichen. Bei belegtem Unterschied die passende Quelle konfigurieren. | Gewählte Quelle und beobachtete Leistungen dokumentieren. Keine Addition ohne Nachweis. |
 | Statuszahlen | Batterieaktivität bei Laden, Entladen und Leerlauf mit der App vergleichen. Rohcodes bleiben als solche bezeichnet. | Betroffener Nutzer bestätigt Anzeige/Dokumentation. Die Bedeutungen von `ems`/`chs` sind weiterhin nicht belegt. |
 | Maximale Leistung | Prüfen, ob die App für dieses Gerät/den Modus einen entsprechenden Wert anbietet. Diagnose enthält nur bekannte numerische Einstellungsfelder. | Verfügbarkeit oder die dokumentierte Einschränkung bestätigen; Einheit und Steuerbarkeit nicht erfinden. |
-| Betriebsmodus | Nur ein bestätigter Modus ergibt keine bedienbare Auswahl. Der gelesene Modus bleibt als Diagnose sichtbar. | Klären, ob mehrere Modi in der App tatsächlich verfügbar sind. Ohne passende Protokolldaten werden keine zusätzlichen Befehle angeboten. |
+| Betriebsmodus | Der aktuelle Modus bleibt sichtbar. Beim Zugriff über Stationsaktion 83 stehen Eigenverbrauch und TOU zur Auswahl, sofern eine unterstützte TOU-Konfiguration bereits gelesen wurde. | Gezielt in TOU und zurück wechseln; Modus, gespeicherten Zeitplan und SOC-Grenzen mit der App vergleichen. Keine neuen Pläne anlegen; nicht unterstützte Untermodi bleiben gesperrt. Der Reserve-SOC-Regler gilt nur für Eigenverbrauch. |
 | Tag/Nacht | Nachts Verfügbarkeit, morgens automatische Erholung sowie Tageszähler/Verlauf prüfen. | Testzeitraum und Ergebnis dokumentieren. |
 | Neue Messwerte | Optional aktivieren; Temperatur, Netzfrequenz und AC-Spannung mit App vergleichen. Bis zum ersten passenden Datenpunkt können sie unbekannt sein. | Reale Werte und Geräteversion dokumentieren. Die bisherige Validierung des zusätzlichen Datenformats ist synthetisch. |
 
@@ -43,3 +43,5 @@ Es wird derselbe synthetische Protobuf-Datensatz wie in den Python-Tests ausgewe
 Die sieben Prüfbereiche in `release-readiness.json` sind zunächst **unbestätigt**. Bestätigungen werden nur anhand tatsächlicher Rückmeldungen eingetragen, mit getesteter Kandidatenversion, bestätigender Person und Link auf den Issue-Kommentar. Bei fachlichen Codeänderungen nach dem Test muss die betroffene Prüfung erneut erfolgen.
 
 Der Stable-Workflow prüft diesen Nachweis und die separate Maintainer-Freigabe. Solange ein Nachweis fehlt, wird kein neuer Stable-Release veröffentlicht. Zusätzlich müssen Tests, HACS und Hassfest erfolgreich sein. Die Prüfung schützt vor versehentlicher Veröffentlichung; sie kann den Wahrheitsgehalt eines Gerätetests nicht selbst feststellen.
+
+Zusatzwerte werden weiter alle fünf Minuten abgefragt. Jeder Messwert behält seinen eigenen Messzeitpunkt; ein fehlender Frequenzwert darf einen noch gültigen Wert nicht löschen und eine neue Temperatur darf ihn nicht auffrischen. Nach zehn Minuten ohne neuen Messpunkt muss der betroffene Sensor nicht verfügbar werden. Details und Grenzen stehen in [den b3-Hinweisen](release-0.5.0b3.md).
