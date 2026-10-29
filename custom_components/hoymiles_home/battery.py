@@ -15,6 +15,15 @@ BATTERY_MODE_NAMES = {
     7: "Peak Shaving",
     8: "Time of Use",
 }
+WRITABLE_BATTERY_MODES = {1, 2, 3, 4, 7, 8}
+
+
+def writable_modes(settings: dict[str, Any]) -> list[int]:
+    """Only offer advertised modes whose control semantics are supported."""
+    modes = settings.get("available_modes")
+    if not isinstance(modes, list):
+        return []
+    return [mode for mode in modes if type(mode) is int and mode in WRITABLE_BATTERY_MODES]
 
 
 class BatterySettingsError(ValueError):
@@ -63,7 +72,8 @@ def soc_setting_candidates(payload: Any) -> list[dict[str, Any]]:
 
         for key, item in value.items():
             item_path = f"{path}.{key}" if path else str(key)
-            if "soc" in str(key).lower() and isinstance(item, (str, int, float, bool)):
+            if ("soc" in str(key).lower() and isinstance(item, (int, float))
+                    and not isinstance(item, bool) and 0 <= item <= 100 and isfinite(item)):
                 candidates.append({"path": item_path, "value": item})
             else:
                 visit(item, item_path)
@@ -246,9 +256,8 @@ def battery_settings_confirmed(
     if not isinstance(active, dict):
         return False
     return all(
-        active.get(key) == value
+        key in active and active[key] == value
         for key, value in requested.items()
-        if isinstance(value, (str, int, float, bool))
     )
 def battery_setting_command_data(
     station_id: int, mode: int, mode_data: dict[str, Any]

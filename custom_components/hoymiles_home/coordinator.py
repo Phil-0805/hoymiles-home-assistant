@@ -7,11 +7,11 @@ from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 import logging
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from homeassistant.util import dt as dt_util
 
 from .api import (
     HoymilesAuthError,
@@ -20,7 +20,7 @@ from .api import (
     HoymilesRateLimitError,
     microinverters,
 )
-from .battery import battery_settings_confirmed
+from .battery import battery_settings_confirmed, writable_modes
 from .const import (
     BATTERY_SETTINGS_INTERVAL,
     BATTERY_ENERGY_CALCULATION_VERSION,
@@ -33,7 +33,7 @@ from .const import (
     STORAGE_VERSION,
 )
 from .energy import integrate_battery_energy, integrate_positive_energy
-from .inverter import inverter_ports
+from .module_polling import ModulePoller
 from .telemetry import PV_POWER_SOURCE, live_connected, number
 
 _LOGGER = logging.getLogger(__name__)
@@ -48,6 +48,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def __init__(
         self, hass, client: HoymilesHomeClient, station_id: int,
         pv_power_source: str = "auto",
+        inverter_details: bool = False, station_timezone: str | None = None,
     ) -> None:
         super().__init__(
             hass,
@@ -60,7 +61,12 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.pv_power_source = pv_power_source
         self.device_tree: list[dict[str, Any]] = []
         self.inverters: list[dict[str, Any]] = []
-        self.modules: dict[int, dict[int, dict[str, float | None]]] = {}
+        self.station_timezone = ZoneInfo(station_timezone or hass.config.time_zone)
+        self.inverter_details = inverter_details
+        self.module_polling = ModulePoller(
+            hass, client, station_id, self.station_timezone, inverter_details,
+            self._publish_modules,
+        )
         self.station: dict[str, Any] = {}
         self.battery_settings: dict[str, Any] = {
             "readable": False,
@@ -74,7 +80,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             STORAGE_VERSION,
             f"{DOMAIN}.{station_id}.battery_energy",
         )
-        self._energy_date = dt_util.now().date().isoformat()
+        self._energy_date = datetime.now(self.station_timezone).date().isoformat()
         self._charge_wh = 0.0
         self._discharge_wh = 0.0
         self._consumption_wh = 0.0
@@ -87,7 +93,6 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._battery_settings_lock = asyncio.Lock()
         self._battery_settings_task: asyncio.Task | None = None
         self._stopped = False
-        self.module_updated: dict[tuple[int, int], datetime] = {}
 
     async def async_initialize(self) -> None:
         """Restore today's calculated battery energy."""
@@ -112,6 +117,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Cancel our background read before the entry is removed or reloaded."""
         self._stopped = True
         await super().async_shutdown()
+        await self.module_polling.async_shutdown()
         if self._battery_settings_task and not self._battery_settings_task.done():
             self._battery_settings_task.cancel()
             try:
@@ -129,17 +135,39 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
         return self._battery_settings_task
 
-    async def async_refresh_battery_settings(self) -> None:
+    async def async_refresh_battery_settings(self) -> bool:
         """Manually refresh read-only settings, coalescing concurrent requests."""
+        running = self._battery_settings_task and not self._battery_settings_task.done()
+        if not running and datetime.now(UTC) - self._battery_settings_updated < timedelta(seconds=30):
+            return False
         task = self._start_battery_settings_refresh()
         if task is not None:
             await asyncio.shield(task)
+            return True
+        return False
+
+    @property
+    def modules(self):
+        return self.module_polling.modules
+
+    @modules.setter
+    def modules(self, value):
+        self.module_polling.modules = value
+
+    @property
+    def module_updated(self):
+        return self.module_polling.updated
 
     def module_is_fresh(self, inverter_id: int, port: int) -> bool:
-        updated = self.module_updated.get((inverter_id, port))
-        return updated is not None and (
-            datetime.now(UTC) - updated <= MODULE_INTERVAL * 2
-        )
+        return self.module_polling.is_fresh(inverter_id, port)
+
+    def _publish_modules(self) -> None:
+        if not self._stopped and self.data is not None:
+            self.data.update({
+                "modules": self.modules,
+                "inverter_details": self.module_polling.details,
+            })
+            self.async_update_listeners()
 
     def _energy_store_data(self) -> dict[str, Any]:
         return {
@@ -178,7 +206,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self, live: dict[str, Any], now: datetime
     ) -> dict[str, Any]:
         """Update the local daily charge/discharge energy counters."""
-        local_date = dt_util.now().date().isoformat()
+        local_date = now.astimezone(self.station_timezone).date().isoformat()
         if local_date != self._energy_date:
             self._energy_date = local_date
             self._charge_wh = 0.0
@@ -263,6 +291,8 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 mode = self.battery_settings.get("mode")
                 settings = self.battery_settings.get("active_settings")
             else:
+                if mode not in writable_modes(self.battery_settings):
+                    raise HoymilesConnectionError("Battery mode is not supported for writing")
                 modes = self.battery_settings.get("mode_settings")
                 settings = modes.get(mode) if isinstance(modes, dict) else None
             if isinstance(mode, bool) or not isinstance(mode, int) or not isinstance(settings, dict):
@@ -346,36 +376,8 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._start_battery_settings_refresh()
 
             if now - self._modules_updated >= MODULE_INTERVAL:
-                chart_date = dt_util.now().date().isoformat()
-                modules = {
-                    inverter_id: dict(ports)
-                    for inverter_id, ports in self.modules.items()
-                }
-                for inverter in self.inverters:
-                    inverter_id = inverter["id"]
-                    modules.setdefault(inverter_id, {})
-                    for port in inverter_ports(inverter):
-                        try:
-                            modules[inverter_id][port] = (
-                                await self.client.async_module_values(
-                                    self.station_id,
-                                    inverter_id,
-                                    port,
-                                    chart_date,
-                                )
-                            )
-                            self.module_updated[(inverter_id, port)] = datetime.now(UTC)
-                        except (HoymilesAuthError, HoymilesRateLimitError):
-                            raise
-                        except HoymilesConnectionError as err:
-                            _LOGGER.debug(
-                                "Could not update inverter %s port %s: %s",
-                                inverter_id,
-                                port,
-                                err,
-                            )
-                self.modules = modules
                 self._modules_updated = now
+                self.module_polling.start(self.inverters)
 
             return {
                 PV_POWER_SOURCE: self.pv_power_source,
@@ -384,6 +386,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "device_tree": self.device_tree,
                 "inverters": self.inverters,
                 "modules": self.modules,
+                "inverter_details": self.module_polling.details,
                 "battery_energy": battery_energy,
                 "battery_settings": self.battery_settings,
             }

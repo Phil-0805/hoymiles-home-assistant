@@ -114,6 +114,9 @@ async def test_malformed_chart_is_a_handled_connection_error(raw):
     api = api_client()
     response = MagicMock(status=200)
     response.read = AsyncMock(return_value=raw)
+    async def chunks(*args):
+        yield raw
+    response.content.iter_chunked = chunks
     api._session.post.return_value.__aenter__.return_value = response
     with pytest.raises(HoymilesConnectionError):
         await api.async_module_values(123, 99, 1, "2026-10-29")

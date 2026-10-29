@@ -12,14 +12,9 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import HoymilesError
-from .battery import BATTERY_MODE_NAMES
+from .battery import BATTERY_MODE_NAMES, writable_modes
 from .const import CONF_STATION_ID, DOMAIN
 from .coordinator import HoymilesHomeCoordinator
-
-# Modes 5 and 6 are returned by some backends but are hidden by the official
-# web UI. Do not offer those undocumented modes as writable choices.
-WRITABLE_BATTERY_MODES = {1, 2, 3, 4, 7, 8}
-
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -53,15 +48,9 @@ class HoymilesBatteryModeSelect(
 
     def _mode_options(self) -> dict[str, int]:
         settings = self.coordinator.battery_settings
-        modes = settings.get("available_modes")
-        active_mode = settings.get("mode")
-        if not isinstance(modes, list):
-            return {}
         return {
             BATTERY_MODE_NAMES.get(mode, f"Unknown ({mode})"): mode
-            for mode in modes
-            if isinstance(mode, int)
-            and (mode in WRITABLE_BATTERY_MODES or mode == active_mode)
+            for mode in writable_modes(settings)
         }
 
     @property
@@ -70,7 +59,8 @@ class HoymilesBatteryModeSelect(
             super().available
             and self.coordinator.battery_settings.get("readable") is True
             and self.coordinator.battery_settings.get("writable") is True
-            and bool(self._mode_options())
+            and self.coordinator.battery_settings.get("mode") in self._mode_options().values()
+            and len(self._mode_options()) > 1
         )
 
     @property

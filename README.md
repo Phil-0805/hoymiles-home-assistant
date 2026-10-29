@@ -132,6 +132,13 @@ Do not expose Home Assistant publicly without its normal access controls.
 
 ## Notes
 
+The **0.5.0 beta** adds optional inverter temperature, frequency and AC voltage
+(Configure → Additional inverter telemetry), disabled by default. Station
+timezone, shared account request limits and a settings-refresh cooldown are
+included. Unsupported mode/maximum-power capabilities are reported explicitly;
+numeric EMS/charge meanings remain unverified. Follow the
+[test and release plan](docs/testing-0.5.0.de.md) before stable publication.
+
 From v0.4.3b3 (beta), the diagnostic **Refresh battery settings** button reads
 settings again without sending a control command. Explicitly disconnected live
 measurements and module readings without a successful response for ten minutes

@@ -148,6 +148,14 @@ werden abgelehnt. Home Assistant nur mit den üblichen Zugriffsschutzmaßnahmen
 
 ## Hinweise
 
+Die **0.5.0-Beta** ergänzt optional Wechselrichtertemperatur, Netzfrequenz und
+AC-Spannung (Konfigurieren → Zusätzliche Wechselrichter-Messwerte), zunächst
+ausgeschaltet. Dazu kommen Anlagenzeitzone, gemeinsame Abfragebegrenzung je
+Konto und eine Wartezeit zwischen manuellen Aktualisierungen. Nicht bestätigte
+Modus-/Leistungsfunktionen werden nicht als nutzbare Steuerung dargestellt.
+EMS-/Ladecodes bleiben ungeklärt. Vor Stable gilt der
+[Test- und Freigabeplan](docs/testing-0.5.0.de.md).
+
 Ab v0.4.3b3 (Beta) liest der Diagnoseknopf **Batterieeinstellungen aktualisieren**
 die Einstellungen erneut, ohne einen Steuerbefehl zu senden. Bei gemeldeter
 Trennung sind aktuelle Messwerte nicht verfügbar; Modulwerte ebenfalls, wenn

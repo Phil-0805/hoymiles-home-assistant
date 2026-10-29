@@ -5,7 +5,8 @@ from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
 from .inverter import inverter_model, inverter_ports
-from .telemetry import battery_activity, number, pv_power_details, status_codes
+from .battery import writable_modes
+from .telemetry import battery_activity, live_power, number, pv_power_details, status_codes
 
 
 def _battery_diagnostics(settings: dict) -> dict:
@@ -14,6 +15,9 @@ def _battery_diagnostics(settings: dict) -> dict:
     active = settings.get("active_settings", {})
     if not isinstance(active, dict):
         active = {}
+    modes = settings.get("available_modes")
+    modes = modes if isinstance(modes, list) else []
+    modes = [mode for mode in modes if type(mode) is int and mode in {1, 2, 3, 4, 5, 6, 7, 8}]
     return {
         "readable": settings.get("readable") is True,
         "writable": settings.get("writable") is True,
@@ -25,6 +29,14 @@ def _battery_diagnostics(settings: dict) -> dict:
         "mode": number(settings.get("mode")),
         "reserve_soc": number(active.get("reserve_soc")),
         "max_power": number(active.get("max_power")),
+        "available_modes": modes,
+        "mode_control": "multiple_modes" if len(writable_modes(settings)) > 1 else "single_or_no_mode",
+        "max_power_unit_verified": False,
+        "active_numeric_fields": {
+            key: number(active[key])
+            for key in ("reserve_soc", "soc_l", "soc_h", "max_power", "pc", "pd")
+            if key in active
+        },
     }
 
 
@@ -54,9 +66,16 @@ async def async_get_config_entry_diagnostics(
     live = data.get("live", {})
     return {
         "inverters": inverters,
+        "polling": {
+            "station_timezone": str(getattr(coordinator, "station_timezone", "unknown")),
+            "details_enabled": getattr(coordinator, "inverter_details", False) is True,
+            "details_status": getattr(getattr(coordinator, "module_polling", None), "details_status", "disabled"),
+            "minimum_http_start_interval_seconds": 1,
+            "maximum_concurrent_http_requests": 2,
+        },
         "pv_power": pv_power_details(data),
         "battery": {
-            "power": number(live.get("power", {}).get("bat")),
+            "power": number(live_power(data).get("bat")),
             "soc": number(live.get("soc")),
             "raw_status_codes": status_codes(live),
             "activity_from_brs": battery_activity(live),

@@ -19,6 +19,8 @@ from homeassistant.const import (
     UnitOfEnergy,
     UnitOfPower,
     UnitOfElectricPotential,
+    UnitOfTemperature,
+    UnitOfFrequency,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -30,7 +32,7 @@ from .coordinator import HoymilesHomeCoordinator
 from .energy import split_battery_power
 from .inverter import inverter_model, inverter_ports
 from .telemetry import (
-    battery_activity, live_connected, number as _number, pv_power_details, status_codes,
+    battery_activity, live_connected, live_power, number as _number, pv_power_details, status_codes,
 )
 
 LIVE_SENSOR_KEYS = {
@@ -41,7 +43,7 @@ LIVE_SENSOR_KEYS = {
 
 
 def _live(key: str) -> Callable[[dict[str, Any]], Any]:
-    return lambda data: _number(data.get("live", {}).get("power", {}).get(key))
+    return lambda data: _number(live_power(data).get(key))
 
 
 def _station(key: str) -> Callable[[dict[str, Any]], Any]:
@@ -239,13 +241,13 @@ STATION_SENSORS = (
     HoymilesDescription(
         key="battery_max_power",
         translation_key="battery_max_power",
-        native_unit_of_measurement=PERCENTAGE,
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda data: _number(
             data.get("battery_settings", {})
             .get("active_settings", {})
             .get("max_power")
         ),
+        attributes_fn=lambda data: {"unit_verified": False},
     ),
     HoymilesDescription(
         key="battery_activity",
@@ -339,6 +341,15 @@ async def async_setup_entry(
                         device_class,
                     )
                 )
+        if coordinator.inverter_details:
+            for key, unit, device_class in (
+                ("temperature", UnitOfTemperature.CELSIUS, SensorDeviceClass.TEMPERATURE),
+                ("frequency", UnitOfFrequency.HERTZ, SensorDeviceClass.FREQUENCY),
+                ("voltage", UnitOfElectricPotential.VOLT, SensorDeviceClass.VOLTAGE),
+            ):
+                entities.append(HoymilesInverterDetailSensor(
+                    coordinator, entry, inverter, key, unit, device_class
+                ))
     async_add_entities(entities)
 
 
@@ -361,6 +372,8 @@ class HoymilesStationSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEn
 
     @property
     def available(self) -> bool:
+        if self.entity_description.key == "battery_max_power" and self.native_value is None:
+            return False
         return super().available and (
             self.entity_description.key not in LIVE_SENSOR_KEYS
             or live_connected((self.coordinator.data or {}).get("live", {}))
@@ -429,3 +442,45 @@ class HoymilesModuleSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEnt
             .get(self._port, {})
             .get(self._quota)
         )
+
+
+class HoymilesInverterDetailSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEntity):
+    """Optional read-only inverter telemetry from an explicitly enabled endpoint."""
+
+    _attr_has_entity_name = True
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, entry, inverter, key, unit, device_class):
+        super().__init__(coordinator)
+        self._inverter_id, self._key = inverter["id"], key
+        self._attr_unique_id = f"{entry.entry_id}_{inverter['id']}_inverter_{key}"
+        self._attr_translation_key = f"inverter_{key}"
+        self._attr_suggested_display_precision = {"temperature": 1, "frequency": 2, "voltage": 1}[key]
+        self._attr_native_unit_of_measurement = unit
+        self._attr_device_class = device_class
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"inverter_{inverter['id']}")},
+            manufacturer="Hoymiles", name="Hoymiles microinverter",
+            model=inverter_model(inverter),
+            via_device=(DOMAIN, f"station_{entry.data[CONF_STATION_ID]}"),
+        )
+
+    @property
+    def available(self):
+        return (
+            super().available
+            and live_connected((self.coordinator.data or {}).get("live", {}))
+            and self.coordinator.module_polling.detail_is_fresh(self._inverter_id)
+        )
+
+    @property
+    def native_value(self):
+        return _number((self.coordinator.data or {}).get("inverter_details", {}).get(
+            self._inverter_id, {}
+        ).get(self._key))
+
+    @property
+    def extra_state_attributes(self):
+        return {"sample_time": (self.coordinator.data or {}).get("inverter_details", {}).get(
+            self._inverter_id, {}
+        ).get("sample_time")}

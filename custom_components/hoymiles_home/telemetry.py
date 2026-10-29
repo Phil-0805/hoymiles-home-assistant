@@ -25,13 +25,20 @@ def number(value: Any) -> float | int | None:
         return None
 
 
+def live_power(data: dict[str, Any]) -> dict[str, Any]:
+    """A disconnected or malformed response may contain a null power block."""
+    live = data.get("live")
+    power = live.get("power") if isinstance(live, dict) else None
+    return power if isinstance(power, dict) else {}
+
+
 def pv_power_details(data: dict[str, Any]) -> dict[str, Any]:
     """Select one field, retaining the established default and valid zeros.
 
     pv and pv2 are not proven to be additive on every Home installation.
     Explicit selections never silently substitute a different field.
     """
-    power = data.get("live", {}).get("power", {})
+    power = live_power(data)
     values = {key: number(power.get(key)) for key in ("pv", "pv2")}
     selection = data.get(PV_POWER_SOURCE, "auto")
     if selection not in PV_POWER_SOURCES:

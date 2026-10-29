@@ -52,6 +52,11 @@ def _fields(data: bytes):
         yield number, wire, value
 
 
+def iter_fields(data: bytes):
+    """Iterate bounded wire fields for the chart and module-data decoders."""
+    yield from _fields(data)
+
+
 def _line_series(data: bytes) -> dict[str, Any]:
     result: dict[str, Any] = {"type": "", "data": [], "device_id": 0, "port": 0}
     for number, wire, value in _fields(data):

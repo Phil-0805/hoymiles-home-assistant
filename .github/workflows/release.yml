@@ -68,6 +68,12 @@ jobs:
             } catch (error) {
               if (error.status !== 404) throw error;
             }
+            if (stable) {
+              require('child_process').execFileSync(
+                'python3', ['scripts/check_release_readiness.py', '--version', version],
+                {stdio: 'inherit'}
+              );
+            }
             const body = fs.readFileSync(`docs/release-${version}.md`, 'utf8');
             const result = await github.rest.repos.createRelease({
               ...repo,

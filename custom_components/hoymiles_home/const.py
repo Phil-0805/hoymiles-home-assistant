@@ -6,6 +6,8 @@ DOMAIN = "hoymiles_home"
 PLATFORMS = ["sensor", "binary_sensor", "number", "select", "button"]
 
 CONF_STATION_ID = "station_id"
+CONF_INVERTER_DETAILS = "inverter_details"
+CONF_STATION_TIMEZONE = "station_timezone"
 
 AUTH_BASE_URL = "https://euapi.hoymiles.com"
 DATA_BASE_URL = "https://neapi.hoymiles.com"

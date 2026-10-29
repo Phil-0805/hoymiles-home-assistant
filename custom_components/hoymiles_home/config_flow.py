@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from zoneinfo import available_timezones
 from homeassistant.core import callback
 
 import voluptuous as vol
@@ -12,6 +13,7 @@ from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
@@ -21,7 +23,7 @@ from homeassistant.helpers.selector import (
 )
 
 from .api import HoymilesAuthError, HoymilesConnectionError, HoymilesHomeClient
-from .const import CONF_STATION_ID, DOMAIN
+from .const import CONF_INVERTER_DETAILS, CONF_STATION_ID, CONF_STATION_TIMEZONE, DOMAIN
 from .telemetry import PV_POWER_SOURCE, PV_POWER_SOURCES
 
 
@@ -214,6 +216,16 @@ class HoymilesHomeOptionsFlow(config_entries.OptionsFlow):
                     options=list(PV_POWER_SOURCES),
                     translation_key=PV_POWER_SOURCE,
                     mode=SelectSelectorMode.DROPDOWN,
+                )),
+                vol.Optional(
+                    CONF_INVERTER_DETAILS,
+                    default=self.config_entry.options.get(CONF_INVERTER_DETAILS, False),
+                ): BooleanSelector(),
+                vol.Optional(
+                    CONF_STATION_TIMEZONE,
+                    default=self.config_entry.options.get(CONF_STATION_TIMEZONE, self.hass.config.time_zone),
+                ): SelectSelector(SelectSelectorConfig(
+                    options=sorted(available_timezones()), mode=SelectSelectorMode.DROPDOWN,
                 )),
             }),
         )

@@ -2,6 +2,7 @@
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.const import EntityCategory
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -32,4 +33,8 @@ class HoymilesRefreshBatterySettingsButton(CoordinatorEntity, ButtonEntity):
         )
 
     async def async_press(self) -> None:
-        await self.coordinator.async_refresh_battery_settings()
+        if not await self.coordinator.async_refresh_battery_settings():
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="settings_refresh_wait",
+            )
