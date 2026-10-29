@@ -515,10 +515,10 @@ class HoymilesBatteryTemperatureSensor(CoordinatorEntity[HoymilesHomeCoordinator
         self._serial = serial
         self._attr_unique_id = f"{entry.entry_id}_battery_{serial}_temperature"
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"battery_{entry.data[CONF_STATION_ID]}_{serial}")},
-            serial_number=serial, manufacturer="Hoymiles",
-            name="Hoymiles battery pack" if parent else "Hoymiles battery",
-            via_device=(DOMAIN, f"battery_{entry.data[CONF_STATION_ID]}_{parent}" if parent else f"station_{entry.data[CONF_STATION_ID]}"),
+            identifiers={(DOMAIN, f"station_{entry.data[CONF_STATION_ID]}")},
+            manufacturer="Hoymiles",
+            name=f"S-Miles Home {entry.data[CONF_STATION_ID]}",
+            model="S-Miles Home station",
         )
 
     @property
@@ -535,4 +535,5 @@ class HoymilesBatteryTemperatureSensor(CoordinatorEntity[HoymilesHomeCoordinator
     def extra_state_attributes(self):
         stamp = self.coordinator.battery_telemetry.updated.get(self._serial)
         return {"fetched_at": stamp.isoformat() if stamp else None,
-                "source": "battery_device_api", "freshness_basis": "cloud_response"}
+                "source": "battery_device_api", "freshness_basis": "cloud_response",
+                "battery_serial": self._serial}

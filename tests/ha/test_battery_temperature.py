@@ -118,7 +118,7 @@ async def test_background_read_does_not_block_live_and_unload_cancels(hass):
     assert coordinator.battery_telemetry.start() is None
 
 
-async def test_dynamic_entities_are_added_once_with_pack_parent_and_private_diagnostics(hass):
+async def test_dynamic_entities_share_station_device_and_keep_private_diagnostics(hass):
     api = AsyncMock()
     coordinator = HoymilesHomeCoordinator(hass, api, 123, battery_temperatures=True)
     coordinator.data = {"live": {"con": 1}}
@@ -138,7 +138,9 @@ async def test_dynamic_entities_are_added_once_with_pack_parent_and_private_diag
     parent, pack = sensors
     assert not parent.available
     assert pack.available and pack.native_value == 0
-    assert pack.device_info["via_device"] == (DOMAIN, f"battery_123_{SN}")
+    assert pack.device_info["identifiers"] == parent.device_info["identifiers"] == {(DOMAIN, "station_123")}
+    assert pack.unique_id == f"entry_battery_{PACK}_temperature"
+    assert pack.extra_state_attributes["battery_serial"] == PACK
     assert pack.extra_state_attributes["freshness_basis"] == "cloud_response"
     result = await async_get_config_entry_diagnostics(hass, entry)
     assert result["battery_telemetry"] == {"enabled": True, "status": "readable", "device_count": 2}

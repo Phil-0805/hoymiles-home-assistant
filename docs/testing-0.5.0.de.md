@@ -1,10 +1,10 @@
 # Testplan für den größeren Release 0.5.0
 
-Kandidat: **0.5.0b4**, ausschließlich als Vorabversion. Die Implementierung und automatisierte Tests ersetzen keine Bestätigung am betroffenen Gerät. Stable bleibt 0.4.2.
+Kandidat: **0.5.0b5**, ausschließlich als Vorabversion. Die Implementierung und automatisierte Tests ersetzen keine Bestätigung am betroffenen Gerät. Stable bleibt 0.4.2.
 
 ## Testen ohne Neueinrichtung
 
-1. In HACS Vorabversionen anzeigen, 0.5.0b4 installieren und Home Assistant neu starten. Die bestehende Integration behalten.
+1. In HACS Vorabversionen anzeigen, 0.5.0b5 installieren und Home Assistant neu starten. Die bestehende Integration behalten.
 2. Prüfen, ob Geräte, Entitäten, Verlauf und Tageszähler weiterhin vorhanden sind. Keine Geräte löschen, um Namensprobleme zu beheben.
 3. Unter Konfigurieren die tatsächliche Zeitzone der Anlage prüfen. Standard ist die HA-Zeitzone. Die optionalen zusätzlichen Wechselrichter-Messwerte sind zunächst ausgeschaltet.
 
@@ -44,6 +44,8 @@ Die sieben Prüfbereiche in `release-readiness.json` sind zunächst **unbestäti
 
 Der Stable-Workflow prüft diesen Nachweis und die separate Maintainer-Freigabe. Solange ein Nachweis fehlt, wird kein neuer Stable-Release veröffentlicht. Zusätzlich müssen Tests, HACS und Hassfest erfolgreich sein. Die Prüfung schützt vor versehentlicher Veröffentlichung; sie kann den Wahrheitsgehalt eines Gerätetests nicht selbst feststellen.
 
-Zusatzwerte werden weiter alle fünf Minuten abgefragt. Jeder Messwert behält seinen eigenen Messzeitpunkt; ein fehlender Frequenzwert darf einen noch gültigen Wert nicht löschen und eine neue Temperatur darf ihn nicht auffrischen. Nach zehn Minuten ohne neuen Messpunkt muss der betroffene Sensor nicht verfügbar werden. Details und Grenzen stehen in [den b3-Hinweisen](release-0.5.0b4.md).
+Zusatzwerte werden weiter alle fünf Minuten abgefragt. Jeder Messwert behält seinen eigenen Messzeitpunkt; ein fehlender Frequenzwert darf einen noch gültigen Wert nicht löschen und eine neue Temperatur darf ihn nicht auffrischen. Nach zehn Minuten ohne neuen Messpunkt muss der betroffene Sensor nicht verfügbar werden. Details und Grenzen stehen in [den b3-Hinweisen](release-0.5.0b5.md).
 
 Batterietemperatur (b4): In den Integrationsoptionen **Batterietemperaturen (Beta)** aktivieren. Für jede gelieferte Batterie bzw. jedes identifizierbare Erweiterungspack entsteht ein eigener Temperatursensor. Nach höchstens dem normalen Fünf-Minuten-Zyklus mit der App vergleichen; auch 0 °C muss korrekt angezeigt werden. Fehlende Werte werden nicht als null interpretiert. `fetched_at` beschreibt den Cloud-Abrufzeitpunkt, nicht den Messzeitpunkt im Akku. Moduswechsel auf dem eigenen System wurde vom Maintainer mit b3 als funktionierend zurückgemeldet; die Bestätigungen für andere betroffene Geräte bleiben offen.
+
+b5-Gruppierung: Batterietemperaturen erscheinen unter dem vorhandenen S-Miles-Home-Gerät. Beim Update von b4 müssen bestehende Temperatur-Entitäten dieselbe Entitäts-ID behalten; ein ausschließlich hierfür angelegtes, danach leeres Batterie-Gerät verschwindet. Geräte mit weiteren Entitäten oder abhängigen Geräten bleiben erhalten. Die Batterietemperaturanzeige mit b4 hat der Maintainer als funktionierend zurückgemeldet. Keine Integration löschen oder neu einrichten.
