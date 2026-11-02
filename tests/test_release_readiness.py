@@ -92,3 +92,37 @@ class TestReleaseReadiness(unittest.TestCase):
         data = self.exception_fixture()
         del data["maintainer_exception"]
         self.assertTrue(readiness.validate(data, "0.5.0"))
+
+
+class TestPatchReleaseReadiness(unittest.TestCase):
+    def fixture(self):
+        return json.loads((ROOT / ".github/release-readiness-0.5.1.json").read_text())
+
+    def test_patch_release_requires_its_own_explicit_decision(self):
+        data = self.fixture()
+        before = copy.deepcopy(data)
+        self.assertEqual(readiness.validate(data, "0.5.1"), [])
+        self.assertEqual(data, before)
+        self.assertTrue(all(row["confirmed"] is False for row in data["reports"]))
+        self.assertTrue(readiness.validate(data, "0.5.0"))
+        self.assertTrue(readiness.validate(data, "0.5.2"))
+
+    def test_patch_decision_cannot_be_reused_for_other_code_or_evidence(self):
+        for field, value in [("candidate_commit", "0" * 40), ("candidate_version", "other"),
+                             ("target_version", "0.5.2"), ("approved_by", "other"),
+                             ("approved_on", "2026-11-03"), ("source", ""),
+                             ("reason", ""), ("limitations_document", "other.md"),
+                             ("accepted_pending_reports", [])]:
+            with self.subTest(field=field):
+                data = self.fixture()
+                data["maintainer_exception"][field] = value
+                self.assertTrue(readiness.validate(data, "0.5.1"))
+        data = self.fixture()
+        data["maintainer_approved"] = False
+        self.assertTrue(readiness.validate(data, "0.5.1"))
+        data = self.fixture()
+        data["reports"][0]["confirmed"] = True
+        self.assertTrue(readiness.validate(data, "0.5.1"))
+        data = self.fixture()
+        del data["maintainer_exception"]
+        self.assertTrue(readiness.validate(data, "0.5.1"))

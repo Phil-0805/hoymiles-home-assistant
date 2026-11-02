@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Any
 from zoneinfo import available_timezones
 from homeassistant.core import callback
@@ -25,6 +26,12 @@ from homeassistant.helpers.selector import (
 from .api import HoymilesAuthError, HoymilesConnectionError, HoymilesHomeClient
 from .const import CONF_BATTERY_CONTROLS, CONF_BATTERY_TEMPERATURES, CONF_INVERTER_DETAILS, CONF_STATION_ID, CONF_STATION_TIMEZONE, DOMAIN
 from .telemetry import PV_POWER_SOURCE, PV_POWER_SOURCES
+
+
+@lru_cache(maxsize=1)
+def _time_zone_options() -> list[str]:
+    """Enumerate the timezone database once, only from the executor."""
+    return sorted(available_timezones())
 
 
 class HoymilesHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -237,6 +244,7 @@ class HoymilesHomeOptionsFlow(config_entries.OptionsFlow):
             return self.async_create_entry(
                 title="", data={**self.config_entry.options, **user_input}
             )
+        timezones = await self.hass.async_add_executor_job(_time_zone_options)
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
@@ -264,7 +272,7 @@ class HoymilesHomeOptionsFlow(config_entries.OptionsFlow):
                     CONF_STATION_TIMEZONE,
                     default=self.config_entry.options.get(CONF_STATION_TIMEZONE, self.hass.config.time_zone),
                 ): SelectSelector(SelectSelectorConfig(
-                    options=sorted(available_timezones()), mode=SelectSelectorMode.DROPDOWN,
+                    options=timezones, mode=SelectSelectorMode.DROPDOWN,
                 )),
             }),
         )

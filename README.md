@@ -48,7 +48,7 @@ For manual setup, see [Finding your station ID](#finding-your-station-id).
 
 Battery commands are disabled by default, including when upgrading an existing installation. Under **Settings → Devices & services → Hoymiles S-Miles Home → Configure**, enable **Allow battery controls** to use the mode and reserve-SOC entities. Turn it off again for read-only operation. Existing entity identities and history are preserved; telemetry and settings refreshes continue while controls are disabled. Avoid simultaneous changes in the S-Miles Home app.
 
-Security fixes are in the current development branch until a newer release is published. For released installations, use at least v0.5.0; earlier versions lack later transport, error-handling or write-safety fixes.
+Use v0.5.1 or newer for the current security fixes. Earlier versions are superseded. After updating, restart Home Assistant and explicitly enable battery controls if needed. This also applies to existing automations that change the battery mode or reserve SOC.
 
 ## Installation with HACS
 
@@ -143,5 +143,5 @@ Do not expose Home Assistant publicly without its normal access controls.
 - Changing battery mode or reserve SOC sends a real control command. Avoid
   simultaneous changes in the app and check the result there.
 
-See the [release notes and known limitations](docs/release-0.5.0.md) and
+See the [release notes and known limitations](docs/release-0.5.1.md) and
 [device test plan](docs/testing-0.5.0.de.md) for details.

@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import asyncio
 from copy import deepcopy
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, tzinfo
 import logging
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.util import dt as dt_util
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -49,7 +49,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def __init__(
         self, hass, client: HoymilesHomeClient, station_id: int,
         pv_power_source: str = "auto",
-        inverter_details: bool = False, station_timezone: str | None = None,
+        inverter_details: bool = False, station_timezone: tzinfo | None = None,
         battery_temperatures: bool = False, battery_controls: bool = False,
     ) -> None:
         super().__init__(
@@ -64,7 +64,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.pv_power_source = pv_power_source
         self.device_tree: list[dict[str, Any]] = []
         self.inverters: list[dict[str, Any]] = []
-        self.station_timezone = ZoneInfo(station_timezone or hass.config.time_zone)
+        self.station_timezone = station_timezone or dt_util.get_default_time_zone()
         self.inverter_details = inverter_details
         self.battery_telemetry = BatteryTelemetryPoller(
             hass, client, station_id, battery_temperatures, self._publish_modules

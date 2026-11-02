@@ -25,7 +25,7 @@ Ordinary PV-input charts and battery temperatures use cloud response age. Additi
 
 ## Checks
 
-Run unit tests with `python -m unittest discover -s tests -v` and HA tests with `python -m pytest tests/ha -q` after installing `requirements-test.txt`. CI also validates HACS and Hassfest before publishing. The release workflow reads its decision record from `.github/release-readiness.json`; missing device evidence is not converted to confirmation.
+Run unit tests with `python -m unittest discover -s tests -v` and HA tests with `python -m pytest tests/ha -q` after installing `requirements-test.txt`. CI also validates HACS and Hassfest before publishing. The release workflow reads the v0.5.0 decision from `.github/release-readiness.json` and later version-specific records from `.github/release-readiness-<version>.json`; missing device evidence is not converted to confirmation.
 
 The optional `scripts/compare_nodered_reference.py` compares a synthetic fixture against a checksum-pinned public decoder. Use `--reference-file` for a fully offline check. No Hoymiles account access is needed.
 
@@ -34,3 +34,5 @@ Protocol sources: [work modes](work-mode-83.md) and [battery temperatures](batte
 HTTP JSON bodies and JSON embedded in command-status strings share the same size, depth and object-shape validation. Sensor attributes expose only known finite numeric settings, generated mode names and fixed status flags. Raw settings and TOU plans remain internal to the write/readback path.
 
 GitHub Actions are pinned to commit SHAs and updated through Dependabot. Checkout does not persist credentials; only the release job receives repository write permission. Historical tags remain unchanged.
+
+Resolve station timezone names in `async_setup_entry` with HA's async timezone helper and pass the resulting `tzinfo` to the coordinator. Its default uses HA's cached timezone object. The options flow enumerates the timezone database in the executor and caches the sorted selector list.

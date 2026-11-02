@@ -5,6 +5,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from homeassistant.util import dt as dt_util
 
 from custom_components.hoymiles_home.api import HoymilesHomeClient
 from custom_components.hoymiles_home.battery import parse_work_mode_settings
@@ -158,7 +159,7 @@ async def test_station_daily_total_expires_at_local_day_boundary(hass, freezer):
     from types import SimpleNamespace
     from custom_components.hoymiles_home.sensor import HoymilesStationSensor, STATION_SENSORS
     freezer.move_to("2026-10-29 22:59:30+00:00")
-    coordinator = HoymilesHomeCoordinator(hass, AsyncMock(), 123, station_timezone="Europe/Berlin")
+    coordinator = HoymilesHomeCoordinator(hass, AsyncMock(), 123, station_timezone=await dt_util.async_get_time_zone("Europe/Berlin"))
     coordinator.data = {"station": {"today_eq": 1000}, "live": {"con": 1}}
     coordinator._station_updated = datetime.now(UTC)
     description = next(d for d in STATION_SENSORS if d.key == "today_energy")
@@ -193,10 +194,10 @@ async def test_bounded_json_preserves_valid_zero_and_nested_settings():
 
 
 @pytest.mark.parametrize("key,instant", [("month_energy", "2026-10-31 23:00:01+00:00"), ("year_energy", "2026-12-31 23:00:01+00:00")])
-def test_station_period_totals_expire_at_rollover(hass, freezer, key, instant):
+async def test_station_period_totals_expire_at_rollover(hass, freezer, key, instant):
     from datetime import timedelta
     freezer.move_to(instant)
-    coordinator = HoymilesHomeCoordinator(hass, AsyncMock(), 123, station_timezone="Europe/Berlin")
+    coordinator = HoymilesHomeCoordinator(hass, AsyncMock(), 123, station_timezone=await dt_util.async_get_time_zone("Europe/Berlin"))
     coordinator._station_updated = datetime.now(UTC) - timedelta(seconds=31)
     assert not coordinator.station_is_fresh(key)
 

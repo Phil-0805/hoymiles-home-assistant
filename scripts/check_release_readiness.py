@@ -1,4 +1,4 @@
-"""Require device evidence or the explicit, scoped v0.5.0 maintainer exception.
+"""Require device evidence or an explicitly scoped maintainer release decision.
 
 This validates the maintainer's recorded evidence, not the truth of a hardware
 test. Do not populate confirmations from automated/synthetic tests.
@@ -17,7 +17,7 @@ REQUIRED = {"hms1000_model", "battery_settings", "pv_display", "status_documenta
 
 
 def accepted_exception(data, version):
-    """Recognize only the maintainer's explicit b6-to-0.5.0 decision.
+    """Recognize only the maintainer's explicit, version-specific decisions.
 
     This accepts documented limitations for publication; it never turns missing
     device evidence into a confirmation or authorizes another release/candidate.
@@ -25,13 +25,22 @@ def accepted_exception(data, version):
     decision = data.get("maintainer_exception")
     if not isinstance(decision, dict):
         return set()
-    if (version != "0.5.0" or decision.get("target_version") != version
-            or data.get("candidate_version") != "0.5.0b6"
-            or decision.get("candidate_version") != data.get("candidate_version")
-            or decision.get("candidate_commit") != "1525a5231a600e9ea6bf592d7231691b7643d080"
+    approved = {
+        "0.5.0": ("0.5.0b6", "1525a5231a600e9ea6bf592d7231691b7643d080",
+                  "Maintainer release decision recorded on 2026-11-02"),
+        "0.5.1": ("release-preparation-6860a52", "6860a520cf49eb0e2192d0ccbdf2b82217715db9",
+                  "Maintainer patch release decision recorded on 2026-11-02"),
+    }.get(version)
+    if approved is None:
+        return set()
+    candidate, commit, source = approved
+    if (decision.get("target_version") != version
+            or data.get("candidate_version") != candidate
+            or decision.get("candidate_version") != candidate
+            or decision.get("candidate_commit") != commit
             or decision.get("approved_by") != "Phil-0805"
-            or decision.get("source") != "Maintainer release decision recorded on 2026-11-02"
-            or decision.get("limitations_document") != "docs/release-0.5.0.md"):
+            or decision.get("source") != source
+            or decision.get("limitations_document") != f"docs/release-{version}.md"):
         return set()
     try:
         if date.fromisoformat(decision.get("approved_on", "")) != date(2026, 11, 2):
@@ -92,13 +101,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--version", required=True)
     args = parser.parse_args()
-    record = Path(__file__).resolve().parents[1] / ".github/release-readiness.json"
+    if not re.fullmatch(r"\d+\.\d+\.\d+", args.version):
+        raise SystemExit("Invalid stable release version")
+    filename = "release-readiness.json" if args.version == "0.5.0" else f"release-readiness-{args.version}.json"
+    record = Path(__file__).resolve().parents[1] / ".github" / filename
+    if not record.is_file():
+        raise SystemExit("No readiness record for this stable release")
     data = json.loads(record.read_text())
     errors = validate(data, args.version)
     if errors:
         raise SystemExit("Stable release blocked:\n- " + "\n- ".join(errors))
     if accepted_exception(data, args.version):
-        print("Publication approved with the recorded v0.5.0 maintainer exception; device confirmations remain pending.")
+        print(f"Publication approved with the recorded v{args.version} maintainer exception; device confirmations remain pending.")
     else:
         print("Recorded confirmations and maintainer approval are complete.")
 

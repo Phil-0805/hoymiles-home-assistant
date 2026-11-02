@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from homeassistant.util import dt as dt_util
 
 from custom_components.hoymiles_home.api import HoymilesHomeClient, HoymilesConnectionError
 from custom_components.hoymiles_home.coordinator import HoymilesHomeCoordinator
@@ -111,7 +112,7 @@ async def test_details_are_routed_only_to_known_inverter_and_expire(hass, freeze
     api.async_module_values.return_value = {}
     api.async_module_snapshot.return_value = decode_module_snapshot(RAW, 123, "2026-10-29")
     api.async_module_snapshot.return_value["inverters"][100] = {"time": "10:00", "temperature": 99}
-    coordinator = HoymilesHomeCoordinator(hass, api, 123, inverter_details=True, station_timezone="UTC")
+    coordinator = HoymilesHomeCoordinator(hass, api, 123, inverter_details=True, station_timezone=await dt_util.async_get_time_zone("UTC"))
     coordinator.inverters = [{"id": 99, "model_no": "HMS-800-2WB"}]
     coordinator.data = {"live": {"con": 1}}
     await coordinator.module_polling.start(coordinator.inverters)
@@ -128,8 +129,8 @@ async def test_details_are_routed_only_to_known_inverter_and_expire(hass, freeze
     await coordinator.async_shutdown()
 
 
-def test_daily_energy_uses_station_timezone(hass):
-    coordinator = HoymilesHomeCoordinator(hass, AsyncMock(), 123, station_timezone="Europe/Berlin")
+async def test_daily_energy_uses_station_timezone(hass):
+    coordinator = HoymilesHomeCoordinator(hass, AsyncMock(), 123, station_timezone=await dt_util.async_get_time_zone("Europe/Berlin"))
     coordinator._energy_store.async_delay_save = MagicMock()
     coordinator._update_battery_energy({}, datetime(2026, 10, 29, 23, 30, tzinfo=UTC))
     assert coordinator._energy_date == "2026-10-30"
