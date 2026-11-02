@@ -16,6 +16,7 @@ class TestReleaseReadiness(unittest.TestCase):
     def complete_fixture(self):
         # Fictional test evidence only; never write it to the actual record.
         data = json.loads((ROOT / "docs/release-readiness.json").read_text())
+        data.pop("maintainer_exception", None)
         data["maintainer_approved"] = True
         for row in data["reports"]:
             row.update(confirmed=True, confirmed_by="example-tester",
@@ -49,4 +50,45 @@ class TestReleaseReadiness(unittest.TestCase):
         data = self.complete_fixture()
         self.assertTrue(readiness.validate(data, "0.6.0"))
         data["maintainer_approved"] = "true"
+        self.assertTrue(readiness.validate(data, "0.5.0"))
+
+    def exception_fixture(self):
+        return json.loads((ROOT / "docs/release-readiness.json").read_text())
+
+    def test_explicit_exception_accepts_publication_without_confirming_reports(self):
+        data = self.exception_fixture()
+        self.assertTrue(all(row["confirmed"] is False for row in data["reports"]))
+        before = copy.deepcopy(data)
+        self.assertEqual(readiness.validate(data, "0.5.0"), [])
+        self.assertEqual(data, before)
+
+    def test_exception_requires_separate_maintainer_approval(self):
+        data = self.exception_fixture()
+        data["maintainer_approved"] = False
+        self.assertTrue(readiness.validate(data, "0.5.0"))
+
+    def test_exception_cannot_authorize_another_version_or_candidate(self):
+        data = self.exception_fixture()
+        self.assertTrue(readiness.validate(data, "0.5.1"))
+        for field, value in [("candidate_version", "0.5.0b7"), ("candidate_commit", "0" * 40),
+                             ("target_version", "0.5.1"), ("approved_by", "someone-else"),
+                             ("approved_on", "2026-11-03"), ("source", ""),
+                             ("reason", ""), ("limitations_document", "other.md"),
+                             ("accepted_pending_reports", []), ("accepted_pending_reports", [None])]:
+            with self.subTest(field=field, value=value):
+                data = self.exception_fixture()
+                data["maintainer_exception"][field] = value
+                self.assertTrue(readiness.validate(data, "0.5.0"))
+        data = self.exception_fixture()
+        data["candidate_version"] = "0.5.0b7"
+        self.assertTrue(readiness.validate(data, "0.5.0"))
+
+    def test_exception_does_not_accept_false_evidence_claims(self):
+        data = self.exception_fixture()
+        data["reports"][0]["confirmed"] = True
+        self.assertTrue(readiness.validate(data, "0.5.0"))
+
+    def test_removing_exception_restores_original_evidence_gate(self):
+        data = self.exception_fixture()
+        del data["maintainer_exception"]
         self.assertTrue(readiness.validate(data, "0.5.0"))

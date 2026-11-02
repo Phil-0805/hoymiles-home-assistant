@@ -38,3 +38,8 @@ Every control operation now reads current cloud settings before writing, includi
 Station totals retain separate attempt/success timestamps, retry no faster than once a minute, and expire after two minutes without success or at their local period boundary. Failed live refreshes break local integration anchors. JSON transport bodies are limited to 8 MiB and 32 container levels. Reauthentication updates the password on the same entry; automatic login transport failures pause shared account renewal for one minute.
 
 The stable evidence record now explicitly includes mode switching and battery temperatures. See [the b6 audit](review-0.5.0b6.de.md) for actual request counts, startup/config-flow limits and unresolved measurement-age boundaries.
+
+
+## Explicit v0.5.0 publication exception (2 November 2026)
+
+The maintainer approved publishing the tested b6 integration code as v0.5.0 while accepting the outstanding device-evidence requirements as known limitations. The readiness record retains all nine reports as unconfirmed and stores this separate decision. The checker recognizes only the named v0.5.0/b6/commit decision, with maintainer approval, provenance, date, all accepted report IDs and a limitations document. Missing/altered scope or false claims of completed tests still fail. This exception does not bypass unit/HA tests, HACS or Hassfest and does not apply to another candidate or release.

@@ -1,6 +1,6 @@
 # v0.5.0
 
-Release preparation based on the tested v0.5.0b6 commit `1525a5231a600e9ea6bf592d7231691b7643d080`. Publication is pending the device-evidence gate or an explicit, separately recorded maintainer decision on those outstanding requirements. This document does not claim the release has been published.
+Based on the tested v0.5.0b6 commit `1525a5231a600e9ea6bf592d7231691b7643d080`. On 2 November 2026 the maintainer explicitly approved stable publication with the outstanding device-evidence requirements recorded as known limitations. Those reports remain unconfirmed; the exception applies only to this release/candidate. Tests, HACS and Hassfest remain required.
 
 ## Changes since v0.4.2
 
@@ -24,6 +24,6 @@ Release preparation based on the tested v0.5.0b6 commit `1525a5231a600e9ea6bf592
 
 Upgrade the existing integration and restart Home Assistant. Do not delete/re-add the integration or its entities. Optional telemetry stays off unless enabled in the entry options.
 
-The underlying b6 code passed 34 unit tests, 247 Home Assistant tests, HACS and Hassfest. Its release CI is [recorded here](https://github.com/Phil-0805/hoymiles-home-assistant/actions/runs/40890566014). The stable preparation must also pass its automated checks before publication. Automated tests do not replace actual device validation.
+The underlying b6 code passed 34 unit tests, 247 Home Assistant tests, HACS and Hassfest. Its release CI is [recorded here](https://github.com/Phil-0805/hoymiles-home-assistant/actions/runs/40890566014). The stable preparation passes 39 unit tests and 247 Home Assistant tests, including five additional release-exception tests. Stable publication also requires successful HACS/Hassfest and CI checks. Automated tests do not replace actual device validation.
 
 See the [device test plan](testing-0.5.0.de.md), [whole-repository review](review-0.5.0b6.de.md) and [current readiness record](release-readiness.json).

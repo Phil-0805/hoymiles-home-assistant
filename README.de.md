@@ -148,19 +148,19 @@ werden abgelehnt. Home Assistant nur mit den üblichen Zugriffsschutzmaßnahmen
 
 ## Hinweise
 
-Aktueller Kandidat: **v0.5.0b6**. Zum Testen in HACS Vorabversionen aktivieren; Standard-Stable bleibt v0.4.2. Der Maintainer meldet funktionierende Moduswechsel und Batterietemperaturen auf seinem System; andere Geräte-/Kontokombinationen sind damit nicht bestätigt.
+**v0.5.0** übernimmt den geprüften b6-Code als Stable mit ausdrücklicher Maintainer-Freigabe der [dokumentierten Einschränkungen](docs/release-0.5.0.md). Moduswechsel und Batterietemperaturen funktionieren auf dem Maintainer-System; andere Geräte-/Kontokombinationen sind damit nicht bestätigt. Die 4020-X-PV-Anzeige aus Issue #9 bleibt ungeklärt.
 
 Die optionale Einstellung **Batterietemperaturen** liest separate Batterie-/Packwerte alle fünf Minuten und ordnet die Sensoren dem bestehenden S-Miles-Home-Gerät zu. `fetched_at` beschreibt das Alter der Cloud-Antwort, nicht der physischen Messung. Auch normale PV-Eingangsdiagramme verwenden das Antwortalter; wiederholte alte Diagrammpunkte sind noch nicht zuverlässig erkennbar. Zusätzliche Wechselrichterwerte verwenden ihre Hersteller-Messzeitpunkte.
 
 Vor jedem Steuerbefehl, einschließlich Reserve-SOC, liest b6 aktuelle Einstellungen und prüft das Ergebnis anschließend durch Rücklesen. Während eines Befehls gleichzeitige App-Änderungen vermeiden. Die Wiederanmeldung aktualisiert das Passwort am bestehenden Eintrag und erhält Identitäten/Verlauf. Cloud-Energiezähler werden nach zwei Minuten ohne erfolgreiche Antwort sowie beim lokalen Tages-/Monats-/Jahreswechsel nicht verfügbar; berechnete Tageszähler bleiben gespeichert. [Gesamtprüfung b6](docs/review-0.5.0b6.de.md) beschreibt Anfragezahlen, Korrekturen und offene Freigabepunkte.
 
 
-Die **0.5.0-Beta** ergänzt optional Wechselrichtertemperatur, Netzfrequenz und
+Version **0.5.0** ergänzt optional Wechselrichtertemperatur, Netzfrequenz und
 AC-Spannung (Konfigurieren → Zusätzliche Wechselrichter-Messwerte), zunächst
 ausgeschaltet. Dazu kommen Anlagenzeitzone, gemeinsame Abfragebegrenzung je
 Konto und eine Wartezeit zwischen manuellen Aktualisierungen. Nicht bestätigte
 Modus-/Leistungsfunktionen werden nicht als nutzbare Steuerung dargestellt.
-EMS-/Ladecodes bleiben ungeklärt. Vor Stable gilt der
+EMS-/Ladecodes bleiben ungeklärt. Offene Geräteprüfungen beschreibt der
 [Test- und Freigabeplan](docs/testing-0.5.0.de.md).
 
 Ab v0.4.3b3 (Beta) liest der Diagnoseknopf **Batterieeinstellungen aktualisieren**
@@ -187,7 +187,7 @@ erkennbar. Die Zuordnung ist am HMS-2000-4WB-Aufbau geprüft, nicht an jedem
 Batteriemodell. Die bisherigen Rohwert-Sensoren bleiben erhalten. EMS-, Lade-
 und Zustandsmeldungen werden ohne bestätigte Zuordnung nicht übersetzt.
 
-Zur PV-Diagnose in dieser Beta die Attribute `pv` und `pv2` des Sensors
+Zur PV-Diagnose die Attribute `pv` und `pv2` des Sensors
 **PV-Leistung** zeitgleich mit der S-Miles-Home-App vergleichen. Unter
 **Einstellungen → Geräte & Dienste → Hoymiles S-Miles Home → Konfigurieren**
 die passende **Quelle der PV-Leistung** für die Anlage wählen. Automatisch

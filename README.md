@@ -132,19 +132,19 @@ Do not expose Home Assistant publicly without its normal access controls.
 
 ## Notes
 
-Current candidate: **v0.5.0b6**. Enable prereleases in HACS to test it; the default stable release remains v0.4.2. The maintainer reports working mode switches and battery temperatures on their own setup; other device/account combinations remain unconfirmed.
+**v0.5.0** promotes the tested b6 code to stable with explicit maintainer acceptance of the [documented limitations](docs/release-0.5.0.md). Mode switches and battery temperatures work on the maintainer setup; other device/account combinations remain unconfirmed. The 4020-X PV-display report in issue #9 is still unresolved.
 
 The optional **Battery temperatures** setting reads separate battery/pack values every five minutes and groups the sensors on the existing S-Miles Home device. `fetched_at` measures cloud response age, not physical sample age. Ordinary PV-input charts also use response age; repeated old chart points cannot yet be reliably detected. Additional inverter metrics use their vendor sample times.
 
 Before every control write, including reserve SOC, b6 reads current settings and verifies the result afterwards. Avoid simultaneous app edits during a command. Reauthentication updates the existing entry's password and preserves identities/history. Cloud energy totals expire after two minutes without a successful response and at local daily/monthly/yearly boundaries; calculated daily counters are retained. See the [b6 review](docs/review-0.5.0b6.de.md) for request counts, fixes and remaining release blockers.
 
 
-The **0.5.0 beta** adds optional inverter temperature, frequency and AC voltage
+Version **0.5.0** adds optional inverter temperature, frequency and AC voltage
 (Configure → Additional inverter telemetry), disabled by default. Station
 timezone, shared account request limits and a settings-refresh cooldown are
 included. Unsupported mode/maximum-power capabilities are reported explicitly;
 numeric EMS/charge meanings remain unverified. Follow the
-[test and release plan](docs/testing-0.5.0.de.md) before stable publication.
+[test and release plan](docs/testing-0.5.0.de.md) for outstanding device checks.
 
 From v0.4.3b3 (beta), the diagnostic **Refresh battery settings** button reads
 settings again without sending a control command. Explicitly disconnected live
@@ -167,7 +167,7 @@ Idle / Charging / Discharging; unknown codes remain unrecognized. The mapping
 is verified on the HMS-2000-4WB setup, not every battery model. Existing raw
 status sensors remain unchanged; EMS, charge and health codes are not guessed.
 
-For PV troubleshooting in this beta, compare the **PV power** attributes `pv`
+For PV troubleshooting, compare the **PV power** attributes `pv`
 and `pv2` with the S-Miles Home app at the same time. Under **Settings →
 Devices & services → Hoymiles S-Miles Home → Configure**, select the matching
 **PV power source** for that station. Automatic keeps the previous behavior

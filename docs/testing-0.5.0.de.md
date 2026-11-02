@@ -1,10 +1,10 @@
 # Testplan für den größeren Release 0.5.0
 
-Kandidat: **0.5.0b6**, ausschließlich als Vorabversion. Die Implementierung und automatisierte Tests ersetzen keine Bestätigung am betroffenen Gerät. Stable bleibt 0.4.2.
+**0.5.0** basiert auf dem getesteten Kandidaten **0.5.0b6**. Der Maintainer hat am 2. November 2026 die Stable-Veröffentlichung trotz ausstehender Gerätenachweise ausdrücklich freigegeben. Die Implementierung und automatisierte Tests ersetzen weiterhin keine Bestätigung am betroffenen Gerät. Die [bekannten Einschränkungen](release-0.5.0.md) und Nachweiszeilen bleiben offen.
 
 ## Testen ohne Neueinrichtung
 
-1. In HACS Vorabversionen anzeigen, 0.5.0b6 installieren und Home Assistant neu starten. Die bestehende Integration behalten.
+1. In HACS 0.5.0 installieren und Home Assistant neu starten. Die bestehende Integration behalten.
 2. Prüfen, ob Geräte, Entitäten, Verlauf und Tageszähler weiterhin vorhanden sind. Keine Geräte löschen, um Namensprobleme zu beheben.
 3. Unter Konfigurieren die tatsächliche Zeitzone der Anlage prüfen. Standard ist die HA-Zeitzone. Die optionalen zusätzlichen Wechselrichter-Messwerte sind zunächst ausgeschaltet.
 
@@ -42,7 +42,7 @@ Es wird derselbe synthetische Protobuf-Datensatz wie in den Python-Tests ausgewe
 
 Die neun Prüfbereiche in `release-readiness.json` sind zunächst **unbestätigt**. Bestätigungen werden nur anhand tatsächlicher Rückmeldungen eingetragen, mit getesteter Kandidatenversion, bestätigender Person und Link auf den Issue-Kommentar. Bei fachlichen Codeänderungen nach dem Test muss die betroffene Prüfung erneut erfolgen.
 
-Der Stable-Workflow prüft diesen Nachweis und die separate Maintainer-Freigabe. Solange ein Nachweis fehlt, wird kein neuer Stable-Release veröffentlicht. Zusätzlich müssen Tests, HACS und Hassfest erfolgreich sein. Die Prüfung schützt vor versehentlicher Veröffentlichung; sie kann den Wahrheitsgehalt eines Gerätetests nicht selbst feststellen.
+Der Stable-Workflow prüft diesen Nachweis und die separate Maintainer-Freigabe. Für 0.5.0 ist die ausdrücklich genehmigte Ausnahme in `maintainer_exception` dokumentiert. Sie bestätigt keine Gerätetests und gilt nicht für andere Kandidaten oder Versionen. Ohne diese spezifische Ausnahme verlangt der Check weiterhin alle Nachweise. Zusätzlich müssen Tests, HACS und Hassfest erfolgreich sein. Die Prüfung schützt vor versehentlicher Veröffentlichung; sie kann den Wahrheitsgehalt eines Gerätetests nicht selbst feststellen.
 
 Zusatzwerte werden weiter alle fünf Minuten abgefragt. Jeder Messwert behält seinen eigenen Messzeitpunkt; ein fehlender Frequenzwert darf einen noch gültigen Wert nicht löschen und eine neue Temperatur darf ihn nicht auffrischen. Nach zehn Minuten ohne neuen Messpunkt muss der betroffene Sensor nicht verfügbar werden. Details und Grenzen stehen in [den b3-Hinweisen](release-0.5.0b3.md).
 
