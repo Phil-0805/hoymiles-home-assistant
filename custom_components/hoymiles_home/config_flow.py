@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from typing import Any
+from zoneinfo import available_timezones
+from homeassistant.core import callback
 
 import voluptuous as vol
 
@@ -11,6 +13,7 @@ from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
@@ -20,7 +23,8 @@ from homeassistant.helpers.selector import (
 )
 
 from .api import HoymilesAuthError, HoymilesConnectionError, HoymilesHomeClient
-from .const import CONF_STATION_ID, DOMAIN
+from .const import CONF_BATTERY_TEMPERATURES, CONF_INVERTER_DETAILS, CONF_STATION_ID, CONF_STATION_TIMEZONE, DOMAIN
+from .telemetry import PV_POWER_SOURCE, PV_POWER_SOURCES
 
 
 class HoymilesHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -28,10 +32,46 @@ class HoymilesHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry):
+        return HoymilesHomeOptionsFlow()
+
     def __init__(self) -> None:
         self._client: HoymilesHomeClient | None = None
         self._credentials: dict[str, str] = {}
         self._stations: list[dict[str, Any]] = []
+
+    async def async_step_reauth(self, entry_data) -> ConfigFlowResult:
+        """Renew credentials on the existing entry, retaining all identities."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(self, user_input=None) -> ConfigFlowResult:
+        entry = self._get_reauth_entry()
+        errors = {}
+        if user_input is not None:
+            client = HoymilesHomeClient(
+                async_get_clientsession(self.hass, verify_ssl=True),
+                entry.data[CONF_USERNAME], user_input[CONF_PASSWORD],
+            )
+            try:
+                await client.async_login()
+                if not await client.async_device_tree(entry.data[CONF_STATION_ID]):
+                    errors["base"] = "invalid_station"
+            except HoymilesAuthError:
+                errors["base"] = "invalid_auth"
+            except HoymilesConnectionError:
+                errors["base"] = "cannot_connect"
+            if not errors:
+                return self.async_update_reload_and_abort(
+                    entry, data_updates={CONF_PASSWORD: user_input[CONF_PASSWORD]},
+                )
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema({vol.Required(CONF_PASSWORD): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.PASSWORD)
+            )}), errors=errors,
+        )
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -43,7 +83,7 @@ class HoymilesHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_PASSWORD: user_input[CONF_PASSWORD],
             }
             self._client = HoymilesHomeClient(
-                async_get_clientsession(self.hass),
+                async_get_clientsession(self.hass, verify_ssl=True),
                 self._credentials[CONF_USERNAME],
                 self._credentials[CONF_PASSWORD],
             )
@@ -187,3 +227,40 @@ class HoymilesHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         result = await self.async_step_user()
         result["errors"] = {"base": "invalid_auth"}
         return result
+
+
+class HoymilesHomeOptionsFlow(config_entries.OptionsFlow):
+    """Allow comparison of PV fields without recreating the station."""
+
+    async def async_step_init(self, user_input=None) -> ConfigFlowResult:
+        if user_input is not None:
+            return self.async_create_entry(
+                title="", data={**self.config_entry.options, **user_input}
+            )
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema({
+                vol.Required(
+                    PV_POWER_SOURCE,
+                    default=self.config_entry.options.get(PV_POWER_SOURCE, "auto"),
+                ): SelectSelector(SelectSelectorConfig(
+                    options=list(PV_POWER_SOURCES),
+                    translation_key=PV_POWER_SOURCE,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )),
+                vol.Optional(
+                    CONF_BATTERY_TEMPERATURES,
+                    default=self.config_entry.options.get(CONF_BATTERY_TEMPERATURES, False),
+                ): BooleanSelector(),
+                vol.Optional(
+                    CONF_INVERTER_DETAILS,
+                    default=self.config_entry.options.get(CONF_INVERTER_DETAILS, False),
+                ): BooleanSelector(),
+                vol.Optional(
+                    CONF_STATION_TIMEZONE,
+                    default=self.config_entry.options.get(CONF_STATION_TIMEZONE, self.hass.config.time_zone),
+                ): SelectSelector(SelectSelectorConfig(
+                    options=sorted(available_timezones()), mode=SelectSelectorMode.DROPDOWN,
+                )),
+            }),
+        )

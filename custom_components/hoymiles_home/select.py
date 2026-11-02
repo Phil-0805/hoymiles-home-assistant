@@ -12,14 +12,9 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import HoymilesError
-from .battery import BATTERY_MODE_NAMES
+from .battery import BATTERY_MODE_NAMES, writable_modes
 from .const import CONF_STATION_ID, DOMAIN
 from .coordinator import HoymilesHomeCoordinator
-
-# Modes 5 and 6 are returned by some backends but are hidden by the official
-# web UI. Do not offer those undocumented modes as writable choices.
-WRITABLE_BATTERY_MODES = {1, 2, 3, 4, 7, 8}
-
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -53,15 +48,9 @@ class HoymilesBatteryModeSelect(
 
     def _mode_options(self) -> dict[str, int]:
         settings = self.coordinator.battery_settings
-        modes = settings.get("available_modes")
-        active_mode = settings.get("mode")
-        if not isinstance(modes, list):
-            return {}
         return {
             BATTERY_MODE_NAMES.get(mode, f"Unknown ({mode})"): mode
-            for mode in modes
-            if isinstance(mode, int)
-            and (mode in WRITABLE_BATTERY_MODES or mode == active_mode)
+            for mode in writable_modes(settings)
         }
 
     @property
@@ -70,6 +59,7 @@ class HoymilesBatteryModeSelect(
             super().available
             and self.coordinator.battery_settings.get("readable") is True
             and self.coordinator.battery_settings.get("writable") is True
+            and self.coordinator.battery_settings.get("mode") in self._mode_options().values()
             and bool(self._mode_options())
         )
 
@@ -84,6 +74,10 @@ class HoymilesBatteryModeSelect(
             return BATTERY_MODE_NAMES.get(mode, f"Unknown ({mode})")
         return None
 
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {"mode_change_available": self.available and len(self._mode_options()) > 1}
+
     async def async_select_option(self, option: str) -> None:
         mode = self._mode_options().get(option)
         if mode is None:
@@ -92,6 +86,8 @@ class HoymilesBatteryModeSelect(
                 translation_key="battery_mode_unavailable",
                 translation_placeholders={"mode": option},
             )
+        if mode == self.coordinator.battery_settings.get("mode"):
+            return  # Selecting the displayed mode never sends a redundant write.
         try:
             await self.coordinator.async_set_battery_mode(mode)
         except HoymilesError as err:

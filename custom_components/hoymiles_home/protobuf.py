@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import struct
+from math import isfinite
 from typing import Any
 
 
@@ -28,6 +29,8 @@ def _fields(data: bytes):
     while offset < len(data):
         tag, offset = _varint(data, offset)
         number, wire = tag >> 3, tag & 7
+        if number == 0:
+            raise ProtobufDecodeError("Invalid field number")
         if wire == 0:
             value, offset = _varint(data, offset)
         elif wire == 2:
@@ -47,6 +50,11 @@ def _fields(data: bytes):
         else:
             raise ProtobufDecodeError(f"Unsupported wire type {wire}")
         yield number, wire, value
+
+
+def iter_fields(data: bytes):
+    """Iterate bounded wire fields for the chart and module-data decoders."""
+    yield from _fields(data)
 
 
 def _line_series(data: bytes) -> dict[str, Any]:
@@ -80,13 +88,23 @@ def decode_line_chart(data: bytes) -> dict[str, Any]:
     return result
 
 
-def latest_values(data: bytes) -> dict[str, float | None]:
+def latest_values(
+    data: bytes, *, device_id: int | None = None, port: int | None = None
+) -> dict[str, float | None]:
     """Return the latest sample per chart series."""
     chart = decode_line_chart(data)
-    return {
-        series["type"]: round(float(series["data"][-1]), 3)
-        if series["data"]
-        else None
-        for series in chart["series"]
-        if series["type"]
-    }
+    result = {}
+    for series in chart["series"]:
+        if not series["type"]:
+            continue
+        # Some responses omit identity fields (decoded as zero). Reject
+        # explicit conflicts, never route another device/port into this one.
+        if device_id is not None and series["device_id"] not in (0, device_id):
+            continue
+        if port is not None and series["port"] not in (0, port):
+            continue
+        value = series["data"][-1] if series["data"] else None
+        result[series["type"]] = (
+            round(float(value), 3) if value is not None and isfinite(value) else None
+        )
+    return result

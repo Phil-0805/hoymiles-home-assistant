@@ -1,0 +1,13 @@
+{
+  "description": "Synthetic protocol fixture; no live device data or credentials. PlayModuleData schema cross-checked with Node-RED e48ac860e2d1d17fdad108be4dfe306e511608e2.",
+  "station_id": 123,
+  "date": "2026-10-29",
+  "raw_base64": "CHsSCjIwMjYtMTAtMjkaMghjEi4IAhIFMDk6NTUSBTEwOjAwKggAAEhCw/VHQjIIAACgQQAAqEE6CAAAZkMAAGdD",
+  "expected": {
+    "device_id": 99,
+    "time": "10:00",
+    "temperature": 21,
+    "frequency": 49.99,
+    "voltage": 231
+  }
+}

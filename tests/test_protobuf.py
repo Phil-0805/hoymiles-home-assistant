@@ -42,6 +42,28 @@ class TestChartDecoder(unittest.TestCase):
         with self.assertRaises(protobuf.ProtobufDecodeError):
             protobuf.decode_line_chart(b"\x0a\x05x")
 
+    def test_nonfinite_latest_value_does_not_reuse_an_old_sample(self):
+        for value in (float("nan"), float("inf"), -float("inf")):
+            series = length_field(1, b"MODULE_POWER") + length_field(
+                2, struct.pack("<ff", 100, value)
+            )
+            self.assertEqual(protobuf.latest_values(length_field(2, series)), {"MODULE_POWER": None})
+
+    def test_wrong_device_or_port_is_not_routed_to_requested_input(self):
+        def series(device, port, value):
+            return length_field(2, b"".join((
+                length_field(1, b"MODULE_POWER"),
+                length_field(2, struct.pack("<f", value)),
+                varint(3 << 3) + varint(device),
+                varint(4 << 3) + varint(port),
+            )))
+        chart = series(99, 1, 42) + series(98, 1, 900) + series(99, 2, 800)
+        self.assertEqual(protobuf.latest_values(chart, device_id=99, port=1), {"MODULE_POWER": 42})
+
+    def test_rejects_zero_field_number(self):
+        with self.assertRaises(protobuf.ProtobufDecodeError):
+            protobuf.decode_line_chart(b"\x00\x00")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,6 +2,13 @@
   "title": "Hoymiles S-Miles Home",
   "config": {
     "step": {
+      "reauth_confirm": {
+        "title": "Reconnect to S-Miles Home",
+        "description": "Enter the password for the existing account. Your plant, entities and history are retained.",
+        "data": {
+          "password": "Password"
+        }
+      },
       "user": {
         "title": "Connect to S-Miles Home",
         "description": "Sign in with your S-Miles Home account, then choose a plant.",
@@ -39,6 +46,7 @@
     }
   },
   "exceptions": {
+    "settings_refresh_wait": {"message": "Wait at least 30 seconds between manual settings refreshes."},
     "battery_setting_write_failed": {
       "message": "The battery setting could not be saved: {error}"
     },
@@ -47,7 +55,12 @@
     }
   },
   "entity": {
+    "button": {"refresh_battery_settings": {"name": "Refresh battery settings"}},
     "sensor": {
+      "inverter_voltage": {"name": "AC voltage"},
+      "inverter_frequency": {"name": "Grid frequency"},
+      "inverter_temperature": {"name": "Inverter temperature"},
+      "battery_activity": {"name": "Battery activity", "state": {"idle": "Idle", "charging": "Charging", "discharging": "Discharging", "unrecognized": "Unrecognized code"}},
       "pv_power": {"name": "PV power"},
       "load_power": {"name": "Load power"},
       "load_energy_today": {"name": "Home consumption today"},
@@ -55,17 +68,18 @@
       "battery_power": {"name": "Battery power"},
       "battery_charge_power": {"name": "Battery charge power"},
       "battery_discharge_power": {"name": "Battery discharge power"},
+      "battery_temperature": {"name": "Battery temperature"},
       "battery_soc": {"name": "Battery state of charge"},
       "battery_charge_energy_today": {"name": "Battery energy charged today"},
       "battery_discharge_energy_today": {"name": "Battery energy discharged today"},
       "battery_settings_access": {"name": "Battery settings access"},
       "battery_mode": {"name": "Battery mode"},
       "battery_reserve_soc": {"name": "Battery reserve SOC"},
-      "battery_max_power": {"name": "Battery maximum power"},
-      "ems": {"name": "EMS status"},
-      "brs": {"name": "Battery relay status"},
-      "chs": {"name": "Charge status"},
-      "bhs": {"name": "Battery health status"},
+      "battery_max_power": {"name": "Maximum power setting (raw)"},
+      "ems": {"name": "EMS status (raw)"},
+      "brs": {"name": "Battery relay status (raw)"},
+      "chs": {"name": "Charge status (raw)"},
+      "bhs": {"name": "Battery health status (raw)"},
       "today_energy": {"name": "Energy today"},
       "month_energy": {"name": "Energy this month"},
       "year_energy": {"name": "Energy this year"},
@@ -81,5 +95,28 @@
       "battery_mode": {"name": "Battery mode"}
     },
     "binary_sensor": {"connected": {"name": "Connection"}}
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "PV display",
+        "description": "Compare the PV power sensor attributes pv and pv2 with the S-Miles Home app. Select another source only after confirming the match. Automatic preserves the existing behavior: pv2 when available, otherwise pv; zero is a valid value. This changes only the display in HA. Additional telemetry is optional and read at most every five minutes. Select the actual station timezone for daily boundaries and charts.",
+        "data": {
+          "pv_power_source": "PV power source",
+          "battery_temperatures": "Battery temperatures (beta, one extra request every five minutes)",
+          "inverter_details": "Additional inverter telemetry (beta)",
+          "station_timezone": "Station timezone"
+        }
+      }
+    }
+  },
+  "selector": {
+    "pv_power_source": {
+      "options": {
+        "auto": "Automatic (existing behavior)",
+        "pv": "Cloud field pv",
+        "pv2": "Cloud field pv2"
+      }
+    }
   }
 }

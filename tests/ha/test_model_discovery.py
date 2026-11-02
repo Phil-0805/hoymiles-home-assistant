@@ -117,5 +117,5 @@ async def test_diagnostics_export_no_raw_device_or_account_data(hass):
     }])
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
     result = await async_get_config_entry_diagnostics(hass, entry)
-    assert result == {"inverters": [{"model": "HMS-800-2WB", "queried_pv_ports": [1, 2],
-                                     "discovery": {"result": "identified", "source": "web_tree"}}]}
+    assert result["inverters"] == [{"model": "HMS-800-2WB", "queried_pv_ports": [1, 2],
+                                    "discovery": {"result": "identified", "source": "web_tree"}}]

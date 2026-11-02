@@ -19,6 +19,8 @@ from homeassistant.const import (
     UnitOfEnergy,
     UnitOfPower,
     UnitOfElectricPotential,
+    UnitOfTemperature,
+    UnitOfFrequency,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -29,23 +31,19 @@ from .const import CONF_STATION_ID, DOMAIN
 from .coordinator import HoymilesHomeCoordinator
 from .energy import split_battery_power
 from .inverter import inverter_model, inverter_ports
+from .telemetry import (
+    battery_activity, live_connected, live_power, number as _number, pv_power_details, status_codes,
+)
 
-
-def _number(value: Any) -> float | int | None:
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, (int, float)):
-        return value
-    if isinstance(value, str):
-        try:
-            return float(value)
-        except ValueError:
-            return None
-    return None
+LIVE_SENSOR_KEYS = {
+    "pv_power", "load_power", "grid_power", "battery_power",
+    "battery_charge_power", "battery_discharge_power", "battery_soc",
+    "battery_activity", "ems", "brs", "chs", "bhs",
+}
 
 
 def _live(key: str) -> Callable[[dict[str, Any]], Any]:
-    return lambda data: _number(data.get("live", {}).get("power", {}).get(key))
+    return lambda data: _number(live_power(data).get(key))
 
 
 def _station(key: str) -> Callable[[dict[str, Any]], Any]:
@@ -57,9 +55,18 @@ def _calculated_energy(key: str) -> Callable[[dict[str, Any]], Any]:
 
 
 def _pv_power(data: dict[str, Any]) -> float | int | None:
-    power = data.get("live", {}).get("power", {})
-    value = _number(power.get("pv2"))
-    return value if value is not None else _number(power.get("pv"))
+    return pv_power_details(data)["value"]
+
+
+def _pv_attributes(data: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in pv_power_details(data).items() if key != "value"}
+
+
+def _status_attributes(data: dict[str, Any]) -> dict[str, Any]:
+    return {"raw_codes": status_codes(data.get("live", {})),
+            "direction_mapping": "brs: 0=idle, 1=charging, 2=discharging",
+            "mapping_verified_on": "HMS-2000-4WB",
+            "other_status_meanings": "unverified"}
 
 
 def _battery_charge_power(data: dict[str, Any]) -> float | int | None:
@@ -70,7 +77,7 @@ def _battery_charge_power(data: dict[str, Any]) -> float | int | None:
     relay_status = _number(data.get("live", {}).get("brs"))
     charge, _discharge = split_battery_power(
         float(value),
-        int(relay_status) if relay_status is not None else None,
+        relay_status if relay_status in (0, 1, 2) else None,
     )
     return charge
 
@@ -83,7 +90,7 @@ def _battery_discharge_power(data: dict[str, Any]) -> float | int | None:
     relay_status = _number(data.get("live", {}).get("brs"))
     _charge, discharge = split_battery_power(
         float(value),
-        int(relay_status) if relay_status is not None else None,
+        relay_status if relay_status in (0, 1, 2) else None,
     )
     return discharge
 
@@ -128,6 +135,7 @@ STATION_SENSORS = (
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=_pv_power,
+        attributes_fn=_pv_attributes,
     ),
     HoymilesDescription(
         key="load_power",
@@ -233,13 +241,22 @@ STATION_SENSORS = (
     HoymilesDescription(
         key="battery_max_power",
         translation_key="battery_max_power",
-        native_unit_of_measurement=PERCENTAGE,
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda data: _number(
             data.get("battery_settings", {})
             .get("active_settings", {})
             .get("max_power")
         ),
+        attributes_fn=lambda data: {"unit_verified": False},
+    ),
+    HoymilesDescription(
+        key="battery_activity",
+        translation_key="battery_activity",
+        device_class=SensorDeviceClass.ENUM,
+        options=["idle", "charging", "discharging", "unrecognized"],
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: battery_activity(data.get("live", {})),
+        attributes_fn=_status_attributes,
     ),
     *(
         HoymilesDescription(
@@ -247,6 +264,7 @@ STATION_SENSORS = (
             translation_key=key,
             entity_category=EntityCategory.DIAGNOSTIC,
             value_fn=lambda data, field=key: data.get("live", {}).get(field),
+            attributes_fn=_status_attributes,
         )
         for key in ("ems", "brs", "chs", "bhs")
     ),
@@ -323,7 +341,30 @@ async def async_setup_entry(
                         device_class,
                     )
                 )
+        if coordinator.inverter_details:
+            for key, unit, device_class in (
+                ("temperature", UnitOfTemperature.CELSIUS, SensorDeviceClass.TEMPERATURE),
+                ("frequency", UnitOfFrequency.HERTZ, SensorDeviceClass.FREQUENCY),
+                ("voltage", UnitOfElectricPotential.VOLT, SensorDeviceClass.VOLTAGE),
+            ):
+                entities.append(HoymilesInverterDetailSensor(
+                    coordinator, entry, inverter, key, unit, device_class
+                ))
     async_add_entities(entities)
+    if coordinator.battery_telemetry.enabled:
+        known_batteries = set()
+
+        def add_battery_sensors():
+            new = []
+            for serial, record in coordinator.battery_telemetry.values.items():
+                if serial not in known_batteries:
+                    known_batteries.add(serial)
+                    new.append(HoymilesBatteryTemperatureSensor(coordinator, entry, serial, record["parent"]))
+            if new:
+                async_add_entities(new)
+
+        entry.async_on_unload(coordinator.async_add_listener(add_battery_sensors))
+        add_battery_sensors()
 
 
 class HoymilesStationSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEntity):
@@ -341,6 +382,18 @@ class HoymilesStationSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEn
             manufacturer="Hoymiles",
             name=f"S-Miles Home {station_id}",
             model="S-Miles Home station",
+        )
+
+    @property
+    def available(self) -> bool:
+        if self.entity_description.key == "battery_max_power" and self.native_value is None:
+            return False
+        if self.entity_description.key in {"today_energy", "month_energy", "year_energy", "total_energy"}:
+            if not self.coordinator.station_is_fresh(self.entity_description.key):
+                return False
+        return super().available and (
+            self.entity_description.key not in LIVE_SENSOR_KEYS
+            or live_connected((self.coordinator.data or {}).get("live", {}))
         )
 
     @property
@@ -390,6 +443,14 @@ class HoymilesModuleSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEnt
         )
 
     @property
+    def available(self) -> bool:
+        return (
+            super().available
+            and live_connected((self.coordinator.data or {}).get("live", {}))
+            and self.coordinator.module_is_fresh(self._inverter_id, self._port)
+        )
+
+    @property
     def native_value(self):
         return (
             (self.coordinator.data or {})
@@ -398,3 +459,84 @@ class HoymilesModuleSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEnt
             .get(self._port, {})
             .get(self._quota)
         )
+
+
+class HoymilesInverterDetailSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEntity):
+    """Optional read-only inverter telemetry from an explicitly enabled endpoint."""
+
+    _attr_has_entity_name = True
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, entry, inverter, key, unit, device_class):
+        super().__init__(coordinator)
+        self._inverter_id, self._key = inverter["id"], key
+        self._attr_unique_id = f"{entry.entry_id}_{inverter['id']}_inverter_{key}"
+        self._attr_translation_key = f"inverter_{key}"
+        self._attr_suggested_display_precision = {"temperature": 1, "frequency": 2, "voltage": 1}[key]
+        self._attr_native_unit_of_measurement = unit
+        self._attr_device_class = device_class
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"inverter_{inverter['id']}")},
+            manufacturer="Hoymiles", name="Hoymiles microinverter",
+            model=inverter_model(inverter),
+            via_device=(DOMAIN, f"station_{entry.data[CONF_STATION_ID]}"),
+        )
+
+    @property
+    def available(self):
+        return (
+            super().available
+            and live_connected((self.coordinator.data or {}).get("live", {}))
+            and self.coordinator.module_polling.detail_is_fresh(self._inverter_id, self._key)
+        )
+
+    @property
+    def native_value(self):
+        return _number((self.coordinator.data or {}).get("inverter_details", {}).get(
+            self._inverter_id, {}
+        ).get(self._key))
+
+    @property
+    def extra_state_attributes(self):
+        return {"sample_time": (self.coordinator.data or {}).get("inverter_details", {}).get(
+            self._inverter_id, {}
+        ).get(f"{self._key}_sample_time")}
+
+
+class HoymilesBatteryTemperatureSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEntity):
+    """Celsius temperature for one battery or expansion pack, never an inverter."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "battery_temperature"
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 1
+
+    def __init__(self, coordinator, entry, serial, parent):
+        super().__init__(coordinator)
+        self._serial = serial
+        self._attr_unique_id = f"{entry.entry_id}_battery_{serial}_temperature"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"station_{entry.data[CONF_STATION_ID]}")},
+            manufacturer="Hoymiles",
+            name=f"S-Miles Home {entry.data[CONF_STATION_ID]}",
+            model="S-Miles Home station",
+        )
+
+    @property
+    def available(self):
+        return (super().available
+                and live_connected((self.coordinator.data or {}).get("live", {}))
+                and self.coordinator.battery_telemetry.is_fresh(self._serial))
+
+    @property
+    def native_value(self):
+        return self.coordinator.battery_telemetry.values.get(self._serial, {}).get("temperature")
+
+    @property
+    def extra_state_attributes(self):
+        stamp = self.coordinator.battery_telemetry.updated.get(self._serial)
+        return {"fetched_at": stamp.isoformat() if stamp else None,
+                "source": "battery_device_api", "freshness_basis": "cloud_response",
+                "battery_serial": self._serial}
