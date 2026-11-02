@@ -10,11 +10,10 @@ der Maintainer die korrekten Modellanzeigen und PV-Messwerte an Anlagen mit
 HMS-2000-4WB und HMS-800-2WB. Damit sind nicht sämtliche Funktionen oder alle
 Firmware- und Kontokombinationen bestätigt.
 
-Ein Nutzer meldete am 27. Oktober 2026 den erfolgreichen Einsatz einer
-**HiBattery 4020-X mit einem Zusatzspeicher**: Sensoren, Self-Consumption-Modus,
-SOC-Einstellungen und Diagnose. Dies ist ein Community-Bericht, kein eigener
-Test des Maintainers; installierte Version und Firmware wurden nicht genannt.
-Weitere Funktionen sind für dieses Modell noch nicht bestätigt.
+Ein Nutzer mit einer **HiBattery 4020-X und einem Zusatzspeicher** meldet
+fehlende Verbrauchswerte und überwiegend 0 W PV-Leistung in Home Assistant.
+Die Unterstützung dieses Aufbaus wird noch in
+[Issue #9](https://github.com/Phil-0805/hoymiles-home-assistant/issues/9) untersucht.
 
 ## Anlage beim Einrichten auswählen
 
@@ -148,60 +147,11 @@ werden abgelehnt. Home Assistant nur mit den üblichen Zugriffsschutzmaßnahmen
 
 ## Hinweise
 
-**v0.5.0** übernimmt den geprüften b6-Code als Stable mit ausdrücklicher Maintainer-Freigabe der [dokumentierten Einschränkungen](docs/release-0.5.0.md). Moduswechsel und Batterietemperaturen funktionieren auf dem Maintainer-System; andere Geräte-/Kontokombinationen sind damit nicht bestätigt. Die 4020-X-PV-Anzeige aus Issue #9 bleibt ungeklärt.
+- Diese Integration verwendet eine inoffizielle Cloud-API und steht nicht in Verbindung mit Hoymiles.
+- Zusätzliche Wechselrichterwerte und Batterietemperaturen lassen sich unter
+  **Konfigurieren** aktivieren. Sie sind zunächst ausgeschaltet und können anfangs nicht verfügbar sein.
+- Änderungen an Batteriemodus oder Reserve-SOC senden einen echten Steuerbefehl.
+  Gleichzeitige Änderungen in der App vermeiden und dort das Ergebnis prüfen.
 
-Die optionale Einstellung **Batterietemperaturen** liest separate Batterie-/Packwerte alle fünf Minuten und ordnet die Sensoren dem bestehenden S-Miles-Home-Gerät zu. `fetched_at` beschreibt das Alter der Cloud-Antwort, nicht der physischen Messung. Auch normale PV-Eingangsdiagramme verwenden das Antwortalter; wiederholte alte Diagrammpunkte sind noch nicht zuverlässig erkennbar. Zusätzliche Wechselrichterwerte verwenden ihre Hersteller-Messzeitpunkte.
-
-Vor jedem Steuerbefehl, einschließlich Reserve-SOC, liest b6 aktuelle Einstellungen und prüft das Ergebnis anschließend durch Rücklesen. Während eines Befehls gleichzeitige App-Änderungen vermeiden. Die Wiederanmeldung aktualisiert das Passwort am bestehenden Eintrag und erhält Identitäten/Verlauf. Cloud-Energiezähler werden nach zwei Minuten ohne erfolgreiche Antwort sowie beim lokalen Tages-/Monats-/Jahreswechsel nicht verfügbar; berechnete Tageszähler bleiben gespeichert. [Gesamtprüfung b6](docs/review-0.5.0b6.de.md) beschreibt Anfragezahlen, Korrekturen und offene Freigabepunkte.
-
-
-Version **0.5.0** ergänzt optional Wechselrichtertemperatur, Netzfrequenz und
-AC-Spannung (Konfigurieren → Zusätzliche Wechselrichter-Messwerte), zunächst
-ausgeschaltet. Dazu kommen Anlagenzeitzone, gemeinsame Abfragebegrenzung je
-Konto und eine Wartezeit zwischen manuellen Aktualisierungen. Nicht bestätigte
-Modus-/Leistungsfunktionen werden nicht als nutzbare Steuerung dargestellt.
-EMS-/Ladecodes bleiben ungeklärt. Offene Geräteprüfungen beschreibt der
-[Test- und Freigabeplan](docs/testing-0.5.0.de.md).
-
-Ab v0.4.3b3 (Beta) liest der Diagnoseknopf **Batterieeinstellungen aktualisieren**
-die Einstellungen erneut, ohne einen Steuerbefehl zu senden. Bei gemeldeter
-Trennung sind aktuelle Messwerte nicht verfügbar; Modulwerte ebenfalls, wenn
-seit zehn Minuten keine erfolgreiche Antwort vorliegt. Tageszähler bleiben
-sichtbar. Details stehen im [Code-Review](docs/review-2026-10-29.md).
-
-Dieses Projekt verwendet eine inoffizielle Cloud-API und steht in keiner
-Verbindung zu Hoymiles. Der schnelle Endpunkt für aktuelle Daten folgt der vom
-Server vorgegebenen Wartezeit. Modulwerte werden alle fünf Minuten aktualisiert.
-Für dieselbe Anlage nur dann einen weiteren schnellen Cloud-Poller aktivieren,
-wenn dies zur Diagnose erforderlich ist.
-
-Die Diagnosewerte `ems`, `brs`, `chs` und `bhs` werden unverarbeitet
-angezeigt, da Hoymiles nicht für jeden numerischen Zustand eine verlässliche
-Bedeutung veröffentlicht. Beim getesteten HMS-2000-4WB beschreibt `brs` die
-Batterierichtung (`1` Laden, `2` Entladen, `0` Leerlauf), während
-`power.bat` den vorzeichenlosen Betrag der Leistung enthält.
-
-Ab v0.4.3b2 (Beta) zeigt **Batterieaktivität** diese `brs`-Zuordnung zusätzlich
-als Leerlauf / Laden / Entladen an; unbekannte Codes bleiben als solche
-erkennbar. Die Zuordnung ist am HMS-2000-4WB-Aufbau geprüft, nicht an jedem
-Batteriemodell. Die bisherigen Rohwert-Sensoren bleiben erhalten. EMS-, Lade-
-und Zustandsmeldungen werden ohne bestätigte Zuordnung nicht übersetzt.
-
-Zur PV-Diagnose die Attribute `pv` und `pv2` des Sensors
-**PV-Leistung** zeitgleich mit der S-Miles-Home-App vergleichen. Unter
-**Einstellungen → Geräte & Dienste → Hoymiles S-Miles Home → Konfigurieren**
-die passende **Quelle der PV-Leistung** für die Anlage wählen. Automatisch
-behält das bisherige Verhalten bei (`pv2`, falls verfügbar, sonst `pv`,
-einschließlich gültiger Nullwerte). Bei expliziter Auswahl von `pv` oder `pv2`
-wird kein anderer Wert eingesetzt. Die Felder werden weder addiert noch mit
-physischen PV-Eingängen gleichgesetzt. Die herunterladbare Diagnose enthält
-beide Werte, die gewählte Quelle, numerische Batteriecodes und die
-Verfügbarkeit der Einstellungen, ohne rohe Cloud-Antworten oder Konto- und
-Gerätekennungen.
-
-Die Batteriesteuerung nutzt die inoffizielle asynchrone Cloud-API von Hoymiles
-für Einstellungen. Änderungen am Reserve-SOC oder Modus senden einen echten
-Steuerbefehl an die HiBattery. Die Integration erhält den vollständigen
-Einstellungsblock des gewählten Modus und liest ihn nach jedem Schreibvorgang
-zurück. Undokumentierte, nur im Backend vorhandene Modi werden nicht als
-einstellbare Auswahl angeboten.
+Weitere Details stehen in den [Release-Hinweisen und bekannten Einschränkungen](docs/release-0.5.0.md)
+und im [Gerätetestplan](docs/testing-0.5.0.de.md).

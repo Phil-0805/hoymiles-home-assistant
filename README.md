@@ -9,11 +9,10 @@ required. Developed and tested on an HMS-2000-4WB with HiBattery. During the
 labels and PV readings on HMS-2000-4WB and HMS-800-2WB installations. This does
 not confirm every function or every firmware/account combination.
 
-A user reported a **HiBattery 4020-X with one additional storage unit** working
-on 27 October 2026: sensors, Self Consumption mode, SOC settings and diagnostics.
-This is a community report, not an independent test by the maintainer; the
-installed version and firmware were not provided, and other functions remain
-unverified.
+A user with a **HiBattery 4020-X and one expansion battery** reports missing
+consumption readings and mostly zero PV power in Home Assistant. Compatibility
+with this setup is still being investigated in
+[issue #9](https://github.com/Phil-0805/hoymiles-home-assistant/issues/9).
 
 ## Select your plant during setup
 
@@ -132,53 +131,11 @@ Do not expose Home Assistant publicly without its normal access controls.
 
 ## Notes
 
-**v0.5.0** promotes the tested b6 code to stable with explicit maintainer acceptance of the [documented limitations](docs/release-0.5.0.md). Mode switches and battery temperatures work on the maintainer setup; other device/account combinations remain unconfirmed. The 4020-X PV-display report in issue #9 is still unresolved.
+- This integration uses an unofficial cloud API and is not affiliated with Hoymiles.
+- Additional inverter readings and battery temperatures can be enabled under
+  **Configure**. They are off by default and may initially be unavailable.
+- Changing battery mode or reserve SOC sends a real control command. Avoid
+  simultaneous changes in the app and check the result there.
 
-The optional **Battery temperatures** setting reads separate battery/pack values every five minutes and groups the sensors on the existing S-Miles Home device. `fetched_at` measures cloud response age, not physical sample age. Ordinary PV-input charts also use response age; repeated old chart points cannot yet be reliably detected. Additional inverter metrics use their vendor sample times.
-
-Before every control write, including reserve SOC, b6 reads current settings and verifies the result afterwards. Avoid simultaneous app edits during a command. Reauthentication updates the existing entry's password and preserves identities/history. Cloud energy totals expire after two minutes without a successful response and at local daily/monthly/yearly boundaries; calculated daily counters are retained. See the [b6 review](docs/review-0.5.0b6.de.md) for request counts, fixes and remaining release blockers.
-
-
-Version **0.5.0** adds optional inverter temperature, frequency and AC voltage
-(Configure → Additional inverter telemetry), disabled by default. Station
-timezone, shared account request limits and a settings-refresh cooldown are
-included. Unsupported mode/maximum-power capabilities are reported explicitly;
-numeric EMS/charge meanings remain unverified. Follow the
-[test and release plan](docs/testing-0.5.0.de.md) for outstanding device checks.
-
-From v0.4.3b3 (beta), the diagnostic **Refresh battery settings** button reads
-settings again without sending a control command. Explicitly disconnected live
-measurements and module readings without a successful response for ten minutes
-become unavailable; daily counters remain visible. See the
-[preventive review](docs/review-2026-10-29.md) for fixes and remaining checks.
-
-This project uses an unofficial cloud API and is not affiliated with Hoymiles.
-The fast live endpoint follows the server-provided delay. Module values update
-every five minutes. Do not enable another fast cloud poller for the same station
-unless needed for diagnostics.
-
-The diagnostic `ems`, `brs`, `chs` and `bhs` values are exposed raw because
-Hoymiles does not publish a reliable meaning for every numeric state. On the
-tested HMS-2000-4WB, `brs` carries the battery direction (`1` charging, `2`
-discharging, `0` idle), while `power.bat` is an unsigned magnitude.
-
-From v0.4.3b2 (beta), **Battery activity** also displays this `brs` mapping as
-Idle / Charging / Discharging; unknown codes remain unrecognized. The mapping
-is verified on the HMS-2000-4WB setup, not every battery model. Existing raw
-status sensors remain unchanged; EMS, charge and health codes are not guessed.
-
-For PV troubleshooting, compare the **PV power** attributes `pv`
-and `pv2` with the S-Miles Home app at the same time. Under **Settings →
-Devices & services → Hoymiles S-Miles Home → Configure**, select the matching
-**PV power source** for that station. Automatic keeps the previous behavior
-(`pv2` when available, otherwise `pv`, including valid zeros); explicit `pv`
-or `pv2` never substitutes another field. These fields are not assumed to be
-additive or physical PV input numbers. Downloaded diagnostics include both
-values, the selected source, numeric battery codes and settings availability,
-without raw cloud payloads or account/device identifiers.
-
-Battery controls use Hoymiles' unofficial asynchronous cloud setting API.
-Changing the reserve SOC or mode sends a real command to the HiBattery. The
-integration preserves the complete settings block for the selected mode and
-reads it back after every write. Undocumented backend-only modes are not
-offered as writable choices.
+See the [release notes and known limitations](docs/release-0.5.0.md) and
+[device test plan](docs/testing-0.5.0.de.md) for details.
