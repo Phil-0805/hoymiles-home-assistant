@@ -50,7 +50,7 @@ verhalten. Für die manuelle Einrichtung siehe [Station-ID finden](#station-id-f
 
 Batteriebefehle sind standardmäßig gesperrt, auch beim Update einer bestehenden Installation. Unter **Einstellungen → Geräte & Dienste → Hoymiles S-Miles Home → Konfigurieren** die Option **Batteriesteuerung freigeben** einschalten, um Modus und Reserve-SOC zu ändern. Ausschalten aktiviert wieder den Nur-Lese-Betrieb. Kennungen und Verlauf vorhandener Entitäten bleiben erhalten; Messwerte und Einstellungsabfragen funktionieren auch bei gesperrter Steuerung. Gleichzeitige Änderungen in der S-Miles-Home-App vermeiden.
 
-Die neuen Schutzmaßnahmen stehen bis zur nächsten Veröffentlichung im Entwicklungsstand bereit. Für veröffentlichte Installationen mindestens v0.5.0 verwenden; älteren Versionen fehlen spätere Schutzmaßnahmen für Transport, Fehlerausgaben oder Schreibvorgänge.
+Für die aktuellen Schutzmaßnahmen v0.5.1 oder neuer verwenden. Frühere Versionen sind überholt. Nach dem Update Home Assistant neu starten und die Batteriesteuerung bei Bedarf ausdrücklich freigeben. Das gilt auch für bestehende Automationen, die Modus oder Reserve-SOC ändern.
 
 ## Installation mit HACS
 
@@ -159,5 +159,5 @@ werden abgelehnt. Home Assistant nur mit den üblichen Zugriffsschutzmaßnahmen
 - Änderungen an Batteriemodus oder Reserve-SOC senden einen echten Steuerbefehl.
   Gleichzeitige Änderungen in der App vermeiden und dort das Ergebnis prüfen.
 
-Weitere Details stehen in den [Release-Hinweisen und bekannten Einschränkungen](docs/release-0.5.0.md)
+Weitere Details stehen in den [Release-Hinweisen und bekannten Einschränkungen](docs/release-0.5.1.md)
 und im [Gerätetestplan](docs/testing-0.5.0.de.md).

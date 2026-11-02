@@ -25,7 +25,7 @@ Ordinary PV-input charts and battery temperatures use cloud response age. Additi
 
 ## Checks
 
-Run unit tests with `python -m unittest discover -s tests -v` and HA tests with `python -m pytest tests/ha -q` after installing `requirements-test.txt`. CI also validates HACS and Hassfest before publishing. The release workflow reads its decision record from `.github/release-readiness.json`; missing device evidence is not converted to confirmation.
+Run unit tests with `python -m unittest discover -s tests -v` and HA tests with `python -m pytest tests/ha -q` after installing `requirements-test.txt`. CI also validates HACS and Hassfest before publishing. The release workflow reads the v0.5.0 decision from `.github/release-readiness.json` and later version-specific records from `.github/release-readiness-<version>.json`; missing device evidence is not converted to confirmation.
 
 The optional `scripts/compare_nodered_reference.py` compares a synthetic fixture against a checksum-pinned public decoder. Use `--reference-file` for a fully offline check. No Hoymiles account access is needed.
 
