@@ -44,6 +44,12 @@ For manual setup, see [Finding your station ID](#finding-your-station-id).
 - Daily, monthly, yearly and total energy when supplied by the station endpoint
 - UI setup through Home Assistant
 
+## Battery controls
+
+Battery commands are disabled by default, including when upgrading an existing installation. Under **Settings → Devices & services → Hoymiles S-Miles Home → Configure**, enable **Allow battery controls** to use the mode and reserve-SOC entities. Turn it off again for read-only operation. Existing entity identities and history are preserved; telemetry and settings refreshes continue while controls are disabled. Avoid simultaneous changes in the S-Miles Home app.
+
+Security fixes are in the current development branch until a newer release is published. For released installations, use at least v0.5.0; earlier versions lack later transport, error-handling or write-safety fixes.
+
 ## Installation with HACS
 
 1. Install HACS if you have not already, then open **HACS → Integrations**.

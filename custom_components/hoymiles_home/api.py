@@ -59,8 +59,16 @@ async def _bounded_json(response) -> dict[str, Any]:
         if size > MAX_JSON_BYTES:
             raise HoymilesConnectionError("JSON response exceeds size limit")
         chunks.append(chunk)
+    return _decode_json(b"".join(chunks))
+
+
+def _decode_json(raw: bytes | str) -> dict[str, Any]:
+    """Apply the same limits to HTTP bodies and JSON embedded in text fields."""
     try:
-        data = json.loads(b"".join(chunks))
+        size = len(raw.encode("utf-8")) if isinstance(raw, str) else len(raw)
+        if size > MAX_JSON_BYTES:
+            raise HoymilesConnectionError("JSON response exceeds size limit")
+        data = json.loads(raw)
     except (ValueError, UnicodeError, RecursionError) as err:
         raise HoymilesConnectionError("Invalid JSON response") from err
     if not isinstance(data, dict):
@@ -540,12 +548,7 @@ class HoymilesHomeClient:
             response = await self._json(STATION_SETTING_STATUS_URL, {"id": job_id})
             status = self._unwrap(response)
             if isinstance(status, str):
-                try:
-                    status = json.loads(status)
-                except ValueError as err:
-                    raise HoymilesConnectionError(
-                        "Work mode returned invalid JSON"
-                    ) from err
+                status = _decode_json(status)
             if not isinstance(status, dict):
                 raise HoymilesConnectionError("Work mode returned an invalid status")
             if status.get("code") == 2:

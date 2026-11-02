@@ -99,9 +99,10 @@
   "options": {
     "step": {
       "init": {
-        "title": "PV display",
-        "description": "Compare the PV power sensor attributes pv and pv2 with the S-Miles Home app. Select another source only after confirming the match. Automatic preserves the existing behavior: pv2 when available, otherwise pv; zero is a valid value. This changes only the display in HA. Additional telemetry is optional and read at most every five minutes. Select the actual station timezone for daily boundaries and charts.",
+        "title": "Station settings",
+        "description": "Compare the PV power sensor attributes pv and pv2 with the S-Miles Home app. Select another source only after confirming the match. Automatic preserves the existing behavior: pv2 when available, otherwise pv; zero is a valid value. This changes only the display in HA. Additional telemetry is optional and read at most every five minutes. Select the actual station timezone for daily boundaries and charts. Battery commands are disabled by default, including after an upgrade. Enable battery controls only if Home Assistant should change the mode and reserve SOC. Avoid simultaneous changes in the S-Miles Home app.",
         "data": {
+          "battery_controls": "Allow battery controls (mode and reserve SOC)",
           "pv_power_source": "PV power source",
           "battery_temperatures": "Battery temperatures (beta, one extra request every five minutes)",
           "inverter_details": "Additional inverter telemetry (beta)",

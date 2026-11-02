@@ -77,7 +77,7 @@ async def test_switch_uses_fresh_app_plan_and_confirms_readback(hass):
     fresh = parse_work_mode_settings(snapshot(tou={"mode": 3, "k_3": {"id": 222}}))
     confirmed = parse_work_mode_settings(snapshot(3, {"mode": 3, "k_3": {"id": 222}}))
     api.async_battery_settings.side_effect = [fresh, confirmed]
-    coordinator = HoymilesHomeCoordinator(hass, api, 123)
+    coordinator = HoymilesHomeCoordinator(hass, api, 123, battery_controls=True)
     coordinator.battery_settings = old
     await coordinator.async_set_battery_mode(8)
     assert api.async_write_battery_settings.await_args.args[2] == {"tou_settings": {"mode": 3, "id": 222}}
@@ -90,7 +90,7 @@ async def test_switch_to_self_consumption_preserves_stored_soc(hass):
     api = AsyncMock()
     current = parse_work_mode_settings(snapshot(3))
     api.async_battery_settings.side_effect = [current, parse_work_mode_settings(snapshot())]
-    coordinator = HoymilesHomeCoordinator(hass, api, 123)
+    coordinator = HoymilesHomeCoordinator(hass, api, 123, battery_controls=True)
     coordinator.battery_settings = current
     await coordinator.async_set_battery_mode(1)
     assert api.async_write_battery_settings.await_args.args[2] == {"reserve_soc": 12, "soc_l": 12, "soc_h": 95}
@@ -102,7 +102,7 @@ async def test_changed_or_unconfirmed_plan_is_not_success(hass):
     current = parse_work_mode_settings(snapshot(tou={"mode": 3, "k_3": {"id": 222}}))
     wrong = parse_work_mode_settings(snapshot(3, {"mode": 3, "k_3": {"id": 333}}))
     api.async_battery_settings.side_effect = [current, wrong]
-    coordinator = HoymilesHomeCoordinator(hass, api, 123)
+    coordinator = HoymilesHomeCoordinator(hass, api, 123, battery_controls=True)
     coordinator.battery_settings = current
     with patch("custom_components.hoymiles_home.coordinator.BATTERY_WRITE_CONFIRM_ATTEMPTS", 1):
         with pytest.raises(HoymilesConnectionError, match="did not confirm"):
@@ -117,7 +117,7 @@ async def test_removed_tou_capability_does_not_send_a_write(hass):
     fresh = deepcopy(current)
     fresh["available_modes"] = [1]
     api.async_battery_settings.return_value = fresh
-    coordinator = HoymilesHomeCoordinator(hass, api, 123)
+    coordinator = HoymilesHomeCoordinator(hass, api, 123, battery_controls=True)
     coordinator.battery_settings = current
     with pytest.raises(HoymilesConnectionError, match="not supported"):
         await coordinator.async_set_battery_mode(8)

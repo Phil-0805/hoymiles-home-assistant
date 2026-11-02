@@ -56,6 +56,7 @@ class HoymilesBatteryReserveSocNumber(
         active = settings.get("active_settings")
         return (
             super().available
+            and self.coordinator.battery_controls
             and settings.get("readable") is True
             and settings.get("writable") is True
             and settings.get("reserve_soc_verified") is True

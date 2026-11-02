@@ -50,7 +50,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self, hass, client: HoymilesHomeClient, station_id: int,
         pv_power_source: str = "auto",
         inverter_details: bool = False, station_timezone: str | None = None,
-        battery_temperatures: bool = False,
+        battery_temperatures: bool = False, battery_controls: bool = False,
     ) -> None:
         super().__init__(
             hass,
@@ -58,6 +58,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             name=DOMAIN,
             update_interval=LIVE_MIN_INTERVAL,
         )
+        self.battery_controls = battery_controls is True
         self.client = client
         self.station_id = station_id
         self.pv_power_source = pv_power_source
@@ -303,11 +304,19 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "consumption_wh": round(self._consumption_wh, 3),
         }
 
+    def _check_battery_controls(self) -> None:
+        """Also reject direct service calls and writes resumed after unload."""
+        if not self.battery_controls or self._stopped:
+            raise HoymilesConnectionError(
+                "Battery controls are disabled; enable them in the integration options"
+            )
+
     async def _async_apply_battery_settings(
         self, mode: int | None, *, reserve_soc: int | None = None
     ) -> None:
         """Write battery settings, read them back and notify entities."""
         async with self._battery_settings_lock:
+            self._check_battery_controls()
             # Every write uses current cloud settings, including SOC changes.
             # The lock only serializes HA tasks; it cannot protect app edits.
             if reserve_soc is None:
@@ -346,6 +355,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if reserve_soc is not None and self.battery_settings.get("reserve_soc_verified") is not True:
                 raise HoymilesConnectionError("Reserve SOC is not verified against current app data")
             request_method = self.battery_settings.get("request_method")
+            self._check_battery_controls()
             await self.client.async_write_battery_settings(
                 self.station_id,
                 mode,
