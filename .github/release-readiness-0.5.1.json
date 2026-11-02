@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "target_version": "0.5.1",
-  "candidate_version": "main-a33138b",
+  "candidate_version": "release-preparation-6860a52",
   "maintainer_approved": true,
   "reports": [
     {
@@ -79,12 +79,12 @@
   ],
   "maintainer_exception": {
     "target_version": "0.5.1",
-    "candidate_version": "main-a33138b",
-    "candidate_commit": "a33138bc66549427ffa709498dcc036964bec170",
+    "candidate_version": "release-preparation-6860a52",
+    "candidate_commit": "6860a520cf49eb0e2192d0ccbdf2b82217715db9",
     "approved_by": "Phil-0805",
     "approved_on": "2026-11-02",
     "source": "Maintainer patch release decision recorded on 2026-11-02",
-    "reason": "Explicit approval to publish the reviewed security hardening as v0.5.1. Existing device-compatibility limitations remain accepted and unconfirmed; synthetic tests do not establish hardware evidence.",
+    "reason": "Explicit approval to publish v0.5.1 with the reviewed security hardening and the supplied timezone I/O review fixes. Existing device-compatibility limitations remain accepted and unconfirmed; synthetic tests do not establish hardware evidence.",
     "limitations_document": "docs/release-0.5.1.md",
     "accepted_pending_reports": [
       "hms1000_model",

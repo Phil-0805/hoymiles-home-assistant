@@ -28,7 +28,7 @@ def accepted_exception(data, version):
     approved = {
         "0.5.0": ("0.5.0b6", "1525a5231a600e9ea6bf592d7231691b7643d080",
                   "Maintainer release decision recorded on 2026-11-02"),
-        "0.5.1": ("main-a33138b", "a33138bc66549427ffa709498dcc036964bec170",
+        "0.5.1": ("release-preparation-6860a52", "6860a520cf49eb0e2192d0ccbdf2b82217715db9",
                   "Maintainer patch release decision recorded on 2026-11-02"),
     }.get(version)
     if approved is None:
