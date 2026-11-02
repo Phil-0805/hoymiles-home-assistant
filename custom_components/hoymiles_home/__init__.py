@@ -6,6 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.util import dt as dt_util
 
 from .api import HoymilesHomeClient
 from .cloud_runtime import AccountPool
@@ -27,13 +28,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             entry.data[CONF_USERNAME],
             entry.data[CONF_PASSWORD], runtime=runtime,
         )
+        station_timezone = await dt_util.async_get_time_zone(
+            entry.options.get(CONF_STATION_TIMEZONE) or hass.config.time_zone
+        ) or dt_util.get_default_time_zone()
         coordinator = HoymilesHomeCoordinator(
             hass, client, entry.data[CONF_STATION_ID],
             battery_controls=entry.options.get(CONF_BATTERY_CONTROLS, False) is True,
             pv_power_source=entry.options.get(PV_POWER_SOURCE, "auto"),
             battery_temperatures=entry.options.get(CONF_BATTERY_TEMPERATURES, False) is True,
             inverter_details=entry.options.get(CONF_INVERTER_DETAILS, False),
-            station_timezone=entry.options.get(CONF_STATION_TIMEZONE, hass.config.time_zone),
+            station_timezone=station_timezone,
         )
         await coordinator.async_initialize()
         await coordinator.async_config_entry_first_refresh()

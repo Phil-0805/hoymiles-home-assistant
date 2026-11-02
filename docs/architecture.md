@@ -34,3 +34,5 @@ Protocol sources: [work modes](work-mode-83.md) and [battery temperatures](batte
 HTTP JSON bodies and JSON embedded in command-status strings share the same size, depth and object-shape validation. Sensor attributes expose only known finite numeric settings, generated mode names and fixed status flags. Raw settings and TOU plans remain internal to the write/readback path.
 
 GitHub Actions are pinned to commit SHAs and updated through Dependabot. Checkout does not persist credentials; only the release job receives repository write permission. Historical tags remain unchanged.
+
+Resolve station timezone names in `async_setup_entry` with HA's async timezone helper and pass the resulting `tzinfo` to the coordinator. Its default uses HA's cached timezone object. The options flow enumerates the timezone database in the executor and caches the sorted selector list.

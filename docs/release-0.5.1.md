@@ -8,6 +8,7 @@
 
 ## Fixed
 
+- Resolve the station timezone asynchronously using Home Assistant’s timezone helper. Enumerate and cache timezone selector options in the executor, keeping timezone file I/O off the event loop.
 - Apply JSON size, depth and object-shape limits to JSON embedded in command-status text fields as well as to outer HTTP responses. Malformed or deeply nested responses become controlled connection errors.
 - Limit battery sensor attributes to allowlisted finite numeric settings, generated mode names and fixed status flags. Arbitrary cloud fields, raw errors and complete TOU plans are no longer exposed as sensor attributes. Internal write/readback snapshots remain complete.
 - Require explicit battery-control permission before preflight and immediately before sending a command. Direct calls and unloading during preflight cannot bypass the restriction.
@@ -15,7 +16,7 @@
 
 ## Validation and limitations
 
-269 Home Assistant tests and 41 unit tests pass locally. GitHub also runs Tests, HACS and Hassfest before publication. All regression data is synthetic; no real account or device commands were used for this patch.
+274 Home Assistant tests and 41 unit tests pass locally. GitHub also runs Tests, HACS and Hassfest before publication. All regression data is synthetic; no real account or device commands were used for this patch.
 
 The maintainer explicitly approved v0.5.1 as a security patch. Existing unconfirmed hardware checks remain unconfirmed; the release decision does not claim additional device validation. The HiBattery 4020-X readings reported in [issue #9](https://github.com/Phil-0805/hoymiles-home-assistant/issues/9), cloud measurement-age limits and other model/firmware differences remain unresolved. Avoid simultaneous app changes during battery commands; readback cannot make app and HA writes atomic.
 
