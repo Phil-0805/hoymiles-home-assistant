@@ -46,6 +46,12 @@ verhalten. Für die manuelle Einrichtung siehe [Station-ID finden](#station-id-f
 - Tages-, Monats-, Jahres- und Gesamtenergie, soweit vom Stationsendpunkt geliefert
 - Einrichtung über die Benutzeroberfläche von Home Assistant
 
+## Batteriesteuerung
+
+Batteriebefehle sind standardmäßig gesperrt, auch beim Update einer bestehenden Installation. Unter **Einstellungen → Geräte & Dienste → Hoymiles S-Miles Home → Konfigurieren** die Option **Batteriesteuerung freigeben** einschalten, um Modus und Reserve-SOC zu ändern. Ausschalten aktiviert wieder den Nur-Lese-Betrieb. Kennungen und Verlauf vorhandener Entitäten bleiben erhalten; Messwerte und Einstellungsabfragen funktionieren auch bei gesperrter Steuerung. Gleichzeitige Änderungen in der S-Miles-Home-App vermeiden.
+
+Die neuen Schutzmaßnahmen stehen bis zur nächsten Veröffentlichung im Entwicklungsstand bereit. Für veröffentlichte Installationen mindestens v0.5.0 verwenden; älteren Versionen fehlen spätere Schutzmaßnahmen für Transport, Fehlerausgaben oder Schreibvorgänge.
+
 ## Installation mit HACS
 
 1. Falls noch nicht vorhanden, HACS installieren und **HACS → Integrationen** öffnen.

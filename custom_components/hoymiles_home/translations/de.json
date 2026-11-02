@@ -99,9 +99,10 @@
   "options": {
     "step": {
       "init": {
-        "title": "PV-Anzeige",
-        "description": "Vergleiche die Attribute pv und pv2 des Sensors PV-Leistung mit der S-Miles-Home-App. Wähle eine andere Quelle nur, wenn der Vergleich das bestätigt. Automatisch behält das bisherige Verhalten bei: pv2, falls verfügbar, sonst pv; auch 0 ist ein gültiger Wert. Die Auswahl ändert nur die Anzeige in HA. Zusätzliche Messwerte sind optional und werden höchstens alle fünf Minuten gelesen. Wähle die tatsächliche Zeitzone der Anlage für Tagesgrenzen und Diagramme.",
+        "title": "Anlageneinstellungen",
+        "description": "Vergleiche die Attribute pv und pv2 des Sensors PV-Leistung mit der S-Miles-Home-App. Wähle eine andere Quelle nur, wenn der Vergleich das bestätigt. Automatisch behält das bisherige Verhalten bei: pv2, falls verfügbar, sonst pv; auch 0 ist ein gültiger Wert. Die Auswahl ändert nur die Anzeige in HA. Zusätzliche Messwerte sind optional und werden höchstens alle fünf Minuten gelesen. Wähle die tatsächliche Zeitzone der Anlage für Tagesgrenzen und Diagramme. Batteriebefehle sind standardmäßig gesperrt, auch nach einem Update. Aktiviere die Batteriesteuerung nur, wenn Home Assistant Modus und Reserve-SOC ändern darf. Gleichzeitige Änderungen in der S-Miles-Home-App vermeiden.",
         "data": {
+          "battery_controls": "Batteriesteuerung freigeben (Modus und Reserve-SOC)",
           "pv_power_source": "Quelle der PV-Leistung",
           "battery_temperatures": "Batterietemperaturen (Beta, zusätzliche Abfrage alle fünf Minuten)",
           "inverter_details": "Zusätzliche Wechselrichter-Messwerte (Beta)",

@@ -322,3 +322,39 @@ def battery_setting_command_data(
         "sid": station_id,
         "data": setting_data,
     }
+
+
+def battery_settings_attributes(settings: dict[str, Any]) -> dict[str, Any]:
+    """Expose only known scalar settings, never cloud text or complete payloads."""
+    def numeric_fields(raw):
+        if not isinstance(raw, dict):
+            return {}
+        return {
+            key: value for key in ("reserve_soc", "soc_l", "soc_h", "max_power", "pc", "pd")
+            if isinstance(value := raw.get(key), (int, float))
+            and not isinstance(value, bool) and isfinite(value)
+        }
+
+    modes = settings.get("available_modes")
+    modes = (
+        [mode for mode in modes if type(mode) is int and mode in BATTERY_MODE_NAMES]
+        if isinstance(modes, list) else []
+    )
+    mode = settings.get("mode")
+    raw_modes = settings.get("mode_settings")
+    method = settings.get("request_method")
+    return {
+        "mode": mode if type(mode) is int and mode in BATTERY_MODE_NAMES else None,
+        "available_modes": modes,
+        "available_mode_names": [BATTERY_MODE_NAMES[item] for item in modes],
+        "active_settings": numeric_fields(settings.get("active_settings")),
+        "mode_settings": {
+            key: numeric_fields(value) for key, value in raw_modes.items()
+            if type(key) is int and key in BATTERY_MODE_NAMES
+        } if isinstance(raw_modes, dict) else {},
+        "request_method": method if method in ("station_action_83", "station", "device") else None,
+        "writable": settings.get("writable") is True,
+        "reserve_soc_verified": settings.get("reserve_soc_verified") is True,
+        "used_work_mode_fallback": bool(settings.get("work_mode_request_error")),
+        "has_error": bool(settings.get("error")),
+    }

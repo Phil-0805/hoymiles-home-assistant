@@ -10,3 +10,13 @@ node_modules/
 
 # Local working notes; never publish
 .private-docs/
+
+# Account credentials, local configuration and network captures
+.env
+.env.*
+!.env.example
+secrets.yaml
+*.har
+*.pem
+*.key
+home-assistant.log*

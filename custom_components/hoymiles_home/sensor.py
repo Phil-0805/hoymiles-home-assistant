@@ -27,6 +27,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .battery import battery_settings_attributes
 from .const import CONF_STATION_ID, DOMAIN
 from .coordinator import HoymilesHomeCoordinator
 from .energy import split_battery_power
@@ -104,27 +105,7 @@ class HoymilesDescription(SensorEntityDescription):
 
 
 def _battery_settings_attributes(data: dict[str, Any]) -> dict[str, Any]:
-    settings = data.get("battery_settings", {})
-    return {
-        key: settings.get(key)
-        for key in (
-            "mode",
-            "available_modes",
-            "available_mode_names",
-            "active_settings",
-            "mode_settings",
-            "request_method",
-            "writable",
-            "reserve_soc_verified",
-            "reserve_soc_source",
-            "unverified_action_1013_reserve_soc",
-            "app_user_agent",
-            "user_setting_probes",
-            "work_mode_request_error",
-            "error",
-        )
-        if settings.get(key) is not None
-    }
+    return battery_settings_attributes(data.get("battery_settings", {}))
 
 
 STATION_SENSORS = (

@@ -17,6 +17,8 @@ Live cadence follows the longer of three seconds or server `dly`. Module telemet
 
 Configured stations using identical credentials share at least one second between HTTP starts and at most two in-flight HTTP requests. Retry-After pauses the account; these client bounds are not a documented manufacturer quota. Setup flows and other applications use separate clients.
 
+Battery writes require the explicit `battery_controls` option (default off, including upgrades). The coordinator checks this permission before cloud preflight and immediately before the write, so direct service calls and an unload during preflight cannot bypass it. Entity identities remain unchanged.
+
 Every control operation reads current settings before writing and verifies the target mode/configuration afterwards. The unofficial API cannot make concurrent app/HA edits atomic. Failed live refreshes break local energy integration anchors. Station totals expire by response age and station-local period boundaries.
 
 Ordinary PV-input charts and battery temperatures use cloud response age. Additional inverter metrics retain individual vendor sample times. Do not claim physical measurement freshness without a reliable source timestamp.
@@ -28,3 +30,7 @@ Run unit tests with `python -m unittest discover -s tests -v` and HA tests with 
 The optional `scripts/compare_nodered_reference.py` compares a synthetic fixture against a checksum-pinned public decoder. Use `--reference-file` for a fully offline check. No Hoymiles account access is needed.
 
 Protocol sources: [work modes](work-mode-83.md) and [battery temperatures](battery-temperature-api.md).
+
+HTTP JSON bodies and JSON embedded in command-status strings share the same size, depth and object-shape validation. Sensor attributes expose only known finite numeric settings, generated mode names and fixed status flags. Raw settings and TOU plans remain internal to the write/readback path.
+
+GitHub Actions are pinned to commit SHAs and updated through Dependabot. Checkout does not persist credentials; only the release job receives repository write permission. Historical tags remain unchanged.

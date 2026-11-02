@@ -22,7 +22,7 @@ def settings(lower=12, upper=95, mode=2):
 async def test_soc_write_preserves_app_changes_since_last_periodic_read(hass):
     api = AsyncMock()
     api.async_battery_settings.side_effect = [settings(12, 80), settings(20, 80)]
-    coordinator = HoymilesHomeCoordinator(hass, api, 123)
+    coordinator = HoymilesHomeCoordinator(hass, api, 123, battery_controls=True)
     coordinator.battery_settings = settings(12, 95)
     with patch("custom_components.hoymiles_home.coordinator.BATTERY_WRITE_CONFIRM_ATTEMPTS", 1):
         await coordinator.async_set_battery_reserve_soc(20)
@@ -36,7 +36,7 @@ async def test_soc_write_preserves_app_changes_since_last_periodic_read(hass):
 async def test_soc_write_cannot_switch_back_to_cached_mode(hass):
     api = AsyncMock()
     api.async_battery_settings.return_value = settings(mode=3)
-    coordinator = HoymilesHomeCoordinator(hass, api, 123)
+    coordinator = HoymilesHomeCoordinator(hass, api, 123, battery_controls=True)
     coordinator.battery_settings = settings()
     with pytest.raises(HoymilesConnectionError):
         await coordinator.async_set_battery_reserve_soc(20)
