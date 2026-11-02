@@ -75,7 +75,7 @@ def test_cloud_settings_do_not_copy_unexpected_fields_to_sensor_attributes():
     assert settings["active_settings"]["token"] == "SYNTHETIC_TOKEN"
 
 
-@pytest.mark.parametrize("invalid", [True, "SYNTHETIC", float("nan"), float("inf"), {"private": "SYNTHETIC"}])
+@pytest.mark.parametrize("invalid", [True, "SYNTHETIC", 10 ** 400, float("nan"), float("inf"), {"private": "SYNTHETIC"}])
 def test_attributes_accept_only_finite_numeric_settings(invalid):
     result = _battery_settings_attributes({"battery_settings": {"active_settings": {"reserve_soc": invalid}}})
     assert result["active_settings"] == {}

@@ -329,15 +329,21 @@ def battery_settings_attributes(settings: dict[str, Any]) -> dict[str, Any]:
     def numeric_fields(raw):
         if not isinstance(raw, dict):
             return {}
-        return {
-            key: value for key in ("reserve_soc", "soc_l", "soc_h", "max_power", "pc", "pd")
-            if isinstance(value := raw.get(key), (int, float))
-            and not isinstance(value, bool) and isfinite(value)
-        }
+        result = {}
+        for key in ("reserve_soc", "soc_l", "soc_h", "max_power", "pc", "pd"):
+            value = raw.get(key)
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                continue
+            try:
+                if isfinite(value):
+                    result[key] = value
+            except OverflowError:
+                continue
+        return result
 
     modes = settings.get("available_modes")
     modes = (
-        [mode for mode in modes if type(mode) is int and mode in BATTERY_MODE_NAMES]
+        sorted({mode for mode in modes if type(mode) is int and mode in BATTERY_MODE_NAMES})
         if isinstance(modes, list) else []
     )
     mode = settings.get("mode")
