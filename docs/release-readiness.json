@@ -2,7 +2,7 @@
   "schema_version": 1,
   "target_version": "0.5.0",
   "candidate_version": "0.5.0b6",
-  "maintainer_approved": false,
+  "maintainer_approved": true,
   "reports": [
     {
       "id": "hms1000_model",
@@ -76,5 +76,11 @@
       "evidence_url": null,
       "tested_version": null
     }
-  ]
+  ],
+  "maintainer_approval": {
+    "date": "2026-11-02",
+    "source": "Maintainer instruction in this project chat",
+    "statement": "Okay die 5er kann eigtl in eine stable version",
+    "scope": "Approval to prepare and publish v0.5.0; does not supply missing device evidence or waive evidence checks."
+  }
 }
