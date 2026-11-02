@@ -15,7 +15,7 @@ SPEC.loader.exec_module(readiness)
 class TestReleaseReadiness(unittest.TestCase):
     def complete_fixture(self):
         # Fictional test evidence only; never write it to the actual record.
-        data = json.loads((ROOT / "docs/release-readiness.json").read_text())
+        data = json.loads((ROOT / ".github/release-readiness.json").read_text())
         data.pop("maintainer_exception", None)
         data["maintainer_approved"] = True
         for row in data["reports"]:
@@ -53,7 +53,7 @@ class TestReleaseReadiness(unittest.TestCase):
         self.assertTrue(readiness.validate(data, "0.5.0"))
 
     def exception_fixture(self):
-        return json.loads((ROOT / "docs/release-readiness.json").read_text())
+        return json.loads((ROOT / ".github/release-readiness.json").read_text())
 
     def test_explicit_exception_accepts_publication_without_confirming_reports(self):
         data = self.exception_fixture()

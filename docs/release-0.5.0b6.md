@@ -12,6 +12,6 @@ This prerelease follows a whole-repository review of b5. Stable remains v0.4.2; 
 
 Validation: 34 unit tests and 247 Home Assistant tests pass locally, plus compileall, diff/translation checks and the checksum-pinned Node-RED comparison with synthetic data. Seventeen targeted cases were observed failing before their corresponding fixes. The existing readback tests retain their negative assertions and now provide a separate fresh pre-write snapshot. HACS, Hassfest and the release workflow must also pass before publication.
 
-Install b6 with HACS prereleases enabled and restart Home Assistant **without deleting the integration**. See the [German test plan](testing-0.5.0.de.md) and [review report](review-0.5.0b6.de.md).
+Install b6 with HACS prereleases enabled and restart Home Assistant **without deleting the integration**. See the [German test plan](testing-0.5.0.de.md).
 
 Maintainer reports confirm mode switching and battery temperatures on their setup only. Affected-device/app checks remain open, particularly the 4020-X, PV source and status interpretation, optional telemetry accuracy, night/day recovery and b6 preservation of app settings. No real-device control or authenticated polling was performed in this review. Normal per-input charts and battery temperatures still have documented cloud-response-age limitations; software tests do not establish physical measurement freshness.

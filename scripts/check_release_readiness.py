@@ -30,7 +30,7 @@ def accepted_exception(data, version):
             or decision.get("candidate_version") != data.get("candidate_version")
             or decision.get("candidate_commit") != "1525a5231a600e9ea6bf592d7231691b7643d080"
             or decision.get("approved_by") != "Phil-0805"
-            or decision.get("source") != "Explicit maintainer approval in project chat on 2026-11-02"
+            or decision.get("source") != "Maintainer release decision recorded on 2026-11-02"
             or decision.get("limitations_document") != "docs/release-0.5.0.md"):
         return set()
     try:
@@ -92,7 +92,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--version", required=True)
     args = parser.parse_args()
-    record = Path(__file__).resolve().parents[1] / "docs/release-readiness.json"
+    record = Path(__file__).resolve().parents[1] / ".github/release-readiness.json"
     data = json.loads(record.read_text())
     errors = validate(data, args.version)
     if errors:

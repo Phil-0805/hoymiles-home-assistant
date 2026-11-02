@@ -16,4 +16,4 @@ Existing entity IDs/history and the saved energy format are retained. Energy est
 
 Validation: 29 unit + 129 HA tests locally; HACS/Hassfest and tests run before publication. Device validation is still pending. Stable remains v0.4.2.
 
-The Node-RED client was cross-checked for protocol behavior; see [review findings and future telemetry candidates](review-2026-10-29.md). The Android APK download was blocked (HTTP 403), so no direct APK analysis is claimed. EMS/charge enums, battery maximum-power availability and additional writable modes remain unverified. Extra inverter temperature/frequency/voltage via the bulk endpoint is documented for a separately tested follow-up, not shipped as a working feature here.
+The Node-RED client was cross-checked for protocol behavior. EMS/charge enums, battery maximum-power availability and additional writable modes remain unverified. Extra inverter temperature/frequency/voltage via the bulk endpoint is documented for a separately tested follow-up, not shipped as a working feature here.

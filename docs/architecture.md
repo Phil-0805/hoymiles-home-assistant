@@ -1,45 +1,30 @@
-# Integration boundaries and release invariants
+# Developer overview
 
 ## Responsibilities
 
-- `api.py`: endpoint requests, authentication exchange and scoped read/write commands. Shared error types live in `errors.py`. A write is sent once, followed by readback; never put control writes into a generic retry loop.
-- `cloud_runtime.py`: shared in-memory token/login lock, account request pacing, concurrency and Retry-After pauses. `AccountPool` references sessions by credential fingerprint and releases them after the last entry unloads. Signed live URLs remain per station/client.
-- `coordinator.py`: live polling, station-local daily energy, settings lifecycle and locked settings writes. It does not decode binary payloads or wait for slow module polling inside the live refresh.
-- `module_polling.py`: independent cancellable chart/detail polling, five-minute schedule and response/sample freshness. Background updates notify entities without claiming a failed live connection is healthy.
-- `protobuf.py` / `module_data.py`: bounded independent decoders. Match known station/day/device/port identity; missing values remain unknown. Optional detail samples align by their own inverter time array and expire by vendor sample time.
-- `battery.py` / `telemetry.py`: capability and numeric interpretation. Keep unsupported mode IDs, unverified units and unknown status codes distinct from supported controls.
-- Entity platforms: presentation and HA services only. Preserve existing unique IDs and device identifiers. New optional sensors do not rename or delete old entities.
-- `diagnostics.py`: allowlisted values and capability states. Never export raw cloud payloads, account/device identifiers, credentials or tokens.
+- `api.py`: authentication and scoped requests. Writes are sent once; confirmation uses subsequent reads.
+- `cloud_runtime.py`: shared in-memory token, login lock, request pacing and Retry-After pauses for configured stations using identical credentials.
+- `coordinator.py`: live data, local daily energy, settings lifecycle and serialized control operations.
+- `module_polling.py` / `battery_telemetry.py`: independent cancellable background telemetry with freshness checks.
+- `protobuf.py` / `module_data.py`: bounded binary decoders. Keep identity checks and missing-value handling separate from presentation.
+- `battery.py` / `telemetry.py`: capability and numeric interpretation without inventing undocumented status meanings.
+- Entity platforms and `device_migration.py`: presentation and registry changes preserving existing identities, customization and history.
+- `diagnostics.py`: allowlisted values without raw cloud payloads or account/device identifiers.
 
-## Request budget
+## Requests and freshness
 
-Live cadence follows `max(3 seconds, server dly)`. Slow module polling is no more frequent than five minutes; enabling details adds one station snapshot per cycle. Settings are read every thirty minutes; manual refreshes have a thirty-second cooldown and join a running read.
+Live cadence follows the longer of three seconds or server `dly`. Module telemetry runs every five minutes; each enabled optional telemetry path adds one station read per cycle. Settings are read every thirty minutes, with a thirty-second manual refresh cooldown.
 
-All HTTP requests for identical account credentials share one budget: minimum one second between starts, maximum two in flight. Authentication is coalesced under one lock. Retry-After pauses the account budget. Other applications/integrations do not share this state; the vendor's actual quota is undocumented. Do not claim these client bounds guarantee a particular daily quota.
+Configured stations using identical credentials share at least one second between HTTP starts and at most two in-flight HTTP requests. Retry-After pauses the account; these client bounds are not a documented manufacturer quota. Setup flows and other applications use separate clients.
 
-## Validation layers
+Every control operation reads current settings before writing and verifies the target mode/configuration afterwards. The unofficial API cannot make concurrent app/HA edits atomic. Failed live refreshes break local energy integration anchors. Station totals expire by response age and station-local period boundaries.
 
-1. Dependency-free decoder, calculation and release-gate tests.
-2. HA integration tests with mocked cloud boundaries: identity/history schema, options, lifecycle, pacing, unsupported capabilities, freshness and error paths.
-3. Optional pinned Node-RED decoder comparison using a synthetic fixture, without Hoymiles account access.
-4. Real-device/app comparisons recorded in issues. These remain essential; the first three layers cannot establish undocumented device semantics.
+Ordinary PV-input charts and battery temperatures use cloud response age. Additional inverter metrics retain individual vendor sample times. Do not claim physical measurement freshness without a reliable source timestamp.
 
-## Stable publication
+## Checks
 
-`docs/release-readiness.json` tracks the candidate, target stable version, affected-user evidence and maintainer approval. `scripts/check_release_readiness.py` is executed before creating a new stable release. Prereleases still require tests/HACS/Hassfest but do not manufacture evidence. Invalidate affected confirmations after material code changes; the gate checks recorded evidence completeness and cannot authenticate the truth of a hardware test.
+Run unit tests with `python -m unittest discover -s tests -v` and HA tests with `python -m pytest tests/ha -q` after installing `requirements-test.txt`. CI also validates HACS and Hassfest before publishing. The release workflow reads its decision record from `.github/release-readiness.json`; missing device evidence is not converted to confirmation.
 
-Current unverified areas are cloud EMS/charge enum meanings, model-specific maximum-power settings and extra control modes. Keep raw diagnostics and disable unsupported controls until repeatable evidence exists. Do not turn MQTT string enums or Node-RED README sign conventions into cloud numeric mappings.
+The optional `scripts/compare_nodered_reference.py` compares a synthetic fixture against a checksum-pinned public decoder. Use `--reference-file` for a fully offline check. No Hoymiles account access is needed.
 
-
-## b6 review updates
-
-Every control operation now reads current cloud settings before writing, including reserve SOC. This protects against already saved app changes; concurrent edits during the read/write window cannot be atomic. Successful readback still requires the full requested configuration and mode.
-
-Station totals retain separate attempt/success timestamps, retry no faster than once a minute, and expire after two minutes without success or at their local period boundary. Failed live refreshes break local integration anchors. JSON transport bodies are limited to 8 MiB and 32 container levels. Reauthentication updates the password on the same entry; automatic login transport failures pause shared account renewal for one minute.
-
-The stable evidence record now explicitly includes mode switching and battery temperatures. See [the b6 audit](review-0.5.0b6.de.md) for actual request counts, startup/config-flow limits and unresolved measurement-age boundaries.
-
-
-## Explicit v0.5.0 publication exception (2 November 2026)
-
-The maintainer approved publishing the tested b6 integration code as v0.5.0 while accepting the outstanding device-evidence requirements as known limitations. The readiness record retains all nine reports as unconfirmed and stores this separate decision. The checker recognizes only the named v0.5.0/b6/commit decision, with maintainer approval, provenance, date, all accepted report IDs and a limitations document. Missing/altered scope or false claims of completed tests still fail. This exception does not bypass unit/HA tests, HACS or Hassfest and does not apply to another candidate or release.
+Protocol sources: [work modes](work-mode-83.md) and [battery temperatures](battery-temperature-api.md).

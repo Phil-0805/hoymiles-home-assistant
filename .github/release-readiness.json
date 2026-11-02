@@ -77,21 +77,14 @@
       "tested_version": null
     }
   ],
-  "maintainer_approval": {
-    "date": "2026-11-02",
-    "source": "Maintainer instruction in this project chat",
-    "statement": "Okay die 5er kann eigtl in eine stable version",
-    "scope": "Approval to publish v0.5.0 with the explicit documented exception below; device evidence remains unconfirmed."
-  },
   "maintainer_exception": {
     "target_version": "0.5.0",
     "candidate_version": "0.5.0b6",
     "candidate_commit": "1525a5231a600e9ea6bf592d7231691b7643d080",
     "approved_by": "Phil-0805",
     "approved_on": "2026-11-02",
-    "source": "Explicit maintainer approval in project chat on 2026-11-02",
-    "approval_statement": "Ja, dokumentierte Ausnahme für v0.5.0",
-    "reason": "The maintainer explicitly accepts the outstanding device-evidence requirements as documented limitations for v0.5.0. Mode switching and battery temperatures were reported working on the maintainer setup. Other-device compatibility, especially the 4020-X PV report, remains unresolved; no test report is promoted to confirmed.",
+    "source": "Maintainer release decision recorded on 2026-11-02",
+    "reason": "Release v0.5.0 accepts the documented compatibility limitations. Outstanding device checks remain unconfirmed.",
     "limitations_document": "docs/release-0.5.0.md",
     "accepted_pending_reports": [
       "hms1000_model",
