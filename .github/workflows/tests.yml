@@ -24,6 +24,9 @@ jobs:
         run: python -m unittest discover -s tests -v
 
   setup-tests:
+    strategy:
+      matrix:
+        homeassistant: ["2026.10.4", "2026.11.0"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -34,5 +37,7 @@ jobs:
           python-version: "3.14"
       - name: Install Home Assistant test dependencies
         run: python -m pip install -r requirements-test.txt
+      - name: Install target Home Assistant version
+        run: python -m pip install homeassistant==${{ matrix.homeassistant }}
       - name: Test station discovery and setup flows
-        run: python -m pytest tests/ha -q
+        run: python scripts/run_ha_tests.py

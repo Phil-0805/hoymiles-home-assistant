@@ -11,7 +11,7 @@
 
 ## Known limitations
 
-- A HiBattery 4020-X user reports missing consumption readings and mostly zero PV power in Home Assistant. The cause remains unresolved in [issue #9](https://github.com/Phil-0805/hoymiles-home-assistant/issues/9).
+- For the reported HiBattery 4020-X setup, PV readings can require selecting the matching source. Maximum-power settings and some raw status meanings remain unresolved; see [issue #9](https://github.com/Phil-0805/hoymiles-home-assistant/issues/9).
 - Compatibility with other models, firmware and account combinations is not fully verified. Some status codes and maximum-power settings remain undocumented.
 - Cloud data can be delayed. Ordinary PV-input charts and battery temperatures do not always expose the physical measurement time.
 - Avoid simultaneous app changes while sending a battery command from Home Assistant. Writes are not automatically repeated.

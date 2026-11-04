@@ -10,10 +10,12 @@ der Maintainer die korrekten Modellanzeigen und PV-Messwerte an Anlagen mit
 HMS-2000-4WB und HMS-800-2WB. Damit sind nicht sämtliche Funktionen oder alle
 Firmware- und Kontokombinationen bestätigt.
 
-Ein Nutzer mit einer **HiBattery 4020-X und einem Zusatzspeicher** meldet
-fehlende Verbrauchswerte und überwiegend 0 W PV-Leistung in Home Assistant.
-Die Unterstützung dieses Aufbaus wird noch in
-[Issue #9](https://github.com/Phil-0805/hoymiles-home-assistant/issues/9) untersucht.
+Für eine **HiBattery 4020-X mit einem Zusatzspeicher** bestätigt ein Nutzer
+passende PV-Werte nach Auswahl der Quelle, Batterietemperaturen, Relaisrichtung
+und funktionierende Batteriebefehle unter v0.5.1. Diese Beobachtungen gelten für
+diesen Aufbau. Die maximale Leistungseinstellung bleibt über den verwendeten
+Einstellungsabruf unbekannt; einige Rohstatuscodes sind undokumentiert. Siehe
+[Issue #9](https://github.com/Phil-0805/hoymiles-home-assistant/issues/9).
 
 ## Anlage beim Einrichten auswählen
 

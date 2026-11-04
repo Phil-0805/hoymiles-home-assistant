@@ -9,9 +9,11 @@ required. Developed and tested on an HMS-2000-4WB with HiBattery. During the
 labels and PV readings on HMS-2000-4WB and HMS-800-2WB installations. This does
 not confirm every function or every firmware/account combination.
 
-A user with a **HiBattery 4020-X and one expansion battery** reports missing
-consumption readings and mostly zero PV power in Home Assistant. Compatibility
-with this setup is still being investigated in
+For a **HiBattery 4020-X with one expansion battery**, a user confirms PV
+readings after choosing the matching PV source, battery temperatures, relay
+direction and battery commands in v0.5.1. These observations apply to that
+setup. Maximum-power settings remain unavailable on its current settings path;
+some raw status codes are undocumented. See
 [issue #9](https://github.com/Phil-0805/hoymiles-home-assistant/issues/9).
 
 ## Select your plant during setup

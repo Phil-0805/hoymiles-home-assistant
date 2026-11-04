@@ -73,7 +73,7 @@
       "battery_charge_energy_today": {"name": "Batterie heute geladen"},
       "battery_discharge_energy_today": {"name": "Batterie heute entladen"},
       "battery_settings_access": {"name": "Batterieeinstellungen Zugriff"},
-      "battery_mode": {"name": "Batteriemodus"},
+      "battery_mode": {"name": "Batteriemodus", "state": {"Self-Consumption": "Eigenverbrauch", "Economy": "Sparmodus", "Backup": "Notstrom", "Off-Grid": "Inselbetrieb", "Self-Consumption + Max Power": "Eigenverbrauch + maximale Leistung", "Backup + Max Power": "Notstrom + maximale Leistung", "Peak Shaving": "Lastspitzenkappung", "Time of Use": "Zeitabhängiger Betrieb"}},
       "battery_reserve_soc": {"name": "Batterie Reserve-SOC"},
       "battery_max_power": {"name": "Maximale Leistungseinstellung (Rohwert)"},
       "ems": {"name": "EMS-Status (Rohwert)"},
@@ -92,7 +92,7 @@
       "battery_reserve_soc": {"name": "Reserve-SOC"}
     },
     "select": {
-      "battery_mode": {"name": "Batteriemodus"}
+      "battery_mode": {"name": "Batteriemodus", "state": {"Self-Consumption": "Eigenverbrauch", "Economy": "Sparmodus", "Backup": "Notstrom", "Off-Grid": "Inselbetrieb", "Self-Consumption + Max Power": "Eigenverbrauch + maximale Leistung", "Backup + Max Power": "Notstrom + maximale Leistung", "Peak Shaving": "Lastspitzenkappung", "Time of Use": "Zeitabhängiger Betrieb"}}
     },
     "binary_sensor": {"connected": {"name": "Verbindung"}}
   },

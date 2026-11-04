@@ -6,4 +6,4 @@
 
 Install this prerelease and restart Home Assistant. The existing temperature sensor should appear on S-Miles Home. Its entity ID stays the same, preserving the existing recorder history. If the old battery device is used by another entity/device it deliberately remains. Do not delete the integration or the temperature entity manually.
 
-Maintainer feedback: b4 battery temperature display works, and b3 mode switching works on the maintainer's setup. This does not establish affected-user compatibility or complete the release-readiness evidence. Stable remains v0.4.2.
+Maintainer feedback: b4 battery temperature display works, and b3 mode switching works on the maintainer's setup. This does not establish affected-user compatibility. Stable remains v0.4.2.

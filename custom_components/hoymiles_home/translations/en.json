@@ -73,7 +73,7 @@
       "battery_charge_energy_today": {"name": "Battery energy charged today"},
       "battery_discharge_energy_today": {"name": "Battery energy discharged today"},
       "battery_settings_access": {"name": "Battery settings access"},
-      "battery_mode": {"name": "Battery mode"},
+      "battery_mode": {"name": "Battery mode", "state": {"Self-Consumption": "Self-Consumption", "Economy": "Economy", "Backup": "Backup", "Off-Grid": "Off-Grid", "Self-Consumption + Max Power": "Self-Consumption + Max Power", "Backup + Max Power": "Backup + Max Power", "Peak Shaving": "Peak Shaving", "Time of Use": "Time of Use"}},
       "battery_reserve_soc": {"name": "Battery reserve SOC"},
       "battery_max_power": {"name": "Maximum power setting (raw)"},
       "ems": {"name": "EMS status (raw)"},
@@ -92,7 +92,7 @@
       "battery_reserve_soc": {"name": "Reserve SOC"}
     },
     "select": {
-      "battery_mode": {"name": "Battery mode"}
+      "battery_mode": {"name": "Battery mode", "state": {"Self-Consumption": "Self-Consumption", "Economy": "Economy", "Backup": "Backup", "Off-Grid": "Off-Grid", "Self-Consumption + Max Power": "Self-Consumption + Max Power", "Backup + Max Power": "Backup + Max Power", "Peak Shaving": "Peak Shaving", "Time of Use": "Time of Use"}}
     },
     "binary_sensor": {"connected": {"name": "Connection"}}
   },

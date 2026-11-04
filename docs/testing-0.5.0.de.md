@@ -18,7 +18,13 @@ Unter **Einstellungen → Geräte & Dienste → Hoymiles S-Miles Home → Konfig
 
 Eine andere Quelle nur anhand des App-Vergleichs wählen. Die Felder werden nicht addiert. Fehlende Verbrauchswerte lassen sich mit dieser PV-Option nicht korrigieren; die Cloud muss passende Lastwerte liefern.
 
-Beim gemeldeten **4020-X-Aufbau** fehlen Verbrauchswerte und die PV-Leistung ist überwiegend null. Ursache, Wechselrichtermodell und Ergebnis des Quellenwechsels sind noch offen: [Issue #9](https://github.com/Phil-0805/hoymiles-home-assistant/issues/9).
+Beim gemeldeten **4020-X-Aufbau** bestätigt der Nutzer passende PV-Werte mit
+der Quelle `pv`; `pv2` entspricht laut seiner Beobachtung dem externen
+Wechselrichter. Das ist keine allgemeine Feldzuordnung für alle Anlagen. Er
+bestätigt außerdem Temperaturen, `brs` 0/1/2 als Leerlauf/Laden/Entladen und
+Batteriebefehle unter 0.5.1. Eine gesonderte Bestätigung der Verbrauchswerte fehlt.
+Die maximale Leistungseinstellung wird auf diesem Einstellungsweg nicht
+bereitgestellt: [Issue #9](https://github.com/Phil-0805/hoymiles-home-assistant/issues/9).
 
 ## Batterie und weitere Messwerte
 
