@@ -64,20 +64,19 @@ vergleichen. Die Auswahlwerte für Batteriebefehle bleiben auf Englisch erhalten
 
 ## Installation mit HACS
 
-1. Falls noch nicht vorhanden, HACS installieren und **HACS → Integrationen** öffnen.
-2. Im HACS-Menü **Benutzerdefinierte Repositories** öffnen.
-3. `https://github.com/Phil-0805/hoymiles-home-assistant` mit der Kategorie
-   **Integration** hinzufügen.
-4. **Hoymiles S-Miles Home** installieren. Beta-Versionen sind nicht erforderlich.
-5. Home Assistant neu starten.
-6. Unter **Einstellungen → Geräte & Dienste → Integration hinzufügen** nach
+**Hoymiles S-Miles Home ist offiziell im [HACS-Standardkatalog](https://github.com/hacs/default/blob/master/integration) gelistet.** Die Integration lässt sich direkt über die HACS-Suche installieren; ein benutzerdefiniertes Repository ist nicht mehr erforderlich. Sie bleibt eine inoffizielle Hoymiles-Integration.
+
+1. Falls noch nicht vorhanden, HACS installieren und anschließend HACS öffnen.
+2. Nach **Hoymiles S-Miles Home** suchen und die Integration installieren. Beta-Versionen sind nicht erforderlich.
+3. Home Assistant neu starten.
+4. Unter **Einstellungen → Geräte & Dienste → Integration hinzufügen** nach
    **Hoymiles S-Miles Home** suchen. Die E-Mail-Adresse und das Passwort des
    S-Miles-Home-Kontos eingeben und anschließend die Anlage auswählen.
    Für die manuelle Einrichtung siehe [Station-ID finden](#station-id-finden).
 
-Weitere Veröffentlichungen können anschließend über HACS angeboten werden.
-Die Integration ist nicht im HACS-Standardkatalog enthalten; das
-benutzerdefinierte Repository muss weiterhin hinzugefügt werden.
+Weitere Veröffentlichungen stehen über HACS bereit. Bestehende Installationen,
+die über ein benutzerdefiniertes Repository eingerichtet wurden, können die
+Integration weiterverwenden; die HA-Konfiguration muss nicht neu angelegt werden.
 
 ## Manuelle Installation
 

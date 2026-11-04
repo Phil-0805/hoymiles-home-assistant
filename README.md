@@ -62,19 +62,19 @@ command select options keep their existing English values.
 
 ## Installation with HACS
 
-1. Install HACS if you have not already, then open **HACS → Integrations**.
-2. Open the HACS menu and choose **Custom repositories**.
-3. Add `https://github.com/Phil-0805/hoymiles-home-assistant` with category
-   **Integration**.
-4. Install **Hoymiles S-Miles Home**. Beta versions are not required.
-5. Restart Home Assistant.
-6. Under **Settings → Devices & services → Add integration**, search for
+**Hoymiles S-Miles Home is officially listed in the [HACS default catalog](https://github.com/hacs/default/blob/master/integration).** You can install it directly from HACS without adding a custom repository. This remains an unofficial Hoymiles integration.
+
+1. Install HACS if you have not already, then open HACS.
+2. Search for **Hoymiles S-Miles Home** and install it. Beta versions are not required.
+3. Restart Home Assistant.
+4. Under **Settings → Devices & services → Add integration**, search for
    **Hoymiles S-Miles Home**, enter your S-Miles Home email and password, then
    select your plant. For manual setup, see
    [Finding your station ID](#finding-your-station-id).
 
-HACS can then offer subsequent releases. The integration is not in HACS's
-default catalog; adding the custom repository remains necessary.
+Subsequent releases are available through HACS. Existing installations added as
+a custom repository can continue using the integration without recreating their
+Home Assistant config entries.
 
 ## Manual installation
 
