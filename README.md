@@ -52,19 +52,19 @@ Battery commands are disabled by default, including when upgrading an existing i
 
 Use v0.5.1 or newer for the current security fixes. Earlier versions are superseded. After updating, restart Home Assistant and explicitly enable battery controls if needed. This also applies to existing automations that change the battery mode or reserve SOC.
 
-## Battery mode display (development)
+## Battery mode display (v0.5.2 beta)
 
 The battery mode sensor uses translated states with stable keys such as
-`self_consumption` and `time_of_use`. Its entity ID is preserved. When updating
-to a release containing this change, adjust automations/templates that compare
-this sensor to the old English text (for example `Self-Consumption`). Battery
+`self_consumption` and `time_of_use`. Its entity ID is preserved. When installing this beta, adjust
+automations/templates that compare this sensor to the old English text (for example `Self-Consumption`). Battery
 command select options keep their existing English values.
 
-## Installation with HACS
+## Installation with HACS / Marketplace
 
 **Hoymiles S-Miles Home is officially listed in the [HACS default catalog](https://github.com/hacs/default/blob/master/integration).** You can install it directly from HACS without adding a custom repository. This remains an unofficial Hoymiles integration.
 
-1. Install HACS if you have not already, then open HACS.
+1. On HA 2026.11+, open **Settings → Marketplace**. On HA 2026.10 or older,
+   install HACS if needed and open HACS.
 2. Search for **Hoymiles S-Miles Home** and install it. Beta versions are not required.
 3. Restart Home Assistant.
 4. Under **Settings → Devices & services → Add integration**, search for
@@ -75,6 +75,29 @@ command select options keep their existing English values.
 Subsequent releases are available through HACS. Existing installations added as
 a custom repository can continue using the integration without recreating their
 Home Assistant config entries.
+
+## Testing beta versions
+
+Stable is recommended for everyday use; betas remain available for volunteers.
+Read the selected version's [release notes](https://github.com/Phil-0805/hoymiles-home-assistant/releases)
+and create a backup before testing.
+
+- **HA 2026.11+ / Marketplace:** Open **Settings → Devices & services → Marketplace**
+  and the device page for this repository. Enable the disabled **Pre-release**
+  switch entity, then turn it on. Install the offered beta, or use **Install
+  another version** on the repository page to select a beta such as `0.5.2b1`.
+- **HA 2026.10 or older / HACS:** Open this repository, enable prereleases and use
+  **Redownload** to choose the beta. Labels vary with the HACS version.
+
+Restart Home Assistant afterwards; keep the existing integration and entities.
+Compare readings with the app using the [device test guide](docs/testing-0.5.0.de.md).
+Report the beta/HA version, device model and observed problem in an issue,
+without credentials, tokens, serial numbers or private screenshots. Battery
+command tests are optional and require enabling battery controls.
+
+To leave beta testing, disable prereleases. For an immediate rollback, restore
+your pre-beta backup; see the [Marketplace version guidance](https://www.home-assistant.io/integrations/marketplace/#installing-another-version).
+Automations are not automatically adapted when sensor states change.
 
 ## Manual installation
 

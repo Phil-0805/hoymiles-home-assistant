@@ -2,7 +2,7 @@
 
 CI runs tests, HACS validation and Hassfest before creating a release. Published
 version tags are never moved. Stable versions publish from `main`; the configured
-beta branches publish prereleases.
+beta branches (including `beta/v0.5.2`) publish prereleases.
 
 Stable publication additionally requires the repository Actions secret
 `RELEASE_READINESS_JSON`. Store the approval privately, with this structure:
@@ -32,3 +32,7 @@ python scripts/check_release_readiness.py --version <version> --commit <sha> --r
 The workflow skips existing releases before checking approval. Changing source
 files alone does not update an already published version. Prepare a new version
 and matching release notes when publishing changes.
+
+The required `setup-tests` check aggregates both HA version jobs and fails if
+either version fails or is skipped. The release workflow also tests both Core
+versions before publication. Keep this stable check name when changing the matrix.

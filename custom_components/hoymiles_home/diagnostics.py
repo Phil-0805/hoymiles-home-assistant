@@ -84,7 +84,7 @@ async def async_get_config_entry_diagnostics(
             "soc": number(live.get("soc")),
             "raw_status_codes": status_codes(live),
             "activity_from_brs": battery_activity(live),
-            "direction_mapping_verified_on": "HMS-2000-4WB",
+            "direction_mapping_verified_on": "HMS-2000-4WB, HiBattery 4020-X",
             "other_status_meanings": "unverified",
             "settings": _battery_diagnostics(
                 getattr(coordinator, "battery_settings", {})
