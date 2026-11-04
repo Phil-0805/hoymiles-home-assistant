@@ -17,6 +17,17 @@ BATTERY_MODE_NAMES = {
     7: "Peak Shaving",
     8: "Time of Use",
 }
+# Stable frontend translation keys, separate from legacy command option names.
+BATTERY_MODE_STATES = {
+    1: "self_consumption",
+    2: "economy",
+    3: "backup",
+    4: "off_grid",
+    5: "self_consumption_max_power",
+    6: "backup_max_power",
+    7: "peak_shaving",
+    8: "time_of_use",
+}
 WRITABLE_BATTERY_MODES = {1, 2, 3, 4, 7, 8}
 
 

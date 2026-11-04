@@ -8,7 +8,6 @@ Carries the v0.4.3b1–b3 fixes and adds:
 - Per-station timezone selection for daily counters and chart dates.
 - Clearer capability reporting: single-mode systems have no actionable mode dropdown, unverified codes are labelled raw, and unavailable maximum-power fields are not shown as usable measurements. The legacy maximum-power setting no longer claims an unverified percent unit. No new battery control modes/commands were enabled.
 - Nested setting readback must match before a write is considered confirmed. SOC probes export only numeric candidates.
-- A stable release gate requiring documented user/device confirmations and maintainer approval before 0.5.0 can be published. Every actual confirmation remains pending; automated tests do not populate it.
 
 ## Test
 

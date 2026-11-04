@@ -10,10 +10,12 @@ der Maintainer die korrekten Modellanzeigen und PV-Messwerte an Anlagen mit
 HMS-2000-4WB und HMS-800-2WB. Damit sind nicht sämtliche Funktionen oder alle
 Firmware- und Kontokombinationen bestätigt.
 
-Ein Nutzer mit einer **HiBattery 4020-X und einem Zusatzspeicher** meldet
-fehlende Verbrauchswerte und überwiegend 0 W PV-Leistung in Home Assistant.
-Die Unterstützung dieses Aufbaus wird noch in
-[Issue #9](https://github.com/Phil-0805/hoymiles-home-assistant/issues/9) untersucht.
+Für eine **HiBattery 4020-X mit einem Zusatzspeicher** bestätigt ein Nutzer
+passende PV-Werte nach Auswahl der Quelle, Batterietemperaturen, Relaisrichtung
+und funktionierende Batteriebefehle unter v0.5.1. Diese Beobachtungen gelten für
+diesen Aufbau. Die maximale Leistungseinstellung bleibt über den verwendeten
+Einstellungsabruf unbekannt; einige Rohstatuscodes sind undokumentiert. Siehe
+[Issue #9](https://github.com/Phil-0805/hoymiles-home-assistant/issues/9).
 
 ## Anlage beim Einrichten auswählen
 
@@ -52,22 +54,57 @@ Batteriebefehle sind standardmäßig gesperrt, auch beim Update einer bestehende
 
 Für die aktuellen Schutzmaßnahmen v0.5.1 oder neuer verwenden. Frühere Versionen sind überholt. Nach dem Update Home Assistant neu starten und die Batteriesteuerung bei Bedarf ausdrücklich freigeben. Das gilt auch für bestehende Automationen, die Modus oder Reserve-SOC ändern.
 
-## Installation mit HACS
+## Anzeige des Batteriemodus (v0.5.2 Beta)
 
-1. Falls noch nicht vorhanden, HACS installieren und **HACS → Integrationen** öffnen.
-2. Im HACS-Menü **Benutzerdefinierte Repositories** öffnen.
-3. `https://github.com/Phil-0805/hoymiles-home-assistant` mit der Kategorie
-   **Integration** hinzufügen.
-4. **Hoymiles S-Miles Home** installieren. Beta-Versionen sind nicht erforderlich.
-5. Home Assistant neu starten.
-6. Unter **Einstellungen → Geräte & Dienste → Integration hinzufügen** nach
+Der Batteriemodus-Sensor verwendet übersetzte Zustände mit festen Kennungen wie
+`self_consumption` und `time_of_use`. Seine Entitäts-ID bleibt erhalten. Beim
+Installieren dieser Beta Automationen und Templates anpassen,
+die diesen Sensor mit dem bisherigen englischen Text (z. B. `Self-Consumption`)
+vergleichen. Die Auswahlwerte für Batteriebefehle bleiben auf Englisch erhalten.
+
+## Installation mit HACS / Marketplace
+
+**Hoymiles S-Miles Home ist offiziell im [HACS-Standardkatalog](https://github.com/hacs/default/blob/master/integration) gelistet.** Die Integration lässt sich direkt über die HACS-Suche installieren; ein benutzerdefiniertes Repository ist nicht mehr erforderlich. Sie bleibt eine inoffizielle Hoymiles-Integration.
+
+1. Ab HA 2026.11 **Einstellungen → Marketplace** öffnen. Bis HA 2026.10
+   HACS installieren, falls noch nicht vorhanden, und HACS öffnen.
+2. Nach **Hoymiles S-Miles Home** suchen und die Integration installieren. Beta-Versionen sind nicht erforderlich.
+3. Home Assistant neu starten.
+4. Unter **Einstellungen → Geräte & Dienste → Integration hinzufügen** nach
    **Hoymiles S-Miles Home** suchen. Die E-Mail-Adresse und das Passwort des
    S-Miles-Home-Kontos eingeben und anschließend die Anlage auswählen.
    Für die manuelle Einrichtung siehe [Station-ID finden](#station-id-finden).
 
-Weitere Veröffentlichungen können anschließend über HACS angeboten werden.
-Die Integration ist nicht im HACS-Standardkatalog enthalten; das
-benutzerdefinierte Repository muss weiterhin hinzugefügt werden.
+Weitere Veröffentlichungen stehen über HACS bereit. Bestehende Installationen,
+die über ein benutzerdefiniertes Repository eingerichtet wurden, können die
+Integration weiterverwenden; die HA-Konfiguration muss nicht neu angelegt werden.
+
+## Beta-Versionen testen
+
+Für den Alltag empfehlen wir Stable; freiwillige Betatester können weiterhin
+Vorabversionen auswählen. Vorher die [Release-Hinweise](https://github.com/Phil-0805/hoymiles-home-assistant/releases)
+der gewählten Version lesen und eine Sicherung erstellen.
+
+- **Ab HA 2026.11 / Marketplace:** Unter **Einstellungen → Geräte & Dienste → Marketplace**
+  die Geräteseite dieses Repositorys öffnen. Die standardmäßig deaktivierte
+  Schalter-Entität **Pre-release** aktivieren und anschließend einschalten.
+  Die angebotene Beta installieren oder auf der Repositoryseite über **Andere
+  Version installieren** eine Beta wie `0.5.2b1` auswählen.
+- **Bis HA 2026.10 / HACS:** Dieses Repository öffnen, Vorabversionen aktivieren
+  und über **Erneut herunterladen** die Beta auswählen. Die Beschriftung kann
+  je nach HACS-Version abweichen.
+
+Danach Home Assistant neu starten; vorhandene Integration und Entitäten behalten.
+Messwerte anhand des [Gerätetestplans](docs/testing-0.5.0.de.md) mit der App
+vergleichen. Bei Problemen Beta-/HA-Version, Gerätemodell und Beobachtung im
+Issue nennen; keine Zugangsdaten, Tokens, Seriennummern oder privaten Screenshots
+veröffentlichen. Tests von Batteriebefehlen sind freiwillig und benötigen die
+Freigabe der Batteriesteuerung.
+
+Zum Verlassen des Betakanals Vorabversionen deaktivieren. Für eine sofortige
+Rückkehr die Sicherung von vor dem Betatest wiederherstellen; siehe die
+[Marketplace-Hinweise zum Versionswechsel](https://www.home-assistant.io/integrations/marketplace/#installing-another-version).
+Automationen werden bei geänderten Sensorzuständen nicht automatisch angepasst.
 
 ## Manuelle Installation
 

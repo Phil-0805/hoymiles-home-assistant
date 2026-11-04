@@ -56,7 +56,7 @@ def status_codes(live: dict[str, Any]) -> dict[str, int | float | None]:
 
 
 def battery_activity(live: dict[str, Any]) -> str | None:
-    """Use the brs direction mapping tested on the HMS-2000-4WB setup.
+    """Use the brs direction mapping reported on HMS-2000-4WB and 4020-X setups.
 
     This is the same mapping used by the existing energy calculation, not a
     verified protocol specification for every battery model or firmware.

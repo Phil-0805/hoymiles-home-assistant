@@ -27,7 +27,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .battery import battery_settings_attributes
+from .battery import BATTERY_MODE_STATES, battery_settings_attributes
 from .const import CONF_STATION_ID, DOMAIN
 from .coordinator import HoymilesHomeCoordinator
 from .energy import split_battery_power
@@ -66,7 +66,7 @@ def _pv_attributes(data: dict[str, Any]) -> dict[str, Any]:
 def _status_attributes(data: dict[str, Any]) -> dict[str, Any]:
     return {"raw_codes": status_codes(data.get("live", {})),
             "direction_mapping": "brs: 0=idle, 1=charging, 2=discharging",
-            "mapping_verified_on": "HMS-2000-4WB",
+            "mapping_verified_on": "HMS-2000-4WB, HiBattery 4020-X",
             "other_status_meanings": "unverified"}
 
 
@@ -204,8 +204,10 @@ STATION_SENSORS = (
     HoymilesDescription(
         key="battery_mode",
         translation_key="battery_mode",
+        device_class=SensorDeviceClass.ENUM,
+        options=list(BATTERY_MODE_STATES.values()),
         entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda data: data.get("battery_settings", {}).get("mode_name"),
+        value_fn=lambda data: BATTERY_MODE_STATES.get(data.get("battery_settings", {}).get("mode")),
         attributes_fn=_battery_settings_attributes,
     ),
     HoymilesDescription(

@@ -7,6 +7,7 @@ on:
       - beta/station-selection
       - beta/inverter-model-discovery
       - beta/battery-settings-fallback
+      - beta/v0.5.2
   workflow_dispatch:
 
 permissions:
@@ -25,6 +26,9 @@ jobs:
       - uses: home-assistant/actions/hassfest@86d4564712fa02543c808e3a693dd04f9d3f8361 # master
 
   test:
+    strategy:
+      matrix:
+        homeassistant: ["2026.10.4", "2026.11.0"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -34,11 +38,12 @@ jobs:
         with:
           python-version: "3.14"
       - run: python -m pip install -r requirements-test.txt
+      - run: python -m pip install homeassistant==${{ matrix.homeassistant }}
       - run: python -m unittest discover -s tests -v
-      - run: python -m pytest tests/ha -q
+      - run: python scripts/run_ha_tests.py
 
   release:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/beta/station-selection' || github.ref == 'refs/heads/beta/inverter-model-discovery' || github.ref == 'refs/heads/beta/battery-settings-fallback'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/beta/station-selection' || github.ref == 'refs/heads/beta/inverter-model-discovery' || github.ref == 'refs/heads/beta/battery-settings-fallback' || github.ref == 'refs/heads/beta/v0.5.2'
     needs: [validate, test]
     concurrency:
       group: hoymiles-release
@@ -51,6 +56,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          RELEASE_READINESS_JSON: ${{ secrets.RELEASE_READINESS_JSON }}
         with:
           script: |
             const fs = require('fs');
@@ -76,7 +83,7 @@ jobs:
             }
             if (stable) {
               require('child_process').execFileSync(
-                'python3', ['scripts/check_release_readiness.py', '--version', version],
+                'python3', ['scripts/check_release_readiness.py', '--version', version, '--commit', context.sha],
                 {stdio: 'inherit'}
               );
             }

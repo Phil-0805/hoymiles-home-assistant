@@ -5,6 +5,6 @@
 - Confirm writes only from a readable response using the original API method, with renewed reserve-SOC evidence where applicable. Compare complete requested values, including nested settings, without confusing booleans with numbers. A failed readback never retries the device write automatically.
 - Request intervals, concurrency limits, settings-refresh cooldowns and optional telemetry cadence are unchanged.
 
-Maintainer feedback: temperature was reported working on b1, but another screenshot shows temperature/frequency/voltage unavailable. Missing or expired cloud samples must remain unavailable, not zero. These screenshots do not establish a cause or complete hardware verification. Two-port inverters do not gain PV3/PV4 values. Keep optional telemetry and the other release-readiness reports pending until affected users confirm the b2 candidate.
+Maintainer feedback: temperature was reported working on b1, but another screenshot shows temperature/frequency/voltage unavailable. Missing or expired cloud samples must remain unavailable, not zero. These screenshots do not establish a cause or complete hardware verification. Two-port inverters do not gain PV3/PV4 values. Optional telemetry still needs confirmation on affected devices.
 
 After installing this prerelease, restart Home Assistant. Check that the battery mode displays Self-Consumption and reserve SOC still reads correctly. With only one verified mode, no mode change is offered. Verify any deliberate SOC change against the Hoymiles app. No reinstall or entity deletion is required.

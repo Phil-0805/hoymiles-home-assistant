@@ -83,3 +83,19 @@ async def test_unverified_readback_never_reports_write_success(hass, invalid):
     # A failed confirmation must not cause a repeated device write.
     api.async_write_battery_settings.assert_awaited_once()
     await coordinator.async_shutdown()
+
+
+@pytest.mark.parametrize("mode,expected", [(1, "self_consumption"), (8, "time_of_use"), (999, None), (None, None)])
+async def test_battery_mode_exposes_valid_translation_states_with_existing_identity(hass, mode, expected):
+    from homeassistant.components.sensor import SensorDeviceClass
+
+    coordinator = HoymilesHomeCoordinator(hass, AsyncMock(), 123)
+    coordinator.data = {"battery_settings": {"mode": mode, "mode_name": "untrusted cloud text"}}
+    description = next(d for d in STATION_SENSORS if d.key == "battery_mode")
+    entity = HoymilesStationSensor(coordinator, SimpleNamespace(entry_id="entry", data={"station_id": 123}), description)
+    assert entity.unique_id == "entry_battery_mode"
+    assert entity.device_class == SensorDeviceClass.ENUM
+    assert entity.native_value == expected
+    if expected is not None:
+        assert expected in entity.options
+    await coordinator.async_shutdown()

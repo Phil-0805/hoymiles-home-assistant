@@ -18,6 +18,6 @@
 
 274 Home Assistant tests and 41 unit tests pass locally. GitHub also runs Tests, HACS and Hassfest before publication. All regression data is synthetic; no real account or device commands were used for this patch.
 
-The maintainer explicitly approved v0.5.1 as a security patch. Existing unconfirmed hardware checks remain unconfirmed; the release decision does not claim additional device validation. The HiBattery 4020-X readings reported in [issue #9](https://github.com/Phil-0805/hoymiles-home-assistant/issues/9), cloud measurement-age limits and other model/firmware differences remain unresolved. Avoid simultaneous app changes during battery commands; readback cannot make app and HA writes atomic.
+The HiBattery 4020-X readings reported in [issue #9](https://github.com/Phil-0805/hoymiles-home-assistant/issues/9), cloud measurement-age limits and other model/firmware differences remain unresolved. Avoid simultaneous app changes during battery commands; readback cannot make app and HA writes atomic.
 
-Update to v0.5.1 through HACS and restart Home Assistant. Earlier releases are superseded. Historical releases and Git commits are retained; no real credentials were found in the publication review.
+Update to v0.5.1 through HACS and restart Home Assistant. Earlier releases are superseded.

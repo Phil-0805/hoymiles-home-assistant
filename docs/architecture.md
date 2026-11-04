@@ -25,7 +25,7 @@ Ordinary PV-input charts and battery temperatures use cloud response age. Additi
 
 ## Checks
 
-Run unit tests with `python -m unittest discover -s tests -v` and HA tests with `python -m pytest tests/ha -q` after installing `requirements-test.txt`. CI also validates HACS and Hassfest before publishing. The release workflow reads the v0.5.0 decision from `.github/release-readiness.json` and later version-specific records from `.github/release-readiness-<version>.json`; missing device evidence is not converted to confirmation.
+Run unit tests with `python -m unittest discover -s tests -v` and HA tests with `python scripts/run_ha_tests.py` after installing `requirements-test.txt`. CI also validates HACS and Hassfest before publishing. Stable publication requires a private `RELEASE_READINESS_JSON` repository secret matching the version and exact commit. The gate rejects missing or stale approval; automated tests do not establish hardware compatibility. See [release maintenance](release-maintenance.md).
 
 The optional `scripts/compare_nodered_reference.py` compares a synthetic fixture against a checksum-pinned public decoder. Use `--reference-file` for a fully offline check. No Hoymiles account access is needed.
 
@@ -36,3 +36,10 @@ HTTP JSON bodies and JSON embedded in command-status strings share the same size
 GitHub Actions are pinned to commit SHAs and updated through Dependabot. Checkout does not persist credentials; only the release job receives repository write permission. Historical tags remain unchanged.
 
 Resolve station timezone names in `async_setup_entry` with HA's async timezone helper and pass the resulting `tzinfo` to the coordinator. Its default uses HA's cached timezone object. The options flow enumerates the timezone database in the executor and caches the sorted selector list.
+
+CI tests Core 2026.10.4 and 2026.11.0. The current fixture package 0.13.375
+pins 2026.10.4; CI installs the target Core afterwards. The test runner imports
+Core before pytest to establish the 2026.11 HTTP aliases and supplies an import
+adapter for an unused, removed logger fixture function. That fixture raises if
+called. No integration or Core behavior is replaced. Remove this narrowly scoped
+adapter when the fixture package supports 2026.11.
