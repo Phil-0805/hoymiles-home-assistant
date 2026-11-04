@@ -54,6 +54,14 @@ Batteriebefehle sind standardmäßig gesperrt, auch beim Update einer bestehende
 
 Für die aktuellen Schutzmaßnahmen v0.5.1 oder neuer verwenden. Frühere Versionen sind überholt. Nach dem Update Home Assistant neu starten und die Batteriesteuerung bei Bedarf ausdrücklich freigeben. Das gilt auch für bestehende Automationen, die Modus oder Reserve-SOC ändern.
 
+## Anzeige des Batteriemodus (Entwicklungsstand)
+
+Der Batteriemodus-Sensor verwendet übersetzte Zustände mit festen Kennungen wie
+`self_consumption` und `time_of_use`. Seine Entitäts-ID bleibt erhalten. Beim
+Update auf eine Version mit dieser Änderung Automationen und Templates anpassen,
+die diesen Sensor mit dem bisherigen englischen Text (z. B. `Self-Consumption`)
+vergleichen. Die Auswahlwerte für Batteriebefehle bleiben auf Englisch erhalten.
+
 ## Installation mit HACS
 
 1. Falls noch nicht vorhanden, HACS installieren und **HACS → Integrationen** öffnen.

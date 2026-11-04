@@ -27,7 +27,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .battery import BATTERY_MODE_NAMES, battery_settings_attributes
+from .battery import BATTERY_MODE_STATES, battery_settings_attributes
 from .const import CONF_STATION_ID, DOMAIN
 from .coordinator import HoymilesHomeCoordinator
 from .energy import split_battery_power
@@ -205,9 +205,9 @@ STATION_SENSORS = (
         key="battery_mode",
         translation_key="battery_mode",
         device_class=SensorDeviceClass.ENUM,
-        options=list(BATTERY_MODE_NAMES.values()),
+        options=list(BATTERY_MODE_STATES.values()),
         entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda data: BATTERY_MODE_NAMES.get(data.get("battery_settings", {}).get("mode")),
+        value_fn=lambda data: BATTERY_MODE_STATES.get(data.get("battery_settings", {}).get("mode")),
         attributes_fn=_battery_settings_attributes,
     ),
     HoymilesDescription(

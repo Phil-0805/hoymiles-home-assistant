@@ -85,8 +85,8 @@ async def test_unverified_readback_never_reports_write_success(hass, invalid):
     await coordinator.async_shutdown()
 
 
-@pytest.mark.parametrize("mode,expected", [(1, "Self-Consumption"), (8, "Time of Use"), (999, None), (None, None)])
-async def test_battery_mode_is_translatable_without_changing_machine_states(hass, mode, expected):
+@pytest.mark.parametrize("mode,expected", [(1, "self_consumption"), (8, "time_of_use"), (999, None), (None, None)])
+async def test_battery_mode_exposes_valid_translation_states_with_existing_identity(hass, mode, expected):
     from homeassistant.components.sensor import SensorDeviceClass
 
     coordinator = HoymilesHomeCoordinator(hass, AsyncMock(), 123)

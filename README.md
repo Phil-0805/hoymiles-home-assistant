@@ -52,6 +52,14 @@ Battery commands are disabled by default, including when upgrading an existing i
 
 Use v0.5.1 or newer for the current security fixes. Earlier versions are superseded. After updating, restart Home Assistant and explicitly enable battery controls if needed. This also applies to existing automations that change the battery mode or reserve SOC.
 
+## Battery mode display (development)
+
+The battery mode sensor uses translated states with stable keys such as
+`self_consumption` and `time_of_use`. Its entity ID is preserved. When updating
+to a release containing this change, adjust automations/templates that compare
+this sensor to the old English text (for example `Self-Consumption`). Battery
+command select options keep their existing English values.
+
 ## Installation with HACS
 
 1. Install HACS if you have not already, then open **HACS → Integrations**.
