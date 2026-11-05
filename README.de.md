@@ -54,6 +54,15 @@ Batteriebefehle sind standardmäßig gesperrt, auch beim Update einer bestehende
 
 Für die aktuellen Schutzmaßnahmen v0.5.1 oder neuer verwenden. Frühere Versionen sind überholt. Nach dem Update Home Assistant neu starten und die Batteriesteuerung bei Bedarf ausdrücklich freigeben. Das gilt auch für bestehende Automationen, die Modus oder Reserve-SOC ändern.
 
+## In Entwicklung: obere Ladegrenze
+
+Der Entwicklungsstand ergänzt einen Sensor und einen Regler für den maximalen
+Lade-SOC im unterstützten Eigenverbrauchsmodus. Die frisch gelesene untere Grenze
+bleibt erhalten; das Ergebnis wird zurückgelesen. Ohne ausdrücklich gelieferte
+obere Grenze oder bei einem nicht unterstützten Einstellungsweg bleibt der
+Regler unverfügbar. Noch nicht in v0.5.2b1 enthalten; siehe
+[Unterstützung und Testhinweise](docs/battery-charge-limit.md).
+
 ## Anzeige des Batteriemodus (v0.5.2 Beta)
 
 Der Batteriemodus-Sensor verwendet übersetzte Zustände mit festen Kennungen wie

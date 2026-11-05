@@ -52,6 +52,14 @@ Battery commands are disabled by default, including when upgrading an existing i
 
 Use v0.5.1 or newer for the current security fixes. Earlier versions are superseded. After updating, restart Home Assistant and explicitly enable battery controls if needed. This also applies to existing automations that change the battery mode or reserve SOC.
 
+## Upcoming: battery charge limit
+
+The development version adds an upper charge SOC sensor and control for supported
+Self-Consumption settings. It preserves the freshly read lower threshold and
+checks the result by readback. Missing upper bounds and unsupported settings
+paths remain unavailable. This is not included in v0.5.2b1 yet; see
+[charge-limit support and testing](docs/battery-charge-limit.md).
+
 ## Battery mode display (v0.5.2 beta)
 
 The battery mode sensor uses translated states with stable keys such as

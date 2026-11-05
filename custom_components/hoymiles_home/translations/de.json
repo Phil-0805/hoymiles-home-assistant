@@ -75,6 +75,7 @@
       "battery_settings_access": {"name": "Batterieeinstellungen Zugriff"},
       "battery_mode": {"name": "Batteriemodus", "state": {"self_consumption": "Eigenverbrauch", "economy": "Sparmodus", "backup": "Notstrom", "off_grid": "Inselbetrieb", "self_consumption_max_power": "Eigenverbrauch + maximale Leistung", "backup_max_power": "Notstrom + maximale Leistung", "peak_shaving": "Lastspitzenkappung", "time_of_use": "Zeitabhängiger Betrieb"}},
       "battery_reserve_soc": {"name": "Batterie Reserve-SOC"},
+      "battery_charge_limit_soc": {"name": "Batterie Ladegrenze"},
       "battery_max_power": {"name": "Maximale Leistungseinstellung (Rohwert)"},
       "ems": {"name": "EMS-Status (Rohwert)"},
       "brs": {"name": "Batterierelais-Status (Rohwert)"},
@@ -89,7 +90,8 @@
       "module_current": {"name": "PV{port} Strom"}
     },
     "number": {
-      "battery_reserve_soc": {"name": "Reserve-SOC"}
+      "battery_reserve_soc": {"name": "Reserve-SOC"},
+      "battery_charge_limit_soc": {"name": "Ladegrenze (SOC)"}
     },
     "select": {
       "battery_mode": {"name": "Batteriemodus"}
@@ -100,9 +102,9 @@
     "step": {
       "init": {
         "title": "Anlageneinstellungen",
-        "description": "Vergleiche die Attribute pv und pv2 des Sensors PV-Leistung mit der S-Miles-Home-App. Wähle eine andere Quelle nur, wenn der Vergleich das bestätigt. Automatisch behält das bisherige Verhalten bei: pv2, falls verfügbar, sonst pv; auch 0 ist ein gültiger Wert. Die Auswahl ändert nur die Anzeige in HA. Zusätzliche Messwerte sind optional und werden höchstens alle fünf Minuten gelesen. Wähle die tatsächliche Zeitzone der Anlage für Tagesgrenzen und Diagramme. Batteriebefehle sind standardmäßig gesperrt, auch nach einem Update. Aktiviere die Batteriesteuerung nur, wenn Home Assistant Modus und Reserve-SOC ändern darf. Gleichzeitige Änderungen in der S-Miles-Home-App vermeiden.",
+        "description": "Vergleiche die Attribute pv und pv2 des Sensors PV-Leistung mit der S-Miles-Home-App. Wähle eine andere Quelle nur, wenn der Vergleich das bestätigt. Automatisch behält das bisherige Verhalten bei: pv2, falls verfügbar, sonst pv; auch 0 ist ein gültiger Wert. Die Auswahl ändert nur die Anzeige in HA. Zusätzliche Messwerte sind optional und werden höchstens alle fünf Minuten gelesen. Wähle die tatsächliche Zeitzone der Anlage für Tagesgrenzen und Diagramme. Batteriebefehle sind standardmäßig gesperrt, auch nach einem Update. Aktiviere die Batteriesteuerung nur, wenn Home Assistant Modus und SOC-Grenzen ändern darf. Gleichzeitige Änderungen in der S-Miles-Home-App vermeiden.",
         "data": {
-          "battery_controls": "Batteriesteuerung freigeben (Modus und Reserve-SOC)",
+          "battery_controls": "Batteriesteuerung freigeben (Modus und SOC-Grenzen)",
           "pv_power_source": "Quelle der PV-Leistung",
           "battery_temperatures": "Batterietemperaturen (Beta, zusätzliche Abfrage alle fünf Minuten)",
           "inverter_details": "Zusätzliche Wechselrichter-Messwerte (Beta)",

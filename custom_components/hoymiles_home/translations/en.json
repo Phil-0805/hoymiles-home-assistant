@@ -75,6 +75,7 @@
       "battery_settings_access": {"name": "Battery settings access"},
       "battery_mode": {"name": "Battery mode", "state": {"self_consumption": "Self-Consumption", "economy": "Economy", "backup": "Backup", "off_grid": "Off-Grid", "self_consumption_max_power": "Self-Consumption + Max Power", "backup_max_power": "Backup + Max Power", "peak_shaving": "Peak Shaving", "time_of_use": "Time of Use"}},
       "battery_reserve_soc": {"name": "Battery reserve SOC"},
+      "battery_charge_limit_soc": {"name": "Battery charge limit"},
       "battery_max_power": {"name": "Maximum power setting (raw)"},
       "ems": {"name": "EMS status (raw)"},
       "brs": {"name": "Battery relay status (raw)"},
@@ -89,7 +90,8 @@
       "module_current": {"name": "PV{port} current"}
     },
     "number": {
-      "battery_reserve_soc": {"name": "Reserve SOC"}
+      "battery_reserve_soc": {"name": "Reserve SOC"},
+      "battery_charge_limit_soc": {"name": "Charge limit SOC"}
     },
     "select": {
       "battery_mode": {"name": "Battery mode"}
@@ -100,9 +102,9 @@
     "step": {
       "init": {
         "title": "Station settings",
-        "description": "Compare the PV power sensor attributes pv and pv2 with the S-Miles Home app. Select another source only after confirming the match. Automatic preserves the existing behavior: pv2 when available, otherwise pv; zero is a valid value. This changes only the display in HA. Additional telemetry is optional and read at most every five minutes. Select the actual station timezone for daily boundaries and charts. Battery commands are disabled by default, including after an upgrade. Enable battery controls only if Home Assistant should change the mode and reserve SOC. Avoid simultaneous changes in the S-Miles Home app.",
+        "description": "Compare the PV power sensor attributes pv and pv2 with the S-Miles Home app. Select another source only after confirming the match. Automatic preserves the existing behavior: pv2 when available, otherwise pv; zero is a valid value. This changes only the display in HA. Additional telemetry is optional and read at most every five minutes. Select the actual station timezone for daily boundaries and charts. Battery commands are disabled by default, including after an upgrade. Enable battery controls only if Home Assistant should change the mode and SOC limits. Avoid simultaneous changes in the S-Miles Home app.",
         "data": {
-          "battery_controls": "Allow battery controls (mode and reserve SOC)",
+          "battery_controls": "Allow battery controls (mode and SOC limits)",
           "pv_power_source": "PV power source",
           "battery_temperatures": "Battery temperatures (beta, one extra request every five minutes)",
           "inverter_details": "Additional inverter telemetry (beta)",
