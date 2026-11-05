@@ -18,6 +18,7 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
         async_add_entities([HoymilesRefreshDeviceSettingsButton(hass.data[DOMAIN][entry.entry_id], entry)])
     if hass.data[DOMAIN][entry.entry_id].battery_controls:
         async_add_entities([HoymilesRefreshCutoffSettingsButton(hass.data[DOMAIN][entry.entry_id], entry)])
+        async_add_entities([HoymilesRefreshOutputPowerButton(hass.data[DOMAIN][entry.entry_id], entry)])
 
 
 class HoymilesRefreshBatterySettingsButton(CoordinatorEntity, ButtonEntity):
@@ -74,3 +75,12 @@ class HoymilesRefreshCutoffSettingsButton(HoymilesRefreshDeviceSettingsButton):
     def available(self):
         return (self.coordinator.last_update_success and self.coordinator.battery_controls
                 and self.manager.enabled and not self.manager.stopped)
+
+
+class HoymilesRefreshOutputPowerButton(HoymilesRefreshCutoffSettingsButton):
+    def __init__(self, coordinator, entry):
+        DeviceSettingsEntity.__init__(self, coordinator, entry, "refresh_output_power", "output_power")
+
+    @property
+    def manager(self):
+        return self.coordinator.output_settings

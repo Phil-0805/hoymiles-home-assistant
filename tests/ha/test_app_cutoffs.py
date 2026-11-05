@@ -38,7 +38,7 @@ async def cutoffs(hass):
 @pytest.mark.parametrize("data", [{}, {"sl": 10}, {"sh": 100}, {"sl": True, "sh": 100},
     {"sl": 9, "sh": 100}, {"sl": 71, "sh": 100}, {"sl": 10, "sh": 49},
     {"sl": 10, "sh": 101}, {"sl": 50, "sh": 50}, {"sl": 50, "sh": 59},
-    {"sl": "10", "sh": 100}, {"sl": 10, "sh": 90.0}])
+    {"sl": "10.0", "sh": 100}, {"sl": 10, "sh": 90.0}])
 def test_missing_defaults_and_out_of_app_range_never_enable_control(data):
     with pytest.raises(HoymilesConnectionError):
         parse_cutoffs(data)

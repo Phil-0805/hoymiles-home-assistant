@@ -65,6 +65,15 @@ by readback. Device/app comparison is still pending. Automations using the
 removed number must be deliberately updated; they are not redirected. See
 [mapping and testing](docs/battery-charge-limit.md).
 
+## New in beta v0.5.2b4: output power limit
+
+b4 adds a watt control for the app's output-power setting, requiring
+**Allow battery controls**. Its maximum comes from a fresh cloud read and active
+phase settings are preserved. Missing bounds or unclear phase data leave it
+unavailable. This does not raise the separately allowed maximum or change a
+grid-export limit. Device/app comparison is still pending; see
+[output settings](docs/output-power-settings.md).
+
 ## New in beta v0.5.2b2: battery heating, light and display
 
 Beta v0.5.2b2 adds an **Allow battery heating** switch, an RGB indicator light
@@ -112,7 +121,7 @@ and create a backup before testing.
 - **HA 2026.11+ / Marketplace:** Open **Settings → Devices & services → Marketplace**
   and the device page for this repository. Enable the disabled **Pre-release**
   switch entity, then turn it on. Install the offered beta, or use **Install
-  another version** on the repository page to select a beta such as `0.5.2b3`.
+  another version** on the repository page to select a beta such as `0.5.2b4`.
 - **HA 2026.10 or older / HACS:** Open this repository, enable prereleases and use
   **Redownload** to choose the beta. Labels vary with the HACS version.
 

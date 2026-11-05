@@ -67,3 +67,23 @@ light and display delays in seconds. Heating may stay physically inactive after
 permission is enabled because the device decides when warming is needed.
 Record beta/HA version, model, firmware and observed behaviour when reporting
 results; omit credentials, controller addresses and unredacted screenshots.
+
+## Development for b4: unavailable settings
+
+Heating/display and cutoff reads now report separate fixed failure categories
+in diagnostics, with only known response field types. Raw cloud responses,
+arbitrary error messages, tokens and device addresses are not included.
+The existing mode/reserve "Battery settings access" status does not describe
+these separate reads. A failed read does not stop ordinary telemetry.
+
+Short decimal integer strings returned by the cloud are accepted consistently
+with the Android app. Booleans, fractions and arbitrary strings remain invalid.
+Lighting data encoded as JSON text is decoded within the existing size/depth
+limits. Known numeric lighting fields are normalized for full readback;
+unknown settings retain their original values and types.
+
+These changes improve protocol compatibility and diagnosis. The b3 export from
+a second station showed only "unavailable", so it did not establish a specific
+cause. If settings remain unavailable, use the relevant refresh button after
+the 30-second cooldown and provide a new diagnostic export rather than deleting
+and recreating the integration. No device write is needed to test the read.

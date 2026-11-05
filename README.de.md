@@ -68,6 +68,14 @@ Alte Automationen auf den entfernten Regler müssen bewusst angepasst werden;
 sie werden nicht automatisch umgeleitet. Siehe
 [Unterscheidung und Testhinweise](docs/battery-charge-limit.md).
 
+## Neu in Beta v0.5.2b4: Ausgangsleistungsgrenze
+
+b4 ergänzt einen Watt-Regler für die Ausgangsleistungsgrenze der App. Er benötigt die **Batteriesteuerung** und übernimmt den
+Höchstwert aus dem aktuellen Cloud-Abruf. Phasenwerte bleiben erhalten. Fehlende
+Grenzen und unklare Phasendaten aktivieren keinen Regler. Die separate zulässige
+Obergrenze und die Netzeinspeisegrenze werden damit nicht verändert. Ein
+Gerätevergleich steht noch aus; siehe [Details](docs/output-power-settings.md).
+
 ## Neu in Beta v0.5.2b2: Batterieheizung, Licht und Display
 
 Die Beta v0.5.2b2 ergänzt **Batterieheizung erlauben**, einen RGB-Leuchtstreifen
@@ -119,7 +127,7 @@ der gewählten Version lesen und eine Sicherung erstellen.
   die Geräteseite dieses Repositorys öffnen. Die standardmäßig deaktivierte
   Schalter-Entität **Pre-release** aktivieren und anschließend einschalten.
   Die angebotene Beta installieren oder auf der Repositoryseite über **Andere
-  Version installieren** eine Beta wie `0.5.2b3` auswählen.
+  Version installieren** eine Beta wie `0.5.2b4` auswählen.
 - **Bis HA 2026.10 / HACS:** Dieses Repository öffnen, Vorabversionen aktivieren
   und über **Erneut herunterladen** die Beta auswählen. Die Beschriftung kann
   je nach HACS-Version abweichen.

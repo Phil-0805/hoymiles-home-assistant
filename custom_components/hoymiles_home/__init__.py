@@ -6,6 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers import device_registry as dr
 from homeassistant.util import dt as dt_util
 
 from .api import HoymilesHomeClient
@@ -43,6 +44,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await coordinator.async_initialize()
         await coordinator.async_config_entry_first_refresh()
         domain_data[entry.entry_id] = coordinator
+        # Register the station before child platforms resolve its registry ID.
+        dr.async_get(hass).async_get_or_create(
+            config_entry_id=entry.entry_id,
+            identifiers={(DOMAIN, f"station_{entry.data[CONF_STATION_ID]}")},
+            manufacturer="Hoymiles", name=f"S-Miles Home {entry.data[CONF_STATION_ID]}",
+            model="S-Miles Home station",
+        )
         async_remove_obsolete_charge_limit_entities(hass, entry)
         async_migrate_battery_temperatures(hass, entry)
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

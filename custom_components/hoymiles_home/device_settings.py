@@ -4,9 +4,12 @@ import asyncio
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 import json
+import logging
 import re
 
-from .errors import HoymilesAuthError, HoymilesConnectionError, HoymilesRateLimitError
+from .errors import HoymilesAuthError, HoymilesConnectionError, HoymilesRateLimitError, HoymilesSettingsError
+
+_LOGGER = logging.getLogger(__name__)
 
 SETTINGS_INTERVAL = timedelta(minutes=30)
 MANUAL_COOLDOWN = timedelta(seconds=30)
@@ -17,13 +20,20 @@ STRIP_FIELDS = {"r": 255, "g": 255, "b": 255, "slb": 255, "slot": 3600}
 LIGHT_FIELDS = {**DISPLAY_FIELDS, **STRIP_FIELDS}
 
 
+def setting_integer(value, maximum):
+    """Accept the app's short decimal integer strings without accepting floats/bools."""
+    if isinstance(value, str) and len(value) <= len(str(maximum)) and re.fullmatch(r"[0-9]+", value):
+        value = int(value)
+    return value if type(value) is int and 0 <= value <= maximum else None
+
+
 def parse_cutoffs(data):
     """Android action 1537: explicit discharge/charge limits, never mode SOC."""
-    if (not isinstance(data, dict) or type(data.get("sl")) is not int
-            or type(data.get("sh")) is not int or not 10 <= data["sl"] <= 70
-            or not 50 <= data["sh"] <= 100 or data["sh"] - data["sl"] < 10):
-        raise HoymilesConnectionError("Invalid battery charge/discharge cutoffs")
-    return {"sl": data["sl"], "sh": data["sh"]}
+    lower = setting_integer(data.get("sl"), 70) if isinstance(data, dict) else None
+    upper = setting_integer(data.get("sh"), 100) if isinstance(data, dict) else None
+    if lower is None or upper is None or lower < 10 or upper < 50 or upper - lower < 10:
+        raise HoymilesSettingsError("invalid_cutoffs", "Invalid battery charge/discharge cutoffs", data)
+    return {"sl": lower, "sh": upper}
 
 
 def light_target(tree, *, mobile_addressing=False):
@@ -57,34 +67,41 @@ def light_target(tree, *, mobile_addressing=False):
 
 def parse_heating(data):
     """This is permission to heat, not proof that the heater is active."""
-    if not isinstance(data, dict) or type(data.get("enable")) is not int or data["enable"] not in (0, 1):
-        raise HoymilesConnectionError("Invalid battery heating settings")
-    return {"enable": data["enable"]}
+    value = setting_integer(data.get("enable"), 1) if isinstance(data, dict) else None
+    if value is None:
+        raise HoymilesSettingsError("invalid_heating", "Invalid battery heating settings", data)
+    return {"enable": value}
 
 
 def parse_lighting(data, target):
     """Keep the full private snapshot; expose only validated known fields."""
     if not isinstance(data, dict) or len(data) > 64:
-        raise HoymilesConnectionError("Invalid light/display settings")
+        raise HoymilesSettingsError("invalid_lighting", "Invalid light/display settings", data)
     try:
         if len(json.dumps(data, allow_nan=False)) > 16384:
             raise ValueError("oversized settings")
     except (ValueError, TypeError, RecursionError):
-        raise HoymilesConnectionError("Invalid light/display settings") from None
+        raise HoymilesSettingsError("invalid_lighting", "Invalid light/display settings", data) from None
     values = {}
     for key, maximum in LIGHT_FIELDS.items():
-        value = data.get(key)
-        if key in data and (type(value) is not int or not 0 <= value <= maximum):
-            raise HoymilesConnectionError("Invalid light/display value")
-        if type(value) is int and 0 <= value <= maximum:
+        value = setting_integer(data.get(key), maximum)
+        if key in data and value is None:
+            raise HoymilesSettingsError("invalid_lighting", "Invalid light/display value", data)
+        if value is not None:
             values[key] = value
     if not DISPLAY_FIELDS.keys() <= values.keys():
-        raise HoymilesConnectionError("Display settings are incomplete")
+        raise HoymilesSettingsError("incomplete_display", "Display settings are incomplete", data)
     # The vendor web UI suppresses strip controls for these series. This is a
     # restriction on controls, not a model identification from the serial.
     if target["dev_sn"].startswith(("2805", "2806")) or not STRIP_FIELDS.keys() <= values.keys():
         values = {key: value for key, value in values.items() if key in DISPLAY_FIELDS}
-    return {"values": values, "snapshot": deepcopy(data)}
+    snapshot = deepcopy(data)
+    # Canonicalize known numeric fields for full readback comparison. Unknown
+    # fields retain both their values and their original types.
+    for key, maximum in LIGHT_FIELDS.items():
+        if key in data:
+            snapshot[key] = setting_integer(data[key], maximum)
+    return {"values": values, "snapshot": snapshot}
 
 
 def light_update(settings, updates):
@@ -123,6 +140,7 @@ class DeviceSettings:
         self.features = features
         self.status = {feature: "pending" if enabled else "disabled" for feature in features}
         self.updated = {}
+        self.last_error = {}
         self.lock = asyncio.Lock()
         self.task = None
         self.stopped = False
@@ -168,9 +186,20 @@ class DeviceSettings:
             self.lighting = value
         self.updated[feature] = datetime.now(UTC)
         self.status[feature] = "readable"
+        self.last_error.pop(feature, None)
 
     def _failure(self, feature, error):
         self.status[feature] = "unavailable"
+        reason = ("rate_limited" if isinstance(error, HoymilesRateLimitError) else
+                  "authentication" if isinstance(error, HoymilesAuthError) else
+                  "timeout" if isinstance(error, TimeoutError) else
+                  error.reason if isinstance(error, HoymilesSettingsError) else "connection")
+        previous = self.last_error.get(feature, {}).get("reason")
+        self.last_error[feature] = {"reason": reason}
+        if isinstance(error, HoymilesSettingsError):
+            self.last_error[feature]["response_shape"] = error.response_shape
+        if previous != reason:
+            _LOGGER.debug("Device settings operation failed: %s (%s)", feature, reason)
         if isinstance(error, HoymilesRateLimitError):
             self.paused_until = datetime.now(UTC) + timedelta(seconds=error.retry_after)
             self.next_allowed = max(self.next_allowed, self.paused_until)
@@ -196,6 +225,7 @@ class DeviceSettings:
                         self.target = target
                         if target is None:
                             self.status[feature] = "no_unique_target"
+                            self.last_error[feature] = {"reason": "no_unique_target"}
                             continue
                     try:
                         self._store(feature, await self._read(feature, target))

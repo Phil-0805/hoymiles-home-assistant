@@ -42,7 +42,7 @@ async def controls(hass):
     await coordinator.async_shutdown()
 
 
-@pytest.mark.parametrize("value", [True, False, -1, 2, "1", None, 1.0])
+@pytest.mark.parametrize("value", [True, False, -1, 2, "true", None, 1.0])
 def test_heating_requires_explicit_integer_permission(value):
     with pytest.raises(HoymilesConnectionError):
         parse_heating({"enable": value})

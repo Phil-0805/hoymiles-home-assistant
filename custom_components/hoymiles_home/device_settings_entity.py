@@ -30,7 +30,7 @@ class DeviceSettingsEntity(CoordinatorEntity):
 
     @property
     def available(self):
-        allowed = self.coordinator.battery_controls if self.feature == "cutoffs" else self.coordinator.device_controls
+        allowed = self.coordinator.battery_controls if self.feature in {"cutoffs", "output_power"} else self.coordinator.device_controls
         return (super().available and allowed
                 and self.manager.available(self.feature))
 
