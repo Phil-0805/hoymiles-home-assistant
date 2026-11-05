@@ -1,4 +1,6 @@
 {
   "name": "Hoymiles S-Miles Home",
-  "render_readme": true
+  "render_readme": true,
+  "zip_release": true,
+  "filename": "hoymiles_home.zip"
 }

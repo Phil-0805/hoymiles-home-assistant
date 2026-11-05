@@ -3,6 +3,7 @@
 import logging
 
 from .errors import HoymilesAuthError, HoymilesConnectionError, HoymilesRateLimitError
+from .telemetry import number
 
 LOGGER = logging.getLogger(__name__)
 STAGES = frozenset({"login_challenge", "login", "station_discovery", "station_validation",
@@ -19,12 +20,29 @@ def safe_code(value):
     return value if type(value) is int and 0 <= value <= 999999 else "unavailable"
 
 
+def value_kind(value):
+    """Only fixed type labels; no repr, arbitrary class names or field values."""
+    return {dict: "object", list: "array", str: "string", int: "integer", float: "number",
+            bool: "boolean", type(None): "null"}.get(type(value), "other")
+
+
+def live_response_summary(payload):
+    """Describe the actual live acceptance criteria, without exposing measurements."""
+    def field_kind(key):
+        return value_kind(payload[key]) if isinstance(payload, dict) and key in payload else "missing"
+
+    con_state = "missing"
+    if isinstance(payload, dict) and "con" in payload:
+        con_state = "valid" if number(payload["con"]) in (0, 1) else "invalid"
+    return (f"data_type={value_kind(payload)} flow_type={field_kind('flow')} "
+            f"con_type={field_kind('con')} con_state={con_state} power_type={field_kind('power')}")
+
+
 def response_summary(response):
     """Do not include values, arbitrary keys, server messages, addresses or counts."""
     response = response if isinstance(response, dict) else {}
     data = response.get("data")
-    kind = {dict: "object", list: "array", str: "string", int: "integer", float: "number",
-            bool: "boolean", type(None): "null"}.get(type(data), "other")
+    kind = value_kind(data)
     uri = "missing"
     if isinstance(data, dict) and "uri" in data:
         value = data["uri"]

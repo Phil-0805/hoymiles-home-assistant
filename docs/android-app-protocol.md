@@ -72,3 +72,28 @@ The web client's separate upper-limit configuration **515** is documented in
 [output power settings](output-power-settings.md). No new output-power HA entity
 is added from these static findings alone. Station/phase capabilities and the
 app result still need to be checked before shipping that control.
+
+## Login redirects — b6 investigation
+
+A v0.5.2b5 issue report shows `stage=login_challenge reason=redirect_rejected`.
+This establishes that the request was redirected before password challenge
+calculation; it does not identify the destination or prove all login reports
+share this cause.
+
+In the same archived V2.13.0 APK, `com.balcony.utils.RedirectInterceptor` handles
+302 and 307 responses with an absolute Location by rebuilding the original
+request with the new URL. `com.balcony.App` installs this interceptor while
+turning automatic redirects off. Thus the inspected client preserves the
+request method/body for these statuses. `DnsManager` lists production hosts
+including `euapi.hoymiles.com`, `neapi.hoymiles.com` and `indapi.hoymiles.com`.
+These are source observations, not a capture of the affected user's destination.
+
+The b6 candidate allows one manual 302/307 redirect only for auth pre-inspection
+or login, to the same operation path on those exact HTTPS API hosts. It rejects
+queries, fragments, URL credentials, other ports, test/CDN hosts and second hops.
+The original POST body is preserved; previous Authorization tokens are omitted
+from both public auth requests. Other API redirects remain blocked. Every hop
+uses the existing account budget and rate-limit handling. Logs record fixed
+policy labels and HTTP status, never Location contents. This deliberately
+restricts the Android client's broader behavior. Real affected-account testing
+is required to confirm whether its redirect falls within this policy.

@@ -44,8 +44,8 @@ from .protobuf import latest_values
 from .telemetry import number
 from .inverter import inverter_model
 from .module_data import MAX_MODULE_BYTES, decode_module_snapshot
-from .security import trusted_hoymiles_url
-from .cloud_logging import CloudDiagnosticError, LOGGER as CLOUD_LOGGER, failure_reason, response_summary
+from .security import trusted_hoymiles_url, trusted_auth_redirect
+from .cloud_logging import CloudDiagnosticError, LOGGER as CLOUD_LOGGER, failure_reason, response_summary, live_response_summary
 from .cloud_runtime import AccountRuntime, retry_delay
 from .errors import (
     HoymilesError, HoymilesAuthError, HoymilesConnectionError, HoymilesRateLimitError, HoymilesSettingsError,
@@ -142,12 +142,16 @@ class HoymilesHomeClient:
             headers["Authorization"] = self._token
         return headers
 
-    def _cloud_report(self, stage, reason, response=None, *, http_status=None):
+    def _cloud_report(self, stage, reason, response=None, *, http_status=None, redirect_policy=None):
         # One warning per changed failure shape, without storing private input.
-        summary = response_summary(response)
+        summary = (live_response_summary(response.get("data"))
+                   if stage == "live_data" and reason == "invalid_live_data" and isinstance(response, dict)
+                   else response_summary(response))
         if http_status is not None:
             code = http_status if type(http_status) is int and 100 <= http_status <= 599 else "unavailable"
             summary = f"http_status={code} {summary}"
+        if redirect_policy in {"allowed_auth_target", "blocked_target", "unsupported_status", "hop_limit", "not_auth_request"}:
+            summary = f"redirect_policy={redirect_policy} {summary}"
         key = (stage, reason)
         if self._cloud_log_states.get(key) != summary:
             self._cloud_log_states[key] = summary
@@ -168,21 +172,45 @@ class HoymilesHomeClient:
     async def _json(self, url: str, payload: dict[str, Any]) -> dict[str, Any]:
         if not trusted_hoymiles_url(url):
             raise HoymilesConnectionError("Untrusted Hoymiles API URL")
+        stage = self._cloud_stage(url)
+        is_auth = stage in {"login_challenge", "login"}
+        headers = self.headers
+        if is_auth:
+            # These public authentication operations need no previous token.
+            headers.pop("Authorization", None)
         try:
-            async with self.runtime.request():
-                async with self._session.post(
-                    url,
-                    json=payload,
-                    headers=self.headers,
-                    timeout=ClientTimeout(total=30),
-                    allow_redirects=False,
-                ) as response:
-                    if 300 <= response.status < 400:
-                        raise CloudDiagnosticError("redirect_rejected", "Hoymiles API redirected unexpectedly")
-                    response.raise_for_status()
-                    data = await _bounded_json(response)
+            for hop in range(2):
+                async with self.runtime.request():
+                    async with self._session.post(
+                        url,
+                        json=payload,
+                        headers=headers,
+                        timeout=ClientTimeout(total=30),
+                        allow_redirects=False,
+                    ) as response:
+                        if 300 <= response.status < 400:
+                            target = response.headers.get("Location")
+                            policy = (
+                                "not_auth_request" if not is_auth else
+                                "unsupported_status" if response.status not in (302, 307) else
+                                "hop_limit" if hop else
+                                "blocked_target" if not trusted_auth_redirect(url, target) else
+                                "allowed_auth_target"
+                            )
+                            if policy != "allowed_auth_target":
+                                self._cloud_report(stage, "redirect_rejected", http_status=response.status,
+                                                   redirect_policy=policy)
+                                raise CloudDiagnosticError("redirect_rejected", "Hoymiles API redirected unexpectedly")
+                            CLOUD_LOGGER.info(
+                                "Cloud auth redirect followed: stage=%s http_status=%s target_policy=known_auth_endpoint",
+                                stage, response.status,
+                            )
+                            url = target
+                            continue
+                        response.raise_for_status()
+                        data = await _bounded_json(response)
+                        break
         except ClientResponseError as err:
-            stage = self._cloud_stage(url)
             # HTTP status is numeric; response text, URLs and headers are omitted.
             self._cloud_report(stage, "http_error", http_status=err.status)
             if err.status == 429:
@@ -198,17 +226,17 @@ class HoymilesHomeClient:
                 f"Hoymiles API request failed (HTTP {err.status})"
             ) from None
         except HoymilesConnectionError as err:
-            self._cloud_report(self._cloud_stage(url), failure_reason(err))
+            if failure_reason(err) != "redirect_rejected":
+                self._cloud_report(stage, failure_reason(err))
             raise
         except (ClientError, TimeoutError, ValueError) as err:
-            self._cloud_report(self._cloud_stage(url), "timeout" if isinstance(err, TimeoutError) else "transport_error")
+            self._cloud_report(stage, "timeout" if isinstance(err, TimeoutError) else "transport_error")
             # aiohttp exception strings may include signed URLs or tokens.
             raise HoymilesConnectionError(
                 f"Hoymiles request failed ({type(err).__name__})"
             ) from None
         if not isinstance(data, dict):
             raise HoymilesConnectionError("Unexpected API response")
-        stage = self._cloud_stage(url)
         expects_envelope = stage in {
             "login_challenge", "login", "station_discovery", "station_validation",
             "live_uri_mobile", "live_uri_web",
@@ -489,6 +517,13 @@ class HoymilesHomeClient:
                 isinstance(payload.get("flow"), list)
                 or number(payload.get("con")) in (0, 1)
             ):
+                # A valid sample ends the failure episode, even on a later poll.
+                # Log recovery at the same visible level, then re-arm deduplication
+                # so a separate future outage is not hidden forever.
+                if self._cloud_log_states.pop(("live_data", "invalid_live_data"), None) is not None:
+                    CLOUD_LOGGER.warning(
+                        "Cloud request recovered: stage=live_data previous_reason=invalid_live_data"
+                    )
                 return payload
             self._cloud_report("live_data", "invalid_live_data", {"data": payload})
             self._live_uri = None
