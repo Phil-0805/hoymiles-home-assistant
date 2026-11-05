@@ -5,7 +5,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
 from .inverter import inverter_model, inverter_ports
-from .battery import writable_modes
+from .battery import battery_charge_limit_soc, writable_modes
 from .telemetry import battery_activity, live_power, number, pv_power_details, status_codes
 
 
@@ -28,6 +28,7 @@ def _battery_diagnostics(settings: dict) -> dict:
         "has_error": bool(settings.get("error")),
         "mode": number(settings.get("mode")),
         "reserve_soc": number(active.get("reserve_soc")),
+        "charge_limit_soc": battery_charge_limit_soc(settings),
         "max_power": number(active.get("max_power")),
         "available_modes": modes,
         "mode_control": "multiple_modes" if len(writable_modes(settings)) > 1 else "single_or_no_mode",

@@ -52,6 +52,28 @@ Battery commands are disabled by default, including when upgrading an existing i
 
 Use v0.5.1 or newer for the current security fixes. Earlier versions are superseded. After updating, restart Home Assistant and explicitly enable battery controls if needed. This also applies to existing automations that change the battery mode or reserve SOC.
 
+## New in beta v0.5.2b2: battery charge limit
+
+Beta v0.5.2b2 adds an upper charge SOC sensor and control for supported
+Self-Consumption settings. It preserves the freshly read lower threshold and
+checks the result by readback. Missing upper bounds and unsupported settings
+paths remain unavailable; see
+[charge-limit support and testing](docs/battery-charge-limit.md).
+
+## New in beta v0.5.2b2: battery heating, light and display
+
+Beta v0.5.2b2 adds an **Allow battery heating** switch, an RGB indicator light
+with brightness, display brightness and separate light/display off delays.
+Enable **Allow device controls** under **Configure**. This separate permission
+is off by default. When enabled, settings refresh every 30 minutes and can also
+be refreshed with a dedicated button.
+
+Heating permission allows the device to warm its battery automatically; it does
+not force heating or indicate heater activity. Named app effects such as Rainbow
+are not offered yet. Unsupported settings remain unavailable. Changes read fresh
+settings first and verify the result afterwards. Hardware testing is still
+pending; see [supported settings and testing](docs/device-settings.md).
+
 ## Battery mode display (v0.5.2 beta)
 
 The battery mode sensor uses translated states with stable keys such as
@@ -85,7 +107,7 @@ and create a backup before testing.
 - **HA 2026.11+ / Marketplace:** Open **Settings → Devices & services → Marketplace**
   and the device page for this repository. Enable the disabled **Pre-release**
   switch entity, then turn it on. Install the offered beta, or use **Install
-  another version** on the repository page to select a beta such as `0.5.2b1`.
+  another version** on the repository page to select a beta such as `0.5.2b2`.
 - **HA 2026.10 or older / HACS:** Open this repository, enable prereleases and use
   **Redownload** to choose the beta. Labels vary with the HACS version.
 

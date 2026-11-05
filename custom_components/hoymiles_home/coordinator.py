@@ -21,7 +21,8 @@ from .api import (
     microinverters,
 )
 from .battery_telemetry import BatteryTelemetryPoller
-from .battery import battery_settings_confirmed, writable_modes
+from .device_settings import DeviceSettings
+from .battery import battery_charge_limit_soc, battery_settings_confirmed, writable_modes
 from .const import (
     BATTERY_SETTINGS_INTERVAL,
     BATTERY_ENERGY_CALCULATION_VERSION,
@@ -51,6 +52,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         pv_power_source: str = "auto",
         inverter_details: bool = False, station_timezone: tzinfo | None = None,
         battery_temperatures: bool = False, battery_controls: bool = False,
+        device_controls: bool = False,
     ) -> None:
         super().__init__(
             hass,
@@ -100,6 +102,17 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._battery_settings_lock = asyncio.Lock()
         self._battery_settings_task: asyncio.Task | None = None
         self._stopped = False
+        self.device_controls = device_controls is True
+        self.device_settings = DeviceSettings(
+            hass, client, station_id, self.device_controls,
+            lambda: self.device_tree,
+            lambda: self.device_controls and not self._stopped,
+            self._publish_device_settings,
+        )
+
+    def _publish_device_settings(self) -> None:
+        if not self._stopped and self.data is not None:
+            self.async_update_listeners()
 
     async def async_initialize(self) -> None:
         """Restore today's calculated battery energy."""
@@ -123,6 +136,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def async_shutdown(self) -> None:
         """Cancel our background read before the entry is removed or reloaded."""
         self._stopped = True
+        await self.device_settings.async_shutdown()
         await super().async_shutdown()
         await self.module_polling.async_shutdown()
         await self.battery_telemetry.async_shutdown()
@@ -312,14 +326,16 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
 
     async def _async_apply_battery_settings(
-        self, mode: int | None, *, reserve_soc: int | None = None
+        self, mode: int | None, *, reserve_soc: int | None = None,
+        charge_limit_soc: int | None = None,
     ) -> None:
         """Write battery settings, read them back and notify entities."""
         async with self._battery_settings_lock:
             self._check_battery_controls()
+            soc_change = reserve_soc is not None or charge_limit_soc is not None
             # Every write uses current cloud settings, including SOC changes.
             # The lock only serializes HA tasks; it cannot protect app edits.
-            if reserve_soc is None:
+            if not soc_change:
                 if type(mode) is not int or mode not in writable_modes(self.battery_settings):
                     raise HoymilesConnectionError("Battery mode is not supported for writing")
             method = self.battery_settings.get("request_method")
@@ -330,10 +346,10 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if self.data is not None:
                 self.data["battery_settings"] = fresh
                 self.async_update_listeners()
-            if reserve_soc is None and fresh.get("mode") == mode:
+            if not soc_change and fresh.get("mode") == mode:
                 return
             # Build the payload after taking the lock, using the latest readback.
-            if reserve_soc is not None:
+            if soc_change:
                 mode = self.battery_settings.get("mode")
                 settings = self.battery_settings.get("active_settings")
             else:
@@ -344,6 +360,12 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if isinstance(mode, bool) or not isinstance(mode, int) or not isinstance(settings, dict):
                 raise HoymilesConnectionError("Battery mode settings are unavailable")
             mode_data = deepcopy(settings)
+            if charge_limit_soc is not None:
+                if battery_charge_limit_soc(fresh) is None:
+                    raise HoymilesConnectionError("Charge limit SOC is not verified for the active mode")
+                if charge_limit_soc < mode_data["reserve_soc"]:
+                    raise HoymilesConnectionError("Charge limit SOC must not be below reserve SOC")
+                mode_data["soc_h"] = charge_limit_soc
             if reserve_soc is not None:
                 mode_data["reserve_soc"] = reserve_soc
                 if self.battery_settings.get("request_method") == "station_action_83":
@@ -372,6 +394,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     refreshed.get("readable") is True
                     and refreshed.get("request_method") == request_method
                     and (reserve_soc is None or refreshed.get("reserve_soc_verified") is True)
+                    and (charge_limit_soc is None or battery_charge_limit_soc(refreshed) == charge_limit_soc)
                     and battery_settings_confirmed(refreshed, mode, mode_data)
                 ):
                     return
@@ -390,6 +413,12 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def async_set_battery_mode(self, mode: int) -> None:
         """Switch mode while preserving the latest complete settings block."""
         await self._async_apply_battery_settings(mode)
+
+    async def async_set_battery_charge_limit_soc(self, charge_limit_soc: int) -> None:
+        """Change the verified upper SOC bound, preserving the freshly read lower bound."""
+        if type(charge_limit_soc) is not int or not 10 <= charge_limit_soc <= 100:
+            raise HoymilesConnectionError("Charge limit SOC must be an integer from 10 to 100")
+        await self._async_apply_battery_settings(None, charge_limit_soc=charge_limit_soc)
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
@@ -431,6 +460,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._start_battery_settings_refresh()
 
             self.battery_telemetry.start()
+            self.device_settings.start()
             if now - self._modules_updated >= MODULE_INTERVAL:
                 self._modules_updated = now
                 self.module_polling.start(self.inverters)
