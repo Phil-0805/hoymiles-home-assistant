@@ -182,3 +182,55 @@ async def test_invalid_json_and_wrong_root_are_distinguished(body, reason, caplo
         await api._json(MOBILE, {"sid": 123})
     assert f"stage=live_uri_mobile reason={reason}" in caplog.text
     assert SECRET not in caplog.text
+
+
+@pytest.mark.parametrize("payload,expected", [
+    ({"power": {SECRET: SECRET}, SECRET: SECRET}, "data_type=object flow_type=missing con_type=missing con_state=missing power_type=object"),
+    ({"flow": SECRET, "con": SECRET}, "data_type=object flow_type=string con_type=string con_state=invalid power_type=missing"),
+    ({"con": True}, "data_type=object flow_type=missing con_type=boolean con_state=invalid power_type=missing"),
+    ({"con": None, "flow": None}, "data_type=object flow_type=null con_type=null con_state=invalid power_type=missing"),
+    ([SECRET], "data_type=array flow_type=missing con_type=missing con_state=missing power_type=missing"),
+])
+def test_invalid_live_summary_reports_only_relevant_types(payload, expected, caplog):
+    api = client()
+    api._cloud_report("live_data", "invalid_live_data", {"data": payload})
+    assert expected in caplog.text
+    assert "cloud_status" not in caplog.text
+    assert "uri=" not in caplog.text
+    assert SECRET not in caplog.text
+
+
+async def test_recovery_after_retry_is_visible_once_without_info_logging(caplog):
+    api = client(ok({"power": {SECRET: SECRET}}), ok({"uri": LIVE}), ok({"con": 1}), ok({"con": 1}))
+    api._live_uri = LIVE
+    assert await api.async_live(123) == {"con": 1}
+    assert await api.async_live(123) == {"con": 1}
+    assert "flow_type=missing con_type=missing" in caplog.text
+    assert caplog.text.count("Cloud request recovered: stage=live_data") == 1
+    assert "uri=missing" not in caplog.text
+    assert SECRET not in caplog.text
+
+
+async def test_persistent_live_failure_has_no_false_recovery_and_new_episode_is_logged(caplog):
+    api = client(ok({}), ok({"uri": LIVE}), ok({}),
+                 ok({"uri": LIVE}), ok({"con": 0}),
+                 ok({}), ok({"uri": LIVE}), ok({"flow": []}))
+    api._live_uri = LIVE
+    with pytest.raises(HoymilesConnectionError):
+        await api.async_live(123)
+    assert caplog.text.count("reason=invalid_live_data") == 1
+    assert "Cloud request recovered" not in caplog.text
+    # A valid offline response is accepted by the existing contract too.
+    assert await api.async_live(123) == {"con": 0}
+    assert caplog.text.count("Cloud request recovered") == 1
+    assert await api.async_live(123) == {"flow": []}
+    assert caplog.text.count("Cloud request failed: stage=live_data reason=invalid_live_data") == 2
+    assert caplog.text.count("Cloud request recovered") == 2
+    assert SECRET not in caplog.text
+
+
+async def test_healthy_live_samples_do_not_log_recovery(caplog):
+    api = client(ok({"con": 1}))
+    api._live_uri = LIVE
+    await api.async_live(123)
+    assert "Cloud request recovered" not in caplog.text

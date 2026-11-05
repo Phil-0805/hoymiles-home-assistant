@@ -24,3 +24,26 @@ def trusted_hoymiles_url(url: str) -> bool:
         )
     except ValueError:
         return False
+
+
+# Production API hosts explicitly listed in the inspected Android DNS manager.
+# Static/CDN, telemetry-only and test hosts are deliberately not login targets.
+AUTH_REDIRECT_HOSTS = frozenset({"euapi.hoymiles.com", "neapi.hoymiles.com", "indapi.hoymiles.com"})
+AUTH_PATHS = frozenset({"/iam/pub/3/auth/pre-insp", "/iam/pub/3/auth/login"})
+
+
+def trusted_auth_redirect(source: str, target: str) -> bool:
+    """Allow one same-operation auth reroute, not arbitrary token forwarding."""
+    if not isinstance(target, str) or len(target) > 4096:
+        return False
+    if not trusted_hoymiles_url(source) or not trusted_hoymiles_url(target):
+        return False
+    origin, destination = urlsplit(source), urlsplit(target)
+    return (
+        origin.hostname in AUTH_REDIRECT_HOSTS
+        and destination.hostname in AUTH_REDIRECT_HOSTS
+        and origin.path in AUTH_PATHS
+        and destination.path == origin.path
+        and not origin.query and not destination.query
+        and target != source
+    )

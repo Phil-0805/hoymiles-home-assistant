@@ -55,6 +55,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Build HACS release package
+        run: python3 scripts/build_release_zip.py --output "$RUNNER_TEMP/hoymiles_home.zip"
       - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           RELEASE_READINESS_JSON: ${{ secrets.RELEASE_READINESS_JSON }}
@@ -95,6 +97,23 @@ jobs:
               name: prerelease ? `${tag} — beta` : `${tag}`,
               body,
               prerelease,
+              draft: true,
               make_latest: prerelease ? 'false' : 'true',
             });
-            core.notice(`Published release: ${result.data.html_url}`);
+            // Publish only after the HACS package is available. A failed upload
+            // leaves a draft rather than offering an uninstallable release.
+            await github.rest.repos.uploadReleaseAsset({
+              ...repo,
+              release_id: result.data.id,
+              name: 'hoymiles_home.zip',
+              headers: {'content-type': 'application/zip'},
+              data: fs.readFileSync(require('path').join(process.env.RUNNER_TEMP, 'hoymiles_home.zip')),
+            });
+            await github.rest.repos.updateRelease({
+              ...repo,
+              release_id: result.data.id,
+              draft: false,
+              prerelease,
+              make_latest: prerelease ? 'false' : 'true',
+            });
+            core.notice(`Published release with HACS package: ${result.data.html_url}`);
