@@ -13,7 +13,7 @@ from aiohttp import ClientError, ClientResponseError, ClientSession, ClientTimeo
 from argon2.low_level import Type, hash_secret_raw
 
 from .battery_telemetry import parse_battery_temperatures
-from .device_settings import parse_heating, parse_lighting
+from .device_settings import parse_cutoffs, parse_heating, parse_lighting
 from .battery import (
     BatterySettingsError,
     battery_setting_targets,
@@ -776,6 +776,31 @@ class HoymilesHomeClient:
         if result is False:
             raise HoymilesConnectionError("Battery configuration was rejected")
 
+    async def async_cutoff_settings(self, target):
+        """Mirror DisChargeActivity's device-addressed action 1537 read."""
+        result = await self._async_cutoff_action(target, {})
+        if isinstance(result, str):
+            result = _decode_json(result)
+        return parse_cutoffs(result)
+
+    async def async_write_cutoff_settings(self, target, settings):
+        await self._async_cutoff_action(target, parse_cutoffs(settings), write=True)
+
+    async def _async_cutoff_action(self, target, data, *, write=False):
+        addressing = self._light_target_payload(target, allow_empty_dtu=True)
+        await self.async_ensure_login()
+        response = await self._json(
+            STATION_SETTING_WRITE_URL if write else STATION_SETTING_READ_URL,
+            {"action": 1537, **addressing, "data": data},
+        )
+        job_id = self._unwrap(response)
+        if type(job_id) not in (str, int) or not str(job_id) or len(str(job_id)) > 256:
+            raise HoymilesConnectionError("Battery cutoff command returned no id")
+        result = await self._async_poll_station_setting_job(str(job_id))
+        if type(result.get("code")) is not int or result["code"] != 0:
+            raise HoymilesConnectionError("Battery cutoff command failed")
+        return result.get("data")
+
     async def _async_device_settings_action(self, payload, *, write=False):
         """Use the manufacturer's device-settings transport, never a guessed station action."""
         if type(payload.get("action")) is not int or payload["action"] not in (1518, 1529):
@@ -815,10 +840,12 @@ class HoymilesHomeClient:
         )
 
     @staticmethod
-    def _light_target_payload(target):
+    def _light_target_payload(target, *, allow_empty_dtu=False):
         if (not isinstance(target, dict) or set(target) != {"dev_sn", "dtu_sn"}
-                or not all(isinstance(value, str) and re.fullmatch(r"[0-9A-Fa-f]{12,24}", value)
-                           for value in target.values())):
+                or not all(isinstance(value, str) and (
+                    (allow_empty_dtu and key == "dtu_sn" and value == "")
+                    or re.fullmatch(r"[0-9A-Fa-f]{12,24}", value))
+                    for key, value in target.items())):
             raise HoymilesConnectionError("Invalid light/display target")
         return dict(target)
 

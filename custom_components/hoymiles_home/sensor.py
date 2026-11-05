@@ -27,7 +27,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .battery import BATTERY_MODE_STATES, battery_charge_limit_soc, battery_settings_attributes
+from .battery import BATTERY_MODE_STATES, battery_settings_attributes
 from .const import CONF_STATION_ID, DOMAIN
 from .coordinator import HoymilesHomeCoordinator
 from .energy import split_battery_power
@@ -220,13 +220,6 @@ STATION_SENSORS = (
             .get("active_settings", {})
             .get("reserve_soc")
         ),
-    ),
-    HoymilesDescription(
-        key="battery_charge_limit_soc",
-        translation_key="battery_charge_limit_soc",
-        native_unit_of_measurement=PERCENTAGE,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda data: battery_charge_limit_soc(data.get("battery_settings", {})),
     ),
     HoymilesDescription(
         key="battery_max_power",

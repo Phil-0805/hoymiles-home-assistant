@@ -54,14 +54,19 @@ Batteriebefehle sind standardmäßig gesperrt, auch beim Update einer bestehende
 
 Für die aktuellen Schutzmaßnahmen v0.5.1 oder neuer verwenden. Frühere Versionen sind überholt. Nach dem Update Home Assistant neu starten und die Batteriesteuerung bei Bedarf ausdrücklich freigeben. Das gilt auch für bestehende Automationen, die Modus oder Reserve-SOC ändern.
 
-## Neu in Beta v0.5.2b2: obere Ladegrenze
+## Neu in Beta v0.5.2b3: getrennte Schlussstufen
 
-Die Beta v0.5.2b2 ergänzt einen Sensor und einen Regler für den maximalen
-Lade-SOC im unterstützten Eigenverbrauchsmodus. Die frisch gelesene untere Grenze
-bleibt erhalten; das Ergebnis wird zurückgelesen. Ohne ausdrücklich gelieferte
-obere Grenze oder bei einem nicht unterstützten Einstellungsweg bleibt der
-Regler unverfügbar. Siehe
-[Unterstützung und Testhinweise](docs/battery-charge-limit.md).
+Der falsch zugeordnete Ladegrenzen-Regler aus b2 und sein Sensor werden beim
+Update entfernt. Der Rohwert gehört zum Betriebsmodus und ist keine bestätigte
+App-Ladeschlussstufe. Reserve-SOC bleibt eine eigene Einstellung.
+
+b3 ergänzt **Ladeschlussstufe** und **Entladeschlussstufe** über den separaten
+Android-Befehl 1537 (`sl`/`sh`). Dafür die **Batteriesteuerung** freigeben.
+Die jeweils andere Grenze wird frisch gelesen und erhalten; beide Werte werden
+anschließend zurückgelesen. Der Gerätevergleich mit der App steht noch aus.
+Alte Automationen auf den entfernten Regler müssen bewusst angepasst werden;
+sie werden nicht automatisch umgeleitet. Siehe
+[Unterscheidung und Testhinweise](docs/battery-charge-limit.md).
 
 ## Neu in Beta v0.5.2b2: Batterieheizung, Licht und Display
 
@@ -114,7 +119,7 @@ der gewählten Version lesen und eine Sicherung erstellen.
   die Geräteseite dieses Repositorys öffnen. Die standardmäßig deaktivierte
   Schalter-Entität **Pre-release** aktivieren und anschließend einschalten.
   Die angebotene Beta installieren oder auf der Repositoryseite über **Andere
-  Version installieren** eine Beta wie `0.5.2b2` auswählen.
+  Version installieren** eine Beta wie `0.5.2b3` auswählen.
 - **Bis HA 2026.10 / HACS:** Dieses Repository öffnen, Vorabversionen aktivieren
   und über **Erneut herunterladen** die Beta auswählen. Die Beschriftung kann
   je nach HACS-Version abweichen.
@@ -216,8 +221,10 @@ werden abgelehnt. Home Assistant nur mit den üblichen Zugriffsschutzmaßnahmen
 ## Hinweise
 
 - Diese Integration verwendet eine inoffizielle Cloud-API und steht nicht in Verbindung mit Hoymiles.
-- Zusätzliche Wechselrichterwerte und Batterietemperaturen lassen sich unter
-  **Konfigurieren** aktivieren. Sie sind zunächst ausgeschaltet und können anfangs nicht verfügbar sein.
+- Ab b3 werden Batterietemperaturen automatisch alle fünf Minuten gelesen, auch
+  bei bestehenden Installationen. Der zusätzliche Freigabeschalter entfällt.
+  Fehlende Messwerte bleiben unverfügbar. Zusätzliche Wechselrichterwerte bleiben
+  unter **Konfigurieren** optional.
 - Änderungen an Batteriemodus oder Reserve-SOC senden einen echten Steuerbefehl.
   Gleichzeitige Änderungen in der App vermeiden und dort das Ergebnis prüfen.
 

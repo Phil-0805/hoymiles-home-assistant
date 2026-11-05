@@ -46,7 +46,7 @@ def parse_battery_temperatures(payload):
 
 
 class BatteryTelemetryPoller:
-    """One optional read every five minutes, independent of live refresh latency."""
+    """One background read every five minutes, independent of live refresh latency."""
 
     def __init__(self, hass, client, station_id, enabled, on_update):
         self.hass, self.client, self.station_id = hass, client, station_id

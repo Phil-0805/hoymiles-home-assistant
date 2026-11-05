@@ -52,13 +52,18 @@ Battery commands are disabled by default, including when upgrading an existing i
 
 Use v0.5.1 or newer for the current security fixes. Earlier versions are superseded. After updating, restart Home Assistant and explicitly enable battery controls if needed. This also applies to existing automations that change the battery mode or reserve SOC.
 
-## New in beta v0.5.2b2: battery charge limit
+## New in beta v0.5.2b3: separate battery cutoffs
 
-Beta v0.5.2b2 adds an upper charge SOC sensor and control for supported
-Self-Consumption settings. It preserves the freshly read lower threshold and
-checks the result by readback. Missing upper bounds and unsupported settings
-paths remain unavailable; see
-[charge-limit support and testing](docs/battery-charge-limit.md).
+The incorrectly mapped b2 charge-limit number and its sensor are removed on
+upgrade. Their raw value belongs to the work mode, not a confirmed app charge
+cutoff. Reserve SOC remains a separate setting.
+
+b3 adds **Charge cutoff SOC** and **Discharge cutoff SOC** using the Android
+app's separate action 1537 (`sl`/`sh`). Enable **Allow battery controls** to use
+them. Each change preserves the freshly read counterpart and checks both values
+by readback. Device/app comparison is still pending. Automations using the
+removed number must be deliberately updated; they are not redirected. See
+[mapping and testing](docs/battery-charge-limit.md).
 
 ## New in beta v0.5.2b2: battery heating, light and display
 
@@ -107,7 +112,7 @@ and create a backup before testing.
 - **HA 2026.11+ / Marketplace:** Open **Settings → Devices & services → Marketplace**
   and the device page for this repository. Enable the disabled **Pre-release**
   switch entity, then turn it on. Install the offered beta, or use **Install
-  another version** on the repository page to select a beta such as `0.5.2b2`.
+  another version** on the repository page to select a beta such as `0.5.2b3`.
 - **HA 2026.10 or older / HACS:** Open this repository, enable prereleases and use
   **Redownload** to choose the beta. Labels vary with the HACS version.
 
@@ -193,8 +198,9 @@ Do not expose Home Assistant publicly without its normal access controls.
 ## Notes
 
 - This integration uses an unofficial cloud API and is not affiliated with Hoymiles.
-- Additional inverter readings and battery temperatures can be enabled under
-  **Configure**. They are off by default and may initially be unavailable.
+- From b3, battery temperatures are read automatically every five minutes,
+  including existing installations; the extra opt-in is removed. Missing readings
+  remain unavailable. Additional inverter telemetry remains optional under **Configure**.
 - Changing battery mode or reserve SOC sends a real control command. Avoid
   simultaneous changes in the app and check the result there.
 

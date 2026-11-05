@@ -16,6 +16,8 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     ])
     if hass.data[DOMAIN][entry.entry_id].device_controls:
         async_add_entities([HoymilesRefreshDeviceSettingsButton(hass.data[DOMAIN][entry.entry_id], entry)])
+    if hass.data[DOMAIN][entry.entry_id].battery_controls:
+        async_add_entities([HoymilesRefreshCutoffSettingsButton(hass.data[DOMAIN][entry.entry_id], entry)])
 
 
 class HoymilesRefreshBatterySettingsButton(CoordinatorEntity, ButtonEntity):
@@ -58,3 +60,17 @@ class HoymilesRefreshDeviceSettingsButton(DeviceSettingsEntity, ButtonEntity):
     async def async_press(self):
         if not await self.manager.async_refresh():
             raise HomeAssistantError(translation_domain=DOMAIN, translation_key="settings_refresh_wait")
+
+
+class HoymilesRefreshCutoffSettingsButton(HoymilesRefreshDeviceSettingsButton):
+    def __init__(self, coordinator, entry):
+        DeviceSettingsEntity.__init__(self, coordinator, entry, "refresh_battery_cutoffs", "cutoffs")
+
+    @property
+    def manager(self):
+        return self.coordinator.cutoff_settings
+
+    @property
+    def available(self):
+        return (self.coordinator.last_update_success and self.coordinator.battery_controls
+                and self.manager.enabled and not self.manager.stopped)
