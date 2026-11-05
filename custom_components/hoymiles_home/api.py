@@ -45,6 +45,7 @@ from .telemetry import number
 from .inverter import inverter_model
 from .module_data import MAX_MODULE_BYTES, decode_module_snapshot
 from .security import trusted_hoymiles_url
+from .cloud_logging import CloudDiagnosticError, LOGGER as CLOUD_LOGGER, failure_reason, response_summary
 from .cloud_runtime import AccountRuntime, retry_delay
 from .errors import (
     HoymilesError, HoymilesAuthError, HoymilesConnectionError, HoymilesRateLimitError, HoymilesSettingsError,
@@ -72,10 +73,10 @@ def _decode_json(raw: bytes | str) -> dict[str, Any]:
         if size > MAX_JSON_BYTES:
             raise HoymilesConnectionError("JSON response exceeds size limit")
         data = json.loads(raw)
-    except (ValueError, UnicodeError, RecursionError) as err:
-        raise HoymilesConnectionError("Invalid JSON response") from err
+    except (ValueError, UnicodeError, RecursionError):
+        raise CloudDiagnosticError("invalid_json", "Invalid JSON response") from None
     if not isinstance(data, dict):
-        raise HoymilesConnectionError("Unexpected API response")
+        raise CloudDiagnosticError("unexpected_response", "Unexpected API response")
     pending = [(data, 0)]
     while pending:
         value, depth = pending.pop()
@@ -98,6 +99,7 @@ class HoymilesHomeClient:
         self._password = password
         self.runtime = runtime or AccountRuntime()
         self._live_uri: str | None = None
+        self._cloud_log_states = {}
 
     @property
     def _token(self):
@@ -140,6 +142,29 @@ class HoymilesHomeClient:
             headers["Authorization"] = self._token
         return headers
 
+    def _cloud_report(self, stage, reason, response=None, *, http_status=None):
+        # One warning per changed failure shape, without storing private input.
+        summary = response_summary(response)
+        if http_status is not None:
+            code = http_status if type(http_status) is int and 100 <= http_status <= 599 else "unavailable"
+            summary = f"http_status={code} {summary}"
+        key = (stage, reason)
+        if self._cloud_log_states.get(key) != summary:
+            self._cloud_log_states[key] = summary
+            CLOUD_LOGGER.warning("Cloud request failed: stage=%s reason=%s %s", stage, reason, summary)
+
+    def _cloud_stage(self, url):
+        # Exact endpoint matching, never log a URL or derive labels from input.
+        known = {
+            f"{AUTH_BASE_URL}/iam/pub/3/auth/pre-insp": "login_challenge",
+            f"{AUTH_BASE_URL}/iam/pub/3/auth/login": "login",
+            f"{DATA_BASE_URL}/pvmc/api/0/station/select_by_page_c": "station_discovery",
+            f"{DATA_BASE_URL}/pvmc/api/0/station/select_device_c": "station_validation",
+            f"{DATA_BASE_URL}/pvmc/api/0/station/get_sd_uri_c": "live_uri_mobile",
+            f"{DATA_BASE_URL}/pvm/api/0/station/get_sd_uri": "live_uri_web",
+        }
+        return known.get(url, "live_data" if self._live_uri is not None and url == self._live_uri else "other_api")
+
     async def _json(self, url: str, payload: dict[str, Any]) -> dict[str, Any]:
         if not trusted_hoymiles_url(url):
             raise HoymilesConnectionError("Untrusted Hoymiles API URL")
@@ -153,10 +178,13 @@ class HoymilesHomeClient:
                     allow_redirects=False,
                 ) as response:
                     if 300 <= response.status < 400:
-                        raise HoymilesConnectionError("Hoymiles API redirected unexpectedly")
+                        raise CloudDiagnosticError("redirect_rejected", "Hoymiles API redirected unexpectedly")
                     response.raise_for_status()
                     data = await _bounded_json(response)
         except ClientResponseError as err:
+            stage = self._cloud_stage(url)
+            # HTTP status is numeric; response text, URLs and headers are omitted.
+            self._cloud_report(stage, "http_error", http_status=err.status)
             if err.status == 429:
                 retry_after = retry_delay((err.headers or {}).get("Retry-After"))
                 self.runtime.pause(retry_after)
@@ -169,13 +197,24 @@ class HoymilesHomeClient:
             raise HoymilesConnectionError(
                 f"Hoymiles API request failed (HTTP {err.status})"
             ) from None
+        except HoymilesConnectionError as err:
+            self._cloud_report(self._cloud_stage(url), failure_reason(err))
+            raise
         except (ClientError, TimeoutError, ValueError) as err:
+            self._cloud_report(self._cloud_stage(url), "timeout" if isinstance(err, TimeoutError) else "transport_error")
             # aiohttp exception strings may include signed URLs or tokens.
             raise HoymilesConnectionError(
                 f"Hoymiles request failed ({type(err).__name__})"
             ) from None
         if not isinstance(data, dict):
             raise HoymilesConnectionError("Unexpected API response")
+        stage = self._cloud_stage(url)
+        expects_envelope = stage in {
+            "login_challenge", "login", "station_discovery", "station_validation",
+            "live_uri_mobile", "live_uri_web",
+        }
+        if ("status" in data or expects_envelope) and str(data.get("status")) not in {"0", "100"}:
+            self._cloud_report(stage, "cloud_rejected", data)
         return data
 
     @staticmethod
@@ -189,7 +228,7 @@ class HoymilesHomeClient:
             if "device list is empty" in message.lower():
                 # Keep the known fallback signal, never the arbitrary text.
                 raise HoymilesConnectionError("Hoymiles device list is empty")
-            raise HoymilesConnectionError("Hoymiles API rejected request")
+            raise CloudDiagnosticError("cloud_rejected", "Hoymiles API rejected request")
         return response.get("data")
 
     async def async_login(self) -> None:
@@ -208,8 +247,9 @@ class HoymilesHomeClient:
             nonce = data["n"]
             if not 8 <= len(salt) <= 64 or not isinstance(nonce, str) or not 1 <= len(nonce) <= 1024:
                 raise ValueError("Invalid authentication challenge")
-        except (KeyError, TypeError, ValueError) as err:
-            raise HoymilesAuthError("Incomplete pre-inspection response") from err
+        except (KeyError, TypeError, ValueError):
+            self._cloud_report("login_challenge", "invalid_challenge", pre)
+            raise HoymilesAuthError("Incomplete pre-inspection response") from None
         challenge = (await asyncio.to_thread(
             hash_secret_raw,
             self._password.encode(), salt, 3, 32768, 1, 32, Type.ID
@@ -221,6 +261,7 @@ class HoymilesHomeClient:
         login_data = self._unwrap(login)
         token = login_data.get("token") if isinstance(login_data, dict) else None
         if not isinstance(token, str) or not 1 <= len(token) <= 16384:
+            self._cloud_report("login", "missing_token", login)
             raise HoymilesAuthError("Login returned no token")
         self._token = token
         self._token_expires = datetime.now(UTC) + TOKEN_LIFETIME
@@ -337,7 +378,8 @@ class HoymilesHomeClient:
             )
             data = self._unwrap(response)
             if not isinstance(data, dict) or not isinstance(data.get("list"), list):
-                raise HoymilesConnectionError("Unexpected station list response")
+                self._cloud_report("station_discovery", "unexpected_response", response)
+                raise CloudDiagnosticError("unexpected_response", "Unexpected station list response")
             rows = data["list"]
             if not rows:
                 return list(stations.values())
@@ -391,16 +433,31 @@ class HoymilesHomeClient:
         return parse_battery_temperatures(self._unwrap(response))
 
     async def _get_live_uri(self, station_id: int) -> str:
-        response = await self._json(
-            f"{DATA_BASE_URL}/pvmc/api/0/station/get_sd_uri_c", {"sid": station_id}
-        )
-        data = self._unwrap(response)
-        uri = data.get("uri") if isinstance(data, dict) else None
-        if not uri:
-            raise HoymilesConnectionError("Live API returned no URI")
-        if not isinstance(uri, str) or not trusted_hoymiles_url(uri):
-            raise HoymilesConnectionError("Live API returned an untrusted URI")
-        return uri
+        # Both routes are present in the manufacturer's clients. Use the web
+        # route only when the mobile route succeeded but omitted its URI.
+        for stage, path in (
+            ("live_uri_mobile", "/pvmc/api/0/station/get_sd_uri_c"),
+            ("live_uri_web", "/pvm/api/0/station/get_sd_uri"),
+        ):
+            response = await self._json(f"{DATA_BASE_URL}{path}", {"sid": station_id})
+            data = self._unwrap(response)
+            if data is not None and not isinstance(data, dict):
+                self._cloud_report(stage, "unexpected_response", response)
+                raise CloudDiagnosticError("unexpected_response", "Unexpected live URI response")
+            uri = data.get("uri") if isinstance(data, dict) else None
+            if uri is None or uri == "":
+                self._cloud_report(stage, "missing_uri", response)
+                continue
+            if not isinstance(uri, str):
+                self._cloud_report(stage, "invalid_uri_type", response)
+                raise CloudDiagnosticError("invalid_uri_type", "Live API returned an invalid URI type")
+            if not trusted_hoymiles_url(uri):
+                self._cloud_report(stage, "untrusted_uri", response)
+                raise CloudDiagnosticError("untrusted_uri", "Live API returned an untrusted URI")
+            if stage == "live_uri_web":
+                CLOUD_LOGGER.info("Live server address recovered using manufacturer web route")
+            return uri
+        raise CloudDiagnosticError("missing_uri", "Live API returned no URI (mobile and web routes)")
 
     async def async_live(self, station_id: int) -> dict[str, Any]:
         await self.async_ensure_login()
@@ -433,8 +490,9 @@ class HoymilesHomeClient:
                 or number(payload.get("con")) in (0, 1)
             ):
                 return payload
+            self._cloud_report("live_data", "invalid_live_data", {"data": payload})
             self._live_uri = None
-        raise HoymilesConnectionError("Live URI expired")
+        raise CloudDiagnosticError("invalid_live_data", "Live URI expired")
 
     async def _async_binary_data(self, url: str, payload: dict[str, Any]) -> bytes:
         """Read a bounded binary payload, rejecting redirects and JSON errors."""

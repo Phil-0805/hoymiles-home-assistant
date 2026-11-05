@@ -26,6 +26,7 @@ from homeassistant.helpers.selector import (
 from .api import HoymilesAuthError, HoymilesConnectionError, HoymilesHomeClient
 from .const import CONF_BATTERY_CONTROLS, CONF_DEVICE_CONTROLS, CONF_BATTERY_TEMPERATURES, CONF_INVERTER_DETAILS, CONF_STATION_ID, CONF_STATION_TIMEZONE, DOMAIN
 from .telemetry import PV_POWER_SOURCE, PV_POWER_SOURCES
+from .cloud_logging import log_failure
 
 
 @lru_cache(maxsize=1)
@@ -65,9 +66,11 @@ class HoymilesHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 await client.async_login()
                 if not await client.async_device_tree(entry.data[CONF_STATION_ID]):
                     errors["base"] = "invalid_station"
-            except HoymilesAuthError:
+            except HoymilesAuthError as err:
+                log_failure("reauthentication", err)
                 errors["base"] = "invalid_auth"
-            except HoymilesConnectionError:
+            except HoymilesConnectionError as err:
+                log_failure("reauthentication", err)
                 errors["base"] = "cannot_connect"
             if not errors:
                 return self.async_update_reload_and_abort(
@@ -97,18 +100,23 @@ class HoymilesHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._stations = []
             try:
                 await self._client.async_login()
-            except HoymilesAuthError:
+            except HoymilesAuthError as err:
+                log_failure("login", err)
                 errors["base"] = "invalid_auth"
-            except HoymilesConnectionError:
+            except HoymilesConnectionError as err:
+                log_failure("login", err)
                 errors["base"] = "cannot_connect"
-            except Exception:  # noqa: BLE001
+            except Exception as err:  # noqa: BLE001
+                log_failure("login", err)
                 errors["base"] = "unknown"
             if not errors:
                 try:
                     self._stations = await self._client.async_list_stations()
-                except HoymilesAuthError:
+                except HoymilesAuthError as err:
+                    log_failure("station_discovery", err)
                     errors["base"] = "invalid_auth"
-                except Exception:  # noqa: BLE001
+                except Exception as err:  # noqa: BLE001
+                    log_failure("station_discovery", err)
                     # Discovery is optional: keep the established sid setup path.
                     return self._manual_form({"base": "discovery_failed"})
                 else:
@@ -206,11 +214,14 @@ class HoymilesHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 devices = await self._client.async_device_tree(station_id)
                 if not devices:
                     errors["base"] = "invalid_station"
-            except HoymilesAuthError:
+            except HoymilesAuthError as err:
+                log_failure("station_validation", err)
                 return await self._async_login_form_with_error()
-            except HoymilesConnectionError:
+            except HoymilesConnectionError as err:
+                log_failure("station_validation", err)
                 errors["base"] = "cannot_connect"
-            except Exception:  # noqa: BLE001
+            except Exception as err:  # noqa: BLE001
+                log_failure("station_validation", err)
                 errors["base"] = "unknown"
             if not errors:
                 # Keep the existing identity and persisted schema for upgrades.
