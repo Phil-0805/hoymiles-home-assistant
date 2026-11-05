@@ -348,10 +348,10 @@ async def test_platforms_are_opt_in_and_create_expected_controls(controls, hass)
     entities = []
     for platform in (light, switch, number, button):
         await platform.async_setup_entry(hass, ENTRY, entities.extend)
-    assert len(entities) == 9  # Three existing entities and six opt-in additions.
-    assert len({entity.unique_id for entity in entities}) == 9
+    assert len(entities) == 8  # Reserve SOC, existing refresh and six opt-in additions.
+    assert len({entity.unique_id for entity in entities}) == 8
     coordinator.device_controls = False
     entities = []
     for platform in (light, switch, number, button):
         await platform.async_setup_entry(hass, ENTRY, entities.extend)
-    assert len(entities) == 3
+    assert len(entities) == 2

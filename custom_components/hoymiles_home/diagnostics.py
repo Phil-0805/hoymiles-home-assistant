@@ -5,8 +5,22 @@ from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
 from .inverter import inverter_model, inverter_ports
-from .battery import battery_charge_limit_soc, writable_modes
+from .battery import work_mode_upper_soc, writable_modes
 from .telemetry import battery_activity, live_power, number, pv_power_details, status_codes
+
+
+def _cutoff_diagnostics(manager):
+    """Only fixed status and cutoff percentages, never controller addresses."""
+    statuses = {"pending", "disabled", "readable", "unavailable", "no_unique_target"}
+    status = getattr(manager, "status", {}).get("cutoffs", "disabled")
+    values = getattr(manager, "cutoffs", None) or {}
+    return {
+        "enabled": getattr(manager, "enabled", False) is True,
+        "status": status if status in statuses else "unavailable",
+        "source": "android_action_1537",
+        "discharge_cutoff_soc": number(values.get("sl")),
+        "charge_cutoff_soc": number(values.get("sh")),
+    }
 
 
 def _battery_diagnostics(settings: dict) -> dict:
@@ -28,7 +42,7 @@ def _battery_diagnostics(settings: dict) -> dict:
         "has_error": bool(settings.get("error")),
         "mode": number(settings.get("mode")),
         "reserve_soc": number(active.get("reserve_soc")),
-        "charge_limit_soc": battery_charge_limit_soc(settings),
+        "work_mode_upper_soc": work_mode_upper_soc(settings),
         "max_power": number(active.get("max_power")),
         "available_modes": modes,
         "mode_control": "multiple_modes" if len(writable_modes(settings)) > 1 else "single_or_no_mode",
@@ -80,6 +94,7 @@ async def async_get_config_entry_diagnostics(
             "device_count": len(getattr(getattr(coordinator, "battery_telemetry", None), "values", {})),
         },
         "pv_power": pv_power_details(data),
+        "battery_cutoffs": _cutoff_diagnostics(getattr(coordinator, "cutoff_settings", None)),
         "battery": {
             "power": number(live_power(data).get("bat")),
             "soc": number(live.get("soc")),

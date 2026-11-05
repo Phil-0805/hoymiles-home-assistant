@@ -28,6 +28,12 @@ The reserve-SOC control applies to the confirmed self-consumption settings only;
 
 ## Explicit upper SOC limit
 
+**Correction after b2 device feedback:** this is an upper work-mode SOC value.
+Matching cloud readback did not change the separate app charge/discharge
+cutoffs. b3 removes the b2 upper-limit control; the historical
+implementation rationale below does not establish app-cutoff support. See
+[corrected mapping](battery-charge-limit.md).
+
 The same manufacturer bundle was fetched again on 5 November 2026; its SHA-256
 still matches the source above. The self-consumption write includes both
 `soc_l` and `soc_h`. The new upper-limit control therefore reuses action 83 and

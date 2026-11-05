@@ -1,4 +1,4 @@
-"""Opt-in heating and light/display settings with verified readback."""
+"""Opt-in device settings and app battery cutoffs with complete readback."""
 
 import asyncio
 from copy import deepcopy
@@ -17,7 +17,16 @@ STRIP_FIELDS = {"r": 255, "g": 255, "b": 255, "slb": 255, "slot": 3600}
 LIGHT_FIELDS = {**DISPLAY_FIELDS, **STRIP_FIELDS}
 
 
-def light_target(tree):
+def parse_cutoffs(data):
+    """Android action 1537: explicit discharge/charge limits, never mode SOC."""
+    if (not isinstance(data, dict) or type(data.get("sl")) is not int
+            or type(data.get("sh")) is not int or not 10 <= data["sl"] <= 70
+            or not 50 <= data["sh"] <= 100 or data["sh"] - data["sl"] < 10):
+        raise HoymilesConnectionError("Invalid battery charge/discharge cutoffs")
+    return {"sl": data["sl"], "sh": data["sh"]}
+
+
+def light_target(tree, *, mobile_addressing=False):
     """Select one explicit AC battery controller, never guess among devices."""
     found = {}
 
@@ -26,10 +35,18 @@ def light_target(tree):
             for child in value:
                 visit(child)
         elif isinstance(value, dict):
-            sn, dtu = value.get("sn"), value.get("dtu_sn") or value.get("sn")
+            sn = value.get("sn")
+            # Android sends an empty DTU address when absent; the web lighting
+            # drawer instead falls back to the device serial. Keep them separate.
+            dtu = value.get("dtu_sn")
+            if mobile_addressing:
+                dtu = "" if dtu is None else dtu
+            else:
+                dtu = dtu or sn
             if (type(value.get("type")) is int and value["type"] == 12
                     and isinstance(sn, str) and re.fullmatch(r"[0-9A-Fa-f]{12,24}", sn)
-                    and isinstance(dtu, str) and re.fullmatch(r"[0-9A-Fa-f]{12,24}", dtu)):
+                    and isinstance(dtu, str) and ((mobile_addressing and dtu == "")
+                                                 or re.fullmatch(r"[0-9A-Fa-f]{12,24}", dtu))):
                 found[(sn, dtu)] = {"dev_sn": sn, "dtu_sn": dtu}
             for child in value.values():
                 visit(child)
@@ -97,11 +114,14 @@ def settings_equal(actual, expected):
 class DeviceSettings:
     """Optional settings reads, serialized writes and no optimistic state."""
 
-    def __init__(self, hass, client, station_id, enabled, get_tree, may_write, on_update):
+    def __init__(self, hass, client, station_id, enabled, get_tree, may_write, on_update,
+                 *, features=("heating", "lighting")):
         self.hass, self.client, self.station_id = hass, client, station_id
         self.enabled, self.get_tree, self.may_write, self.on_update = enabled, get_tree, may_write, on_update
         self.heating, self.lighting, self.target = None, None, None
-        self.status = {"heating": "pending", "lighting": "pending"} if enabled else {"heating": "disabled", "lighting": "disabled"}
+        self.cutoffs = None
+        self.features = features
+        self.status = {feature: "pending" if enabled else "disabled" for feature in features}
         self.updated = {}
         self.lock = asyncio.Lock()
         self.task = None
@@ -142,6 +162,8 @@ class DeviceSettings:
     def _store(self, feature, value):
         if feature == "heating":
             self.heating = value
+        elif feature == "cutoffs":
+            self.cutoffs = value
         else:
             self.lighting = value
         self.updated[feature] = datetime.now(UTC)
@@ -156,16 +178,21 @@ class DeviceSettings:
     async def _read(self, feature, target=None):
         if feature == "heating":
             return parse_heating(await self.client.async_heating_settings(self.station_id))
+        if feature == "cutoffs":
+            return parse_cutoffs(await self.client.async_cutoff_settings(target))
         return parse_lighting(await self.client.async_light_display_settings(self.station_id, target), target)
+
+    def _target(self, feature):
+        return light_target(self.get_tree(), mobile_addressing=feature == "cutoffs")
 
     async def _async_refresh(self):
         try:
             async with self.lock, asyncio.timeout(120):
                 if self.stopped:
                     return
-                for feature in ("heating", "lighting"):
-                    target = light_target(self.get_tree()) if feature == "lighting" else None
-                    if feature == "lighting":
+                for feature in self.features:
+                    target = self._target(feature) if feature != "heating" else None
+                    if feature != "heating":
                         self.target = target
                         if target is None:
                             self.status[feature] = "no_unique_target"
@@ -188,6 +215,14 @@ class DeviceSettings:
             raise HoymilesConnectionError("Invalid heating permission")
         await self._async_write("heating", {"enable": int(enabled)})
 
+    async def async_set_cutoff(self, field, value):
+        if (field not in {"sl", "sh"} or type(value) is not int
+                or not (10 <= value <= 70 if field == "sl" else 50 <= value <= 100)):
+            raise HoymilesConnectionError("Unsupported battery cutoff value")
+        if "cutoffs" not in self.features or self.cutoffs is None:
+            raise HoymilesConnectionError("Battery cutoffs are unavailable")
+        await self._async_write("cutoffs", {field: value})
+
     async def async_set_lighting(self, updates, *, turn_on=False):
         # Validate service values before any cloud request; recheck capability
         # against the fresh snapshot under the lock as well.
@@ -203,28 +238,37 @@ class DeviceSettings:
         await self._async_write("lighting", updates, turn_on=turn_on)
 
     async def _async_write(self, feature, updates, *, turn_on=False):
+        if feature not in self.features:
+            raise HoymilesConnectionError("Device setting control is disabled")
         try:
             async with self.lock, asyncio.timeout(120):
                 self._check_controls()
                 target = None
-                if feature == "lighting":
-                    target = light_target(self.get_tree())
+                if feature != "heating":
+                    target = self._target(feature)
                     if target is None or target != self.target:
                         raise HoymilesConnectionError("Battery controller changed or is ambiguous")
                 fresh = await self._read(feature, target)
                 self._store(feature, fresh)
                 if turn_on and "slb" not in updates:
                     updates = {**updates, "slb": fresh["values"].get("slb") or 255}
-                expected = updates if feature == "heating" else light_update(fresh, updates)
+                if feature == "cutoffs":
+                    expected = parse_cutoffs({**fresh, **updates})
+                else:
+                    expected = updates if feature == "heating" else light_update(fresh, updates)
+                if feature == "cutoffs" and settings_equal(fresh, expected):
+                    return
                 if feature == "heating" and fresh == expected:
                     return
                 if feature == "lighting" and settings_equal(fresh["snapshot"], expected):
                     return
                 self._check_controls()
-                if feature == "lighting" and light_target(self.get_tree()) != target:
+                if feature != "heating" and self._target(feature) != target:
                     raise HoymilesConnectionError("Battery controller changed during preflight")
                 if feature == "heating":
                     await self.client.async_write_heating_settings(self.station_id, expected["enable"])
+                elif feature == "cutoffs":
+                    await self.client.async_write_cutoff_settings(target, expected)
                 else:
                     await self.client.async_write_light_display_settings(self.station_id, target, expected)
                 for attempt in range(READBACK_ATTEMPTS):
@@ -232,7 +276,7 @@ class DeviceSettings:
                         raise HoymilesConnectionError("Device controls were unloaded")
                     actual = await self._read(feature, target)
                     self._store(feature, actual)
-                    snapshot = actual if feature == "heating" else actual["snapshot"]
+                    snapshot = actual["snapshot"] if feature == "lighting" else actual
                     if settings_equal(snapshot, expected):
                         return
                     if attempt + 1 < READBACK_ATTEMPTS:

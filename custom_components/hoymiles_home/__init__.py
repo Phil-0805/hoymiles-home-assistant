@@ -10,9 +10,9 @@ from homeassistant.util import dt as dt_util
 
 from .api import HoymilesHomeClient
 from .cloud_runtime import AccountPool
-from .const import CONF_BATTERY_CONTROLS, CONF_DEVICE_CONTROLS, CONF_BATTERY_TEMPERATURES, CONF_INVERTER_DETAILS, CONF_STATION_ID, CONF_STATION_TIMEZONE, DOMAIN, PLATFORMS
+from .const import CONF_BATTERY_CONTROLS, CONF_DEVICE_CONTROLS, CONF_INVERTER_DETAILS, CONF_STATION_ID, CONF_STATION_TIMEZONE, DOMAIN, PLATFORMS
 from .coordinator import HoymilesHomeCoordinator
-from .device_migration import async_migrate_battery_temperatures
+from .device_migration import async_migrate_battery_temperatures, async_remove_obsolete_charge_limit_entities
 from .telemetry import PV_POWER_SOURCE
 
 
@@ -36,13 +36,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             battery_controls=entry.options.get(CONF_BATTERY_CONTROLS, False) is True,
             device_controls=entry.options.get(CONF_DEVICE_CONTROLS, False) is True,
             pv_power_source=entry.options.get(PV_POWER_SOURCE, "auto"),
-            battery_temperatures=entry.options.get(CONF_BATTERY_TEMPERATURES, False) is True,
+            battery_temperatures=True,
             inverter_details=entry.options.get(CONF_INVERTER_DETAILS, False),
             station_timezone=station_timezone,
         )
         await coordinator.async_initialize()
         await coordinator.async_config_entry_first_refresh()
         domain_data[entry.entry_id] = coordinator
+        async_remove_obsolete_charge_limit_entities(hass, entry)
         async_migrate_battery_temperatures(hass, entry)
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     except BaseException:

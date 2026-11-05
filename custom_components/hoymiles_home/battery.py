@@ -291,17 +291,17 @@ def parse_work_mode_settings(result: Any) -> dict[str, Any]:
         "request_method": "station_action_83",
         "reserve_soc_verified": mode == 1,
         "reserve_soc_source": source if mode == 1 else None,
-        "charge_limit_soc_verified": mode == 1 and "soc_h" in self_data,
+        "work_mode_upper_soc_explicit": mode == 1 and "soc_h" in self_data,
     }
 
 
-def battery_charge_limit_soc(settings: dict[str, Any]) -> int | None:
-    """Use only an explicit action-83 upper bound in self-consumption mode."""
+def work_mode_upper_soc(settings: dict[str, Any]) -> int | None:
+    """Read the explicit action-83 upper bound, not the app's battery cutoff."""
     active = settings.get("active_settings")
     if (settings.get("readable") is not True
             or settings.get("request_method") != "station_action_83"
             or type(settings.get("mode")) is not int or settings["mode"] != 1
-            or settings.get("charge_limit_soc_verified") is not True
+            or settings.get("work_mode_upper_soc_explicit") is not True
             or not isinstance(active, dict)):
         return None
     lower, upper = active.get("reserve_soc"), active.get("soc_h")

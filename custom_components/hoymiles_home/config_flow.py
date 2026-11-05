@@ -241,8 +241,10 @@ class HoymilesHomeOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input=None) -> ConfigFlowResult:
         if user_input is not None:
+            options = {**self.config_entry.options, **user_input}
+            options.pop(CONF_BATTERY_TEMPERATURES, None)
             return self.async_create_entry(
-                title="", data={**self.config_entry.options, **user_input}
+                title="", data=options
             )
         timezones = await self.hass.async_add_executor_job(_time_zone_options)
         return self.async_show_form(
@@ -263,10 +265,6 @@ class HoymilesHomeOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(
                     CONF_DEVICE_CONTROLS,
                     default=self.config_entry.options.get(CONF_DEVICE_CONTROLS, False),
-                ): BooleanSelector(),
-                vol.Optional(
-                    CONF_BATTERY_TEMPERATURES,
-                    default=self.config_entry.options.get(CONF_BATTERY_TEMPERATURES, False),
                 ): BooleanSelector(),
                 vol.Optional(
                     CONF_INVERTER_DETAILS,

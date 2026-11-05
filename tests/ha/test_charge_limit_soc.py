@@ -1,150 +1,81 @@
-"""Upper SOC uses explicit evidence and preserves fresh settings without retry writes."""
+"""Remove b2 app-cutoff identities while preserving independent mode SOC data."""
 
-from copy import deepcopy
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import entity_registry as er
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.hoymiles_home.api import HoymilesHomeClient
-from custom_components.hoymiles_home.battery import battery_charge_limit_soc, parse_work_mode_settings
+from custom_components.hoymiles_home.battery import parse_work_mode_settings, work_mode_upper_soc
+from custom_components.hoymiles_home.const import DOMAIN
 from custom_components.hoymiles_home.coordinator import HoymilesHomeCoordinator
-from custom_components.hoymiles_home.errors import HoymilesConnectionError
-from custom_components.hoymiles_home.number import HoymilesBatteryChargeLimitSocNumber
-from custom_components.hoymiles_home.sensor import HoymilesStationSensor, STATION_SENSORS
+from custom_components.hoymiles_home.device_migration import async_remove_obsolete_charge_limit_entities
+from custom_components.hoymiles_home.diagnostics import _battery_diagnostics
 
 
-def settings(lower=12, upper=95, mode=2):
+def settings(lower=12, upper=95):
     return parse_work_mode_settings({"code": 0, "data": {
-        "mode": mode, "soc_l": lower, "soc_h": upper, "k_3": {"mode": 1},
+        "mode": 2, "soc_l": lower, "soc_h": upper, "k_3": {"mode": 1},
     }})
 
 
-@pytest.mark.parametrize("data", [
-    {"mode": 2, "soc_l": 12},
-    {"mode": 2, "k_2": {"soc_l": 12}},
-])
-def test_default_upper_bound_is_not_explicit_charge_limit_evidence(data):
+@pytest.mark.parametrize("data", [{"mode": 2, "soc_l": 12}, {"mode": 2, "k_2": {"soc_l": 12}}])
+def test_default_upper_bound_is_not_explicit_mode_evidence(data):
     parsed = parse_work_mode_settings({"code": 0, "data": data})
-    assert parsed["active_settings"]["soc_h"] == 100  # Preserve the legacy lower-control path.
-    assert not parsed["charge_limit_soc_verified"]
-    assert battery_charge_limit_soc(parsed) is None
+    assert parsed["active_settings"]["soc_h"] == 100
+    assert not parsed["work_mode_upper_soc_explicit"]
+    assert work_mode_upper_soc(parsed) is None
 
 
 @pytest.mark.parametrize("nested", [False, True])
-def test_explicit_upper_bound_is_recognized_in_both_layouts(nested):
+def test_explicit_raw_upper_bound_is_recognized_in_both_layouts(nested):
     bounds = {"soc_l": 12, "soc_h": 90}
-    parsed = parse_work_mode_settings({"code": 0, "data": {
-        "mode": 2, **({"k_2": bounds} if nested else bounds),
-    }})
-    assert battery_charge_limit_soc(parsed) == 90
+    parsed = parse_work_mode_settings({"code": 0, "data": {"mode": 2, **({"k_2": bounds} if nested else bounds)}})
+    assert work_mode_upper_soc(parsed) == 90
 
 
-async def test_upper_change_preserves_lower_limit_from_fresh_app_read(hass):
+def test_diagnostics_do_not_present_mode_value_as_app_cutoff():
+    result = _battery_diagnostics(settings(12, 80))
+    assert result["work_mode_upper_soc"] == 80
+    assert "charge_limit_soc" not in result
+
+
+async def test_reserve_change_preserves_fresh_mode_upper_soc(hass):
     api = AsyncMock()
-    api.async_battery_settings.side_effect = [settings(25, 95), settings(25, 80)]
+    api.async_battery_settings.side_effect = [settings(25, 95), settings(30, 95)]
     coordinator = HoymilesHomeCoordinator(hass, api, 123, battery_controls=True)
     coordinator.battery_settings = settings(12, 100)
-    await coordinator.async_set_battery_charge_limit_soc(80)
+    await coordinator.async_set_battery_reserve_soc(30)
     api.async_write_battery_settings.assert_awaited_once_with(
-        123, 1, {"reserve_soc": 25, "soc_l": 25, "soc_h": 80}, request_method="station_action_83",
+        123, 1, {"reserve_soc": 30, "soc_l": 30, "soc_h": 95}, request_method="station_action_83",
     )
-    assert api.async_battery_settings.await_count == 2
+    api.async_write_cutoff_settings.assert_not_awaited()
     await coordinator.async_shutdown()
 
 
-@pytest.mark.parametrize("fresh", [
-    settings(95, 100), settings(mode=3),
-    {**settings(), "charge_limit_soc_verified": False},
-    {**settings(), "request_method": "station"},
-    {**settings(), "writable": False},
-])
-async def test_invalid_or_changed_fresh_capabilities_prevent_any_write(hass, fresh):
-    api = AsyncMock()
-    api.async_battery_settings.return_value = fresh
-    coordinator = HoymilesHomeCoordinator(hass, api, 123, battery_controls=True)
-    coordinator.battery_settings = settings()
-    with pytest.raises(HoymilesConnectionError):
-        await coordinator.async_set_battery_charge_limit_soc(90)
-    api.async_write_battery_settings.assert_not_awaited()
-    await coordinator.async_shutdown()
-
-
-@pytest.mark.parametrize("readback", [
-    settings(12, 95), settings(20, 80),
-    {**settings(12, 80), "charge_limit_soc_verified": False},
-])
-async def test_full_readback_must_match_and_failed_confirmation_does_not_repeat_write(hass, readback):
-    api = AsyncMock()
-    api.async_battery_settings.side_effect = [settings(), readback]
-    coordinator = HoymilesHomeCoordinator(hass, api, 123, battery_controls=True)
-    coordinator.battery_settings = settings()
-    with patch("custom_components.hoymiles_home.coordinator.BATTERY_WRITE_CONFIRM_ATTEMPTS", 1):
-        with pytest.raises(HoymilesConnectionError, match="did not confirm"):
-            await coordinator.async_set_battery_charge_limit_soc(80)
-    api.async_write_battery_settings.assert_awaited_once()
-    await coordinator.async_shutdown()
-
-
-@pytest.mark.parametrize("enabled", [False, True])
-async def test_permission_and_unload_during_preflight_cannot_be_bypassed(hass, enabled):
-    api = AsyncMock()
-    coordinator = HoymilesHomeCoordinator(hass, api, 123, battery_controls=enabled)
-    coordinator.battery_settings = settings()
-
-    async def fresh_read(station_id):
-        await coordinator.async_shutdown()
-        return settings()
-
-    api.async_battery_settings.side_effect = fresh_read
-    with pytest.raises(HoymilesConnectionError, match="disabled"):
-        await coordinator.async_set_battery_charge_limit_soc(80)
-    if not enabled:
-        api.async_battery_settings.assert_not_awaited()
-    api.async_write_battery_settings.assert_not_awaited()
-    await coordinator.async_shutdown()
-
-
-@pytest.mark.parametrize("value", [True, False, 9, 101, 80.5, float("nan"), float("inf"), 10 ** 400, "80"])
-async def test_invalid_number_service_values_never_reach_cloud(hass, value):
-    api = AsyncMock()
-    coordinator = HoymilesHomeCoordinator(hass, api, 123, battery_controls=True)
-    coordinator.battery_settings = settings()
-    entity = HoymilesBatteryChargeLimitSocNumber(coordinator, SimpleNamespace(entry_id="entry", data={"station_id": 123}))
-    with pytest.raises(HomeAssistantError):
-        await entity.async_set_native_value(value)
-    api.async_battery_settings.assert_not_awaited()
-    api.async_write_battery_settings.assert_not_awaited()
-    await coordinator.async_shutdown()
-
-
-async def test_upper_sensor_is_readable_without_control_permission(hass):
-    coordinator = HoymilesHomeCoordinator(hass, AsyncMock(), 123)
-    coordinator.battery_settings = settings(25, 95)
-    coordinator.data = {"battery_settings": coordinator.battery_settings}
-    entry = SimpleNamespace(entry_id="entry", data={"station_id": 123})
-    number = HoymilesBatteryChargeLimitSocNumber(coordinator, entry)
-    sensor = HoymilesStationSensor(coordinator, entry, next(d for d in STATION_SENSORS if d.key == "battery_charge_limit_soc"))
-    assert number.unique_id == "entry_battery_charge_limit_soc_control"
-    assert not number.available
-    assert number.native_min_value == 25
-    assert sensor.native_value == number.native_value == 95
-    coordinator.battery_controls = True
-    assert number.available
-    coordinator.battery_settings = settings(mode=3)
-    assert not number.available
-    await coordinator.async_shutdown()
-
-
-async def test_upper_change_uses_existing_command_83_without_new_endpoints():
-    api = HoymilesHomeClient(AsyncMock(), "test@example.com", "synthetic")
-    api.async_ensure_login = AsyncMock()
-    api._json = AsyncMock(return_value={"status": 0, "data": "synthetic-job"})
-    api._async_poll_station_setting_job = AsyncMock(return_value={"code": 0})
-    data = {"reserve_soc": 25, "soc_l": 25, "soc_h": 80}
-    before = deepcopy(data)
-    await api.async_write_battery_settings(123, 1, data, request_method="station_action_83")
-    assert api._json.await_args.args[1] == {"action": 83, "data": {"sid": 123, "mode": 2, "soc_l": 25, "soc_h": 80}}
-    api._json.assert_awaited_once()
-    assert data == before
+@pytest.mark.parametrize("disabled", [False, True])
+async def test_migration_removes_only_current_entries_obsolete_entities(hass, disabled):
+    registry = er.async_get(hass)
+    entry = MockConfigEntry(domain=DOMAIN, data={"station_id": 123})
+    other = MockConfigEntry(domain=DOMAIN, data={"station_id": 456})
+    entry.add_to_hass(hass)
+    other.add_to_hass(hass)
+    retired_number = registry.async_get_or_create("number", DOMAIN,
+        f"{entry.entry_id}_battery_charge_limit_soc_control", config_entry=entry)
+    retired_sensor = registry.async_get_or_create("sensor", DOMAIN,
+        f"{entry.entry_id}_battery_charge_limit_soc", config_entry=entry)
+    if disabled:
+        registry.async_update_entity(retired_number.entity_id, disabled_by=er.RegistryEntryDisabler.USER)
+    retained = [
+        registry.async_get_or_create("number", DOMAIN, f"{entry.entry_id}_battery_reserve_soc_control", config_entry=entry),
+        registry.async_get_or_create("number", DOMAIN, f"{entry.entry_id}_device_setting_battery_charge_cutoff", config_entry=entry),
+        registry.async_get_or_create("sensor", DOMAIN, f"{entry.entry_id}_battery_ABCDEF000001_temperature", config_entry=entry),
+        registry.async_get_or_create("number", DOMAIN, f"{other.entry_id}_battery_charge_limit_soc_control", config_entry=other),
+        registry.async_get_or_create("number", "foreign_integration", f"{entry.entry_id}_battery_charge_limit_soc_control", config_entry=entry),
+    ]
+    async_remove_obsolete_charge_limit_entities(hass, entry)
+    async_remove_obsolete_charge_limit_entities(hass, entry)  # Idempotent on reload.
+    assert registry.async_get(retired_number.entity_id) is None
+    assert registry.async_get(retired_sensor.entity_id) is None
+    for entity in retained:
+        assert registry.async_get(entity.entity_id) == entity

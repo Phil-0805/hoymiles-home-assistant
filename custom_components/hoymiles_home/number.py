@@ -12,7 +12,6 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import HoymilesError
-from .battery import battery_charge_limit_soc
 from .const import CONF_STATION_ID, DOMAIN
 from .coordinator import HoymilesHomeCoordinator
 from .device_settings_entity import DeviceSettingsEntity
@@ -27,8 +26,12 @@ async def async_setup_entry(
     coordinator: HoymilesHomeCoordinator = hass.data[DOMAIN][entry.entry_id]
     async_add_entities([
         HoymilesBatteryReserveSocNumber(coordinator, entry),
-        HoymilesBatteryChargeLimitSocNumber(coordinator, entry),
     ])
+    if coordinator.battery_controls:
+        async_add_entities([
+            HoymilesBatteryCutoffNumber(coordinator, entry, "sl"),
+            HoymilesBatteryCutoffNumber(coordinator, entry, "sh"),
+        ])
     if coordinator.device_controls:
         async_add_entities([
             HoymilesDeviceSettingNumber(coordinator, entry, "display_brightness", "ldb", 100, PERCENTAGE),
@@ -98,43 +101,6 @@ class HoymilesBatteryReserveSocNumber(
             ) from err
 
 
-class HoymilesBatteryChargeLimitSocNumber(HoymilesBatteryReserveSocNumber):
-    """Upper charge SOC in the verified self-consumption settings path only."""
-
-    _setting_key = "charge_limit_soc"
-    _attr_translation_key = "battery_charge_limit_soc"
-
-    @property
-    def available(self) -> bool:
-        return (
-            super().available
-            and battery_charge_limit_soc(self.coordinator.battery_settings) is not None
-        )
-
-    @property
-    def native_value(self) -> float | None:
-        return battery_charge_limit_soc(self.coordinator.battery_settings)
-
-    @property
-    def native_min_value(self) -> float:
-        active = self.coordinator.battery_settings.get("active_settings")
-        lower = active.get("reserve_soc") if isinstance(active, dict) else None
-        return max(10, lower) if type(lower) is int and 0 <= lower <= 100 else 10
-
-    async def async_set_native_value(self, value: float) -> None:
-        try:
-            if (isinstance(value, bool) or not isinstance(value, (int, float))
-                    or not 10 <= value <= 100 or int(value) != value):
-                raise HoymilesError("Charge limit SOC must be an integer from 10 to 100")
-            await self.coordinator.async_set_battery_charge_limit_soc(int(value))
-        except HoymilesError as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="battery_setting_write_failed",
-                translation_placeholders={"error": str(err)},
-            ) from err
-
-
 class HoymilesDeviceSettingNumber(DeviceSettingsEntity, NumberEntity):
     _attr_native_min_value = 0
     _attr_native_step = 1
@@ -162,3 +128,38 @@ class HoymilesDeviceSettingNumber(DeviceSettingsEntity, NumberEntity):
             raise HomeAssistantError("Device setting must be a whole value within its displayed range")
         raw = round(value * 255 / 100) if self.field == "ldb" else int(value)
         await self._async_change(self.manager.async_set_lighting({self.field: raw}))
+
+
+class HoymilesBatteryCutoffNumber(DeviceSettingsEntity, NumberEntity):
+    """Separate app cutoffs from Android DisChargeActivity, action 1537."""
+
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_native_step = 1
+
+    def __init__(self, coordinator, entry, field):
+        self.field = field
+        key = "battery_discharge_cutoff" if field == "sl" else "battery_charge_cutoff"
+        super().__init__(coordinator, entry, key, "cutoffs")
+
+    @property
+    def manager(self):
+        return self.coordinator.cutoff_settings
+
+    @property
+    def native_value(self):
+        return (self.manager.cutoffs or {}).get(self.field)
+
+    @property
+    def native_min_value(self):
+        lower = (self.manager.cutoffs or {}).get("sl", 10)
+        return 10 if self.field == "sl" else max(50, lower + 10)
+
+    @property
+    def native_max_value(self):
+        upper = (self.manager.cutoffs or {}).get("sh", 100)
+        return min(70, upper - 10) if self.field == "sl" else 100
+
+    async def async_set_native_value(self, value):
+        if (type(value) not in (int, float) or not 10 <= value <= 100 or int(value) != value):
+            raise HomeAssistantError("Battery cutoff must be a whole percentage within its supported range")
+        await self._async_change(self.manager.async_set_cutoff(self.field, int(value)))
