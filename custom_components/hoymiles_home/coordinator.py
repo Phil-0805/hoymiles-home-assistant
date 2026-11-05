@@ -22,6 +22,7 @@ from .api import (
 )
 from .battery_telemetry import BatteryTelemetryPoller
 from .device_settings import DeviceSettings
+from .output_power import OutputPowerSettings
 from .battery import battery_settings_confirmed, writable_modes
 from .const import (
     BATTERY_SETTINGS_INTERVAL,
@@ -115,6 +116,12 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             lambda: self.battery_controls and not self._stopped,
             self._publish_device_settings, features=("cutoffs",),
         )
+        self.output_settings = OutputPowerSettings(
+            hass, client, station_id, self.battery_controls,
+            lambda: self.device_tree,
+            lambda: self.battery_controls and not self._stopped,
+            self._publish_device_settings,
+        )
 
     def _publish_device_settings(self) -> None:
         if not self._stopped and self.data is not None:
@@ -144,6 +151,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._stopped = True
         await self.device_settings.async_shutdown()
         await self.cutoff_settings.async_shutdown()
+        await self.output_settings.async_shutdown()
         await super().async_shutdown()
         await self.module_polling.async_shutdown()
         await self.battery_telemetry.async_shutdown()
@@ -455,6 +463,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.battery_telemetry.start()
             self.device_settings.start()
             self.cutoff_settings.start()
+            self.output_settings.start()
             if now - self._modules_updated >= MODULE_INTERVAL:
                 self._modules_updated = now
                 self.module_polling.start(self.inverters)

@@ -36,13 +36,41 @@ readback uses `out_power_total`, `out_power_a`, `out_power_b`, `out_power_c`.
 Do not mix these read and write field names or select action 84 without checking
 the station layout.
 
-## Implementation status
+## Implementation: v0.5.2b4 beta
 
-The commands above are identified in manufacturer source, but are not new HA
-entities yet. Station-specific readback, phase layout, permissions, limits and
-app comparison remain unverified. This avoids repeating the b2 SOC mapping
-mistake. No live account reads or output-limit writes were used in this research.
-Grid-export power is a separate setting and remains outside these operations.
+b4 adds **Output power limit / Ausgangsleistungsgrenze** in watts,
+behind **Allow battery controls**. It follows the app's effective output-power
+setting (84/1532); it does not raise configuration 515, a device's allowed
+maximum, or a grid-export limit.
+
+The Android phase endpoint `/pvmc/api/0/station/phase/type_s_c` is checked for
+every settings read. An explicit empty array selects action 84. An explicit
+non-empty array of unique A/B/C phase names selects 1532, output `type: 0`.
+A failed, absent or malformed phase response is never replaced with an action-84
+fallback. JSON-text phase arrays are bounded to 128 characters and validated.
+
+Only returned integer settings and limits enable the number: `power` and
+`max_power` for 84, or all active output-phase values and maxima for 1532.
+Missing limits do not become a 2000 W default. Unsupported or incomplete settings
+remain unavailable. The control starts at 100 W and cannot exceed the freshly
+reported `max_power`. A unique AC battery controller is required; ambiguous
+multiple-device trees are not selected arbitrarily.
+
+Every write takes a fresh snapshot under a lock, checks permission and controller
+identity again, rejects a changed phase layout and preserves active phase values.
+The total output setting is written once. Readback must confirm the total, phase
+values, limits, action and layout; failed confirmation never resends the write.
+Simultaneous app edits cannot be made atomic by this unofficial API.
+
+Settings refresh every 30 minutes while battery controls are enabled, with a
+separate manual refresh button (30-second cooldown). Each read involves a phase
+request, a command-read request and command-status polling, all through the
+existing shared account budget. Diagnostics contain only fixed statuses,
+phase names, action, total watts and maximum watts. No controller addresses or
+raw responses are exported.
+
+This new control has synthetic test coverage but still needs an actual device/app
+comparison before hardware success is claimed. The historical b3 release is unchanged. The new control is included in b4.
 
 ## Sources
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from homeassistant.components.number import NumberEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EntityCategory, PERCENTAGE, UnitOfTime
+from homeassistant.const import EntityCategory, PERCENTAGE, UnitOfPower, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -31,6 +31,7 @@ async def async_setup_entry(
         async_add_entities([
             HoymilesBatteryCutoffNumber(coordinator, entry, "sl"),
             HoymilesBatteryCutoffNumber(coordinator, entry, "sh"),
+            HoymilesOutputPowerNumber(coordinator, entry),
         ])
     if coordinator.device_controls:
         async_add_entities([
@@ -163,3 +164,33 @@ class HoymilesBatteryCutoffNumber(DeviceSettingsEntity, NumberEntity):
         if (type(value) not in (int, float) or not 10 <= value <= 100 or int(value) != value):
             raise HomeAssistantError("Battery cutoff must be a whole percentage within its supported range")
         await self._async_change(self.manager.async_set_cutoff(self.field, int(value)))
+
+
+class HoymilesOutputPowerNumber(DeviceSettingsEntity, NumberEntity):
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_native_step = 1
+    _attr_native_min_value = 100
+    _attr_icon = "mdi:lightning-bolt"
+
+    def __init__(self, coordinator, entry):
+        super().__init__(coordinator, entry, "output_power_limit", "output_power")
+
+    @property
+    def manager(self):
+        return self.coordinator.output_settings
+
+    @property
+    def native_value(self):
+        return (self.manager.output or {}).get("values", {}).get("total")
+
+    @property
+    def native_max_value(self):
+        # HA requires a numeric bound even before the initial read. This
+        # placeholder never enables a control or supplies a cloud capability.
+        return (self.manager.output or {}).get("limits", {}).get("total", 100)
+
+    async def async_set_native_value(self, value):
+        if (type(value) not in (int, float) or not 100 <= value <= 2**31 - 1
+                or int(value) != value):
+            raise HomeAssistantError("Output power must be a whole watt value of at least 100 W")
+        await self._async_change(self.manager.async_set_power(int(value)))

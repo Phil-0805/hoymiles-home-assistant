@@ -42,9 +42,10 @@ without serial numbers, account data or full command responses.
 
 ## Validation still required
 
-The implementation has synthetic regression coverage, not a hardware success
-claim. In b3, change one cutoff at a time, check that exact field in
-the app after refreshing it, then restore the original value. Avoid simultaneous
+On 2026-11-05, the maintainer reported both b3 cutoff controls working correctly
+on their setup. This is user-reported device feedback, not verification across
+other firmware or models. For other setups, change one cutoff at a time, check
+that exact field in the app after refreshing it, then restore the original value. Avoid simultaneous
 app edits. Matching cloud readback does not by itself prove a physical cutoff
 was applied. Reserve SOC remains a separate existing setting.
 

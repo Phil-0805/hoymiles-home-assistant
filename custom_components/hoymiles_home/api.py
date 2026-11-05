@@ -13,7 +13,8 @@ from aiohttp import ClientError, ClientResponseError, ClientSession, ClientTimeo
 from argon2.low_level import Type, hash_secret_raw
 
 from .battery_telemetry import parse_battery_temperatures
-from .device_settings import parse_cutoffs, parse_heating, parse_lighting
+from .device_settings import parse_cutoffs, parse_heating, parse_lighting, setting_integer
+from .output_power import output_phases, output_write_data, parse_output_settings, validate_output_settings
 from .battery import (
     BatterySettingsError,
     battery_setting_targets,
@@ -46,7 +47,7 @@ from .module_data import MAX_MODULE_BYTES, decode_module_snapshot
 from .security import trusted_hoymiles_url
 from .cloud_runtime import AccountRuntime, retry_delay
 from .errors import (
-    HoymilesError, HoymilesAuthError, HoymilesConnectionError, HoymilesRateLimitError,
+    HoymilesError, HoymilesAuthError, HoymilesConnectionError, HoymilesRateLimitError, HoymilesSettingsError,
 )
 
 MAX_JSON_BYTES = 8 * 1024 * 1024
@@ -776,11 +777,49 @@ class HoymilesHomeClient:
         if result is False:
             raise HoymilesConnectionError("Battery configuration was rejected")
 
+    async def async_output_power_settings(self, station_id):
+        """Select the output action only from an explicit phase response."""
+        await self.async_ensure_login()
+        phases = self._unwrap(await self._json(
+            f"{DATA_BASE_URL}/pvmc/api/0/station/phase/type_s_c", {"sid": station_id},
+        ))
+        phases = output_phases(phases)
+        action = 1532 if phases else 84
+        data = {"type": 0} if phases else {}
+        result = await self._async_output_power_action(station_id, action, data)
+        if isinstance(result, str):
+            result = _decode_json(result)
+        return parse_output_settings(result, phases)
+
+    async def async_write_output_power_settings(self, station_id, settings, value):
+        settings = validate_output_settings(settings)
+        data = output_write_data(settings, value)
+        await self._async_output_power_action(station_id, settings["action"], data, write=True)
+
+    async def _async_output_power_action(self, station_id, action, data, *, write=False):
+        if type(action) is not int or action not in (84, 1532):
+            raise HoymilesConnectionError("Unsupported output power action")
+        await self.async_ensure_login()
+        response = await self._json(
+            STATION_SETTING_WRITE_URL if write else STATION_SETTING_READ_URL,
+            {"action": action, "data": {**data, "sid": station_id}},
+        )
+        job_id = self._unwrap(response)
+        if type(job_id) not in (str, int) or not str(job_id) or len(str(job_id)) > 256:
+            raise HoymilesConnectionError("Output power command returned no id")
+        result = await self._async_poll_station_setting_job(str(job_id))
+        if type(result.get("code")) is not int or result["code"] != 0:
+            raise HoymilesConnectionError("Output power command failed")
+        return result.get("data")
+
     async def async_cutoff_settings(self, target):
         """Mirror DisChargeActivity's device-addressed action 1537 read."""
         result = await self._async_cutoff_action(target, {})
         if isinstance(result, str):
-            result = _decode_json(result)
+            try:
+                result = _decode_json(result)
+            except HoymilesConnectionError:
+                raise HoymilesSettingsError("invalid_json", "Invalid battery cutoff JSON") from None
         return parse_cutoffs(result)
 
     async def async_write_cutoff_settings(self, target, settings):
@@ -795,10 +834,10 @@ class HoymilesHomeClient:
         )
         job_id = self._unwrap(response)
         if type(job_id) not in (str, int) or not str(job_id) or len(str(job_id)) > 256:
-            raise HoymilesConnectionError("Battery cutoff command returned no id")
+            raise HoymilesSettingsError("invalid_command_id", "Battery cutoff command returned no id")
         result = await self._async_poll_station_setting_job(str(job_id))
         if type(result.get("code")) is not int or result["code"] != 0:
-            raise HoymilesConnectionError("Battery cutoff command failed")
+            raise HoymilesSettingsError("command_failed", "Battery cutoff command failed", result)
         return result.get("data")
 
     async def _async_device_settings_action(self, payload, *, write=False):
@@ -811,7 +850,7 @@ class HoymilesHomeClient:
             f"{DATA_BASE_URL}/pvm-ctl/api/0/dev/setting/{endpoint}", payload,
         ))
         if type(result) not in (str, int) or not str(result) or len(str(result)) > 256:
-            raise HoymilesConnectionError("Device settings returned no command id")
+            raise HoymilesSettingsError("invalid_command_id", "Device settings returned no command id")
         for _ in range(BATTERY_SETTINGS_MAX_POLLS):
             await asyncio.sleep(BATTERY_SETTINGS_POLL_INTERVAL)
             status = self._unwrap(await self._json(
@@ -820,11 +859,11 @@ class HoymilesHomeClient:
             if isinstance(status, str):
                 status = _decode_json(status)
             if not isinstance(status, dict) or type(status.get("code")) is not int:
-                raise HoymilesConnectionError("Invalid device settings status")
+                raise HoymilesSettingsError("invalid_settings", "Invalid device settings status", status)
             if status["code"] == 2:
                 continue
             if status["code"] != 0:
-                raise HoymilesConnectionError("Device settings operation failed")
+                raise HoymilesSettingsError("command_failed", "Device settings operation failed", status)
             return status.get("data")
         raise HoymilesConnectionError("Device settings operation timed out")
 
@@ -854,8 +893,13 @@ class HoymilesHomeClient:
         data = await self._async_device_settings_action(
             {"action": 1529, **addressing, "sid": station_id},
         )
-        if not isinstance(data, dict) or ("sid" in data and (type(data["sid"]) is not int or data["sid"] != station_id)):
-            raise HoymilesConnectionError("Invalid light/display station")
+        if isinstance(data, str):
+            try:
+                data = _decode_json(data)
+            except HoymilesConnectionError:
+                raise HoymilesSettingsError("invalid_json", "Invalid light/display JSON") from None
+        if not isinstance(data, dict) or ("sid" in data and setting_integer(data["sid"], station_id) != station_id):
+            raise HoymilesSettingsError("invalid_station", "Invalid light/display station", data)
         data = {key: value for key, value in data.items() if key != "sid"}
         parse_lighting(data, addressing)
         return data
