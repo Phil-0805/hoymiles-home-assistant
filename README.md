@@ -52,6 +52,14 @@ Battery commands are disabled by default, including when upgrading an existing i
 
 Use v0.5.1 or newer for the current security fixes. Earlier versions are superseded. After updating, restart Home Assistant and explicitly enable battery controls if needed. This also applies to existing automations that change the battery mode or reserve SOC.
 
+## New in beta v0.5.2b5: cloud connection diagnostics
+
+New logs identify login, station and live-request failures using fixed reasons,
+without account data, tokens, identifiers or raw cloud responses. When the mobile
+live lookup succeeds without a server address, b5 tries the manufacturer's web
+lookup. Affected-account testing is still needed to confirm recovery.
+[Testing instructions and details](docs/release-0.5.2b5.md).
+
 ## New in beta v0.5.2b3: separate battery cutoffs
 
 The incorrectly mapped b2 charge-limit number and its sensor are removed on
@@ -121,7 +129,7 @@ and create a backup before testing.
 - **HA 2026.11+ / Marketplace:** Open **Settings → Devices & services → Marketplace**
   and the device page for this repository. Enable the disabled **Pre-release**
   switch entity, then turn it on. Install the offered beta, or use **Install
-  another version** on the repository page to select a beta such as `0.5.2b4`.
+  another version** on the repository page to select a beta such as `0.5.2b5`.
 - **HA 2026.10 or older / HACS:** Open this repository, enable prereleases and use
   **Redownload** to choose the beta. Labels vary with the HACS version.
 

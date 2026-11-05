@@ -54,6 +54,15 @@ Batteriebefehle sind standardmäßig gesperrt, auch beim Update einer bestehende
 
 Für die aktuellen Schutzmaßnahmen v0.5.1 oder neuer verwenden. Frühere Versionen sind überholt. Nach dem Update Home Assistant neu starten und die Batteriesteuerung bei Bedarf ausdrücklich freigeben. Das gilt auch für bestehende Automationen, die Modus oder Reserve-SOC ändern.
 
+## Neu in Beta v0.5.2b5: Verbindungsdiagnose
+
+Neue Logs unterscheiden Login-, Stations- und Live-Abfragen anhand fester
+Fehlergründe, ohne Kontodaten, Tokens, Kennungen oder Cloud-Rohantworten auszugeben.
+Bei einer erfolgreichen mobilen Live-Abfrage ohne Serveradresse versucht b5 den
+Web-Endpunkt des Herstellers. Ob das die gemeldeten Verbindungsprobleme behebt,
+muss noch an den betroffenen Konten bestätigt werden.
+[Testanleitung und Details](docs/release-0.5.2b5.md).
+
 ## Neu in Beta v0.5.2b3: getrennte Schlussstufen
 
 Der falsch zugeordnete Ladegrenzen-Regler aus b2 und sein Sensor werden beim
@@ -127,7 +136,7 @@ der gewählten Version lesen und eine Sicherung erstellen.
   die Geräteseite dieses Repositorys öffnen. Die standardmäßig deaktivierte
   Schalter-Entität **Pre-release** aktivieren und anschließend einschalten.
   Die angebotene Beta installieren oder auf der Repositoryseite über **Andere
-  Version installieren** eine Beta wie `0.5.2b4` auswählen.
+  Version installieren** eine Beta wie `0.5.2b5` auswählen.
 - **Bis HA 2026.10 / HACS:** Dieses Repository öffnen, Vorabversionen aktivieren
   und über **Erneut herunterladen** die Beta auswählen. Die Beschriftung kann
   je nach HACS-Version abweichen.
