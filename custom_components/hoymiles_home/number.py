@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from homeassistant.components.number import NumberEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EntityCategory, PERCENTAGE
+from homeassistant.const import EntityCategory, PERCENTAGE, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -15,6 +15,7 @@ from .api import HoymilesError
 from .battery import battery_charge_limit_soc
 from .const import CONF_STATION_ID, DOMAIN
 from .coordinator import HoymilesHomeCoordinator
+from .device_settings_entity import DeviceSettingsEntity
 
 
 async def async_setup_entry(
@@ -28,6 +29,12 @@ async def async_setup_entry(
         HoymilesBatteryReserveSocNumber(coordinator, entry),
         HoymilesBatteryChargeLimitSocNumber(coordinator, entry),
     ])
+    if coordinator.device_controls:
+        async_add_entities([
+            HoymilesDeviceSettingNumber(coordinator, entry, "display_brightness", "ldb", 100, PERCENTAGE),
+            HoymilesDeviceSettingNumber(coordinator, entry, "display_off_delay", "sot", 3600, UnitOfTime.SECONDS),
+            HoymilesDeviceSettingNumber(coordinator, entry, "strip_off_delay", "slot", 3600, UnitOfTime.SECONDS),
+        ])
 
 
 class HoymilesBatteryReserveSocNumber(
@@ -126,3 +133,32 @@ class HoymilesBatteryChargeLimitSocNumber(HoymilesBatteryReserveSocNumber):
                 translation_key="battery_setting_write_failed",
                 translation_placeholders={"error": str(err)},
             ) from err
+
+
+class HoymilesDeviceSettingNumber(DeviceSettingsEntity, NumberEntity):
+    _attr_native_min_value = 0
+    _attr_native_step = 1
+
+    def __init__(self, coordinator, entry, key, field, maximum, unit):
+        super().__init__(coordinator, entry, key)
+        self.field = field
+        self._attr_native_max_value = maximum
+        self._attr_native_unit_of_measurement = unit
+
+    @property
+    def available(self):
+        return super().available and self.field in self.values
+
+    @property
+    def native_value(self):
+        value = self.values.get(self.field)
+        if value is None:
+            return None
+        return round(value * 100 / 255) if self.field == "ldb" else value
+
+    async def async_set_native_value(self, value):
+        if (isinstance(value, bool) or not isinstance(value, (int, float))
+                or not 0 <= value <= self.native_max_value or int(value) != value):
+            raise HomeAssistantError("Device setting must be a whole value within its displayed range")
+        raw = round(value * 255 / 100) if self.field == "ldb" else int(value)
+        await self._async_change(self.manager.async_set_lighting({self.field: raw}))

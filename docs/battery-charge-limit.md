@@ -1,10 +1,10 @@
-# Battery charge limit (development)
+# Battery charge limit (v0.5.2b2 beta)
 
-The next development version adds a read-only charge-limit sensor and a
+Beta v0.5.2b2 adds a read-only charge-limit sensor and a
 **Charge limit SOC** number entity. This is the upper charge threshold shown
 alongside the lower discharge threshold in the S-Miles Home app.
 
-The current release v0.5.2b1 does not include these entities yet.
+These entities are new in v0.5.2b2; v0.5.2b1 does not include them.
 
 The control is available only in Self-Consumption mode when the cloud explicitly
 returns the upper threshold through the supported settings path. A missing field

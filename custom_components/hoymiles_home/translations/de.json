@@ -50,12 +50,13 @@
     "battery_setting_write_failed": {
       "message": "Die Batterieeinstellung konnte nicht gespeichert werden: {error}"
     },
+    "device_setting_write_failed": {"message": "Die Geräteeinstellung konnte nicht bestätigt werden: {error}"},
     "battery_mode_unavailable": {
       "message": "Der Batteriemodus {mode} ist nicht verfügbar."
     }
   },
   "entity": {
-    "button": {"refresh_battery_settings": {"name": "Batterieeinstellungen aktualisieren"}},
+    "button": {"refresh_battery_settings": {"name": "Batterieeinstellungen aktualisieren"}, "refresh_device_settings": {"name": "Heizungs- und Displayeinstellungen aktualisieren"}},
     "sensor": {
       "inverter_voltage": {"name": "AC-Spannung"},
       "inverter_frequency": {"name": "Netzfrequenz"},
@@ -91,19 +92,25 @@
     },
     "number": {
       "battery_reserve_soc": {"name": "Reserve-SOC"},
-      "battery_charge_limit_soc": {"name": "Ladegrenze (SOC)"}
+      "battery_charge_limit_soc": {"name": "Ladegrenze (SOC)"},
+      "display_brightness": {"name": "Displayhelligkeit"},
+      "display_off_delay": {"name": "Display Ausschaltverzögerung"},
+      "strip_off_delay": {"name": "Leuchtstreifen Ausschaltverzögerung"}
     },
     "select": {
       "battery_mode": {"name": "Batteriemodus"}
     },
+    "switch": {"battery_heating": {"name": "Batterieheizung erlauben"}},
+    "light": {"battery_indicator": {"name": "Batterie Leuchtstreifen"}},
     "binary_sensor": {"connected": {"name": "Verbindung"}}
   },
   "options": {
     "step": {
       "init": {
         "title": "Anlageneinstellungen",
-        "description": "Vergleiche die Attribute pv und pv2 des Sensors PV-Leistung mit der S-Miles-Home-App. Wähle eine andere Quelle nur, wenn der Vergleich das bestätigt. Automatisch behält das bisherige Verhalten bei: pv2, falls verfügbar, sonst pv; auch 0 ist ein gültiger Wert. Die Auswahl ändert nur die Anzeige in HA. Zusätzliche Messwerte sind optional und werden höchstens alle fünf Minuten gelesen. Wähle die tatsächliche Zeitzone der Anlage für Tagesgrenzen und Diagramme. Batteriebefehle sind standardmäßig gesperrt, auch nach einem Update. Aktiviere die Batteriesteuerung nur, wenn Home Assistant Modus und SOC-Grenzen ändern darf. Gleichzeitige Änderungen in der S-Miles-Home-App vermeiden.",
+        "description": "Vergleiche die Attribute pv und pv2 des Sensors PV-Leistung mit der S-Miles-Home-App. Wähle eine andere Quelle nur, wenn der Vergleich das bestätigt. Automatisch behält das bisherige Verhalten bei: pv2, falls verfügbar, sonst pv; auch 0 ist ein gültiger Wert. Die Auswahl ändert nur die Anzeige in HA. Zusätzliche Messwerte sind optional und werden höchstens alle fünf Minuten gelesen. Wähle die tatsächliche Zeitzone der Anlage für Tagesgrenzen und Diagramme. Batteriebefehle sind standardmäßig gesperrt, auch nach einem Update. Aktiviere die Batteriesteuerung nur, wenn Home Assistant Modus und SOC-Grenzen ändern darf. Gleichzeitige Änderungen in der S-Miles-Home-App vermeiden. Gerätesteuerung liest zusätzlich Heizungs- und Displayeinstellungen alle 30 Minuten. Sie ist separat standardmäßig gesperrt. Der Heizungsschalter erlaubt das automatische Heizen; er erzwingt keinen laufenden Heizbetrieb. Je nach Gerät sind nicht alle Lichtfunktionen verfügbar.",
         "data": {
+          "device_controls": "Gerätesteuerung freigeben (Heizung, Licht und Display; Beta)",
           "battery_controls": "Batteriesteuerung freigeben (Modus und SOC-Grenzen)",
           "pv_power_source": "Quelle der PV-Leistung",
           "battery_temperatures": "Batterietemperaturen (Beta, zusätzliche Abfrage alle fünf Minuten)",

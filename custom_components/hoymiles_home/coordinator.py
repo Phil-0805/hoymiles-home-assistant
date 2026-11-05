@@ -21,6 +21,7 @@ from .api import (
     microinverters,
 )
 from .battery_telemetry import BatteryTelemetryPoller
+from .device_settings import DeviceSettings
 from .battery import battery_charge_limit_soc, battery_settings_confirmed, writable_modes
 from .const import (
     BATTERY_SETTINGS_INTERVAL,
@@ -51,6 +52,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         pv_power_source: str = "auto",
         inverter_details: bool = False, station_timezone: tzinfo | None = None,
         battery_temperatures: bool = False, battery_controls: bool = False,
+        device_controls: bool = False,
     ) -> None:
         super().__init__(
             hass,
@@ -100,6 +102,17 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._battery_settings_lock = asyncio.Lock()
         self._battery_settings_task: asyncio.Task | None = None
         self._stopped = False
+        self.device_controls = device_controls is True
+        self.device_settings = DeviceSettings(
+            hass, client, station_id, self.device_controls,
+            lambda: self.device_tree,
+            lambda: self.device_controls and not self._stopped,
+            self._publish_device_settings,
+        )
+
+    def _publish_device_settings(self) -> None:
+        if not self._stopped and self.data is not None:
+            self.async_update_listeners()
 
     async def async_initialize(self) -> None:
         """Restore today's calculated battery energy."""
@@ -123,6 +136,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def async_shutdown(self) -> None:
         """Cancel our background read before the entry is removed or reloaded."""
         self._stopped = True
+        await self.device_settings.async_shutdown()
         await super().async_shutdown()
         await self.module_polling.async_shutdown()
         await self.battery_telemetry.async_shutdown()
@@ -446,6 +460,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._start_battery_settings_refresh()
 
             self.battery_telemetry.start()
+            self.device_settings.start()
             if now - self._modules_updated >= MODULE_INTERVAL:
                 self._modules_updated = now
                 self.module_polling.start(self.inverters)

@@ -6,12 +6,14 @@ import asyncio
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 import json
+import re
 from typing import Any
 
 from aiohttp import ClientError, ClientResponseError, ClientSession, ClientTimeout
 from argon2.low_level import Type, hash_secret_raw
 
 from .battery_telemetry import parse_battery_temperatures
+from .device_settings import parse_heating, parse_lighting
 from .battery import (
     BatterySettingsError,
     battery_setting_targets,
@@ -773,6 +775,70 @@ class HoymilesHomeClient:
         result = self._unwrap(response)
         if result is False:
             raise HoymilesConnectionError("Battery configuration was rejected")
+
+    async def _async_device_settings_action(self, payload, *, write=False):
+        """Use the manufacturer's device-settings transport, never a guessed station action."""
+        if type(payload.get("action")) is not int or payload["action"] not in (1518, 1529):
+            raise HoymilesConnectionError("Unsupported device settings action")
+        await self.async_ensure_login()
+        endpoint = "write" if write else "read"
+        result = self._unwrap(await self._json(
+            f"{DATA_BASE_URL}/pvm-ctl/api/0/dev/setting/{endpoint}", payload,
+        ))
+        if type(result) not in (str, int) or not str(result) or len(str(result)) > 256:
+            raise HoymilesConnectionError("Device settings returned no command id")
+        for _ in range(BATTERY_SETTINGS_MAX_POLLS):
+            await asyncio.sleep(BATTERY_SETTINGS_POLL_INTERVAL)
+            status = self._unwrap(await self._json(
+                f"{DATA_BASE_URL}/pvm-ctl/api/0/dev/setting/status", {"id": str(result)},
+            ))
+            if isinstance(status, str):
+                status = _decode_json(status)
+            if not isinstance(status, dict) or type(status.get("code")) is not int:
+                raise HoymilesConnectionError("Invalid device settings status")
+            if status["code"] == 2:
+                continue
+            if status["code"] != 0:
+                raise HoymilesConnectionError("Device settings operation failed")
+            return status.get("data")
+        raise HoymilesConnectionError("Device settings operation timed out")
+
+    async def async_heating_settings(self, station_id):
+        return parse_heating(await self._async_device_settings_action(
+            {"action": 1518, "data": {"sid": station_id}},
+        ))
+
+    async def async_write_heating_settings(self, station_id, enabled):
+        data = parse_heating({"enable": enabled})
+        await self._async_device_settings_action(
+            {"action": 1518, "data": {"sid": station_id, **data}}, write=True,
+        )
+
+    @staticmethod
+    def _light_target_payload(target):
+        if (not isinstance(target, dict) or set(target) != {"dev_sn", "dtu_sn"}
+                or not all(isinstance(value, str) and re.fullmatch(r"[0-9A-Fa-f]{12,24}", value)
+                           for value in target.values())):
+            raise HoymilesConnectionError("Invalid light/display target")
+        return dict(target)
+
+    async def async_light_display_settings(self, station_id, target):
+        addressing = self._light_target_payload(target)
+        data = await self._async_device_settings_action(
+            {"action": 1529, **addressing, "sid": station_id},
+        )
+        if not isinstance(data, dict) or ("sid" in data and (type(data["sid"]) is not int or data["sid"] != station_id)):
+            raise HoymilesConnectionError("Invalid light/display station")
+        data = {key: value for key, value in data.items() if key != "sid"}
+        parse_lighting(data, addressing)
+        return data
+
+    async def async_write_light_display_settings(self, station_id, target, settings):
+        addressing = self._light_target_payload(target)
+        parse_lighting(settings, addressing)
+        await self._async_device_settings_action(
+            {"action": 1529, **addressing, "data": {**deepcopy(settings), "sid": station_id}}, write=True,
+        )
 
 
 def microinverters(tree: Any) -> list[dict[str, Any]]:

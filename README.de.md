@@ -54,14 +54,30 @@ Batteriebefehle sind standardmäßig gesperrt, auch beim Update einer bestehende
 
 Für die aktuellen Schutzmaßnahmen v0.5.1 oder neuer verwenden. Frühere Versionen sind überholt. Nach dem Update Home Assistant neu starten und die Batteriesteuerung bei Bedarf ausdrücklich freigeben. Das gilt auch für bestehende Automationen, die Modus oder Reserve-SOC ändern.
 
-## In Entwicklung: obere Ladegrenze
+## Neu in Beta v0.5.2b2: obere Ladegrenze
 
-Der Entwicklungsstand ergänzt einen Sensor und einen Regler für den maximalen
+Die Beta v0.5.2b2 ergänzt einen Sensor und einen Regler für den maximalen
 Lade-SOC im unterstützten Eigenverbrauchsmodus. Die frisch gelesene untere Grenze
 bleibt erhalten; das Ergebnis wird zurückgelesen. Ohne ausdrücklich gelieferte
 obere Grenze oder bei einem nicht unterstützten Einstellungsweg bleibt der
-Regler unverfügbar. Noch nicht in v0.5.2b1 enthalten; siehe
+Regler unverfügbar. Siehe
 [Unterstützung und Testhinweise](docs/battery-charge-limit.md).
+
+## Neu in Beta v0.5.2b2: Batterieheizung, Licht und Display
+
+Die Beta v0.5.2b2 ergänzt **Batterieheizung erlauben**, einen RGB-Leuchtstreifen
+mit Helligkeit, Displayhelligkeit sowie getrennte Ausschaltzeiten für Licht und
+Display. Unter **Konfigurieren** die neue Option **Gerätesteuerung freigeben**
+einschalten; sie ist unabhängig von der Batteriesteuerung und standardmäßig aus.
+Danach werden unterstützte Einstellungen alle 30 Minuten gelesen und können
+über einen eigenen Aktualisierungsknopf erneut abgerufen werden.
+
+Die Heizungsfreigabe erlaubt die automatische Erwärmung durch das Gerät; sie
+erzwingt kein Heizen und zeigt keine aktive Heizung an. Benannte App-Lichteffekte
+wie „Regenbogen“ werden noch nicht angeboten. Nicht bestätigte Funktionen bleiben
+unverfügbar. Jede Änderung liest zuerst die aktuellen Einstellungen und prüft
+das Ergebnis anschließend. Gerätetests stehen noch aus; siehe
+[Funktionsumfang und Testhinweise](docs/device-settings.md).
 
 ## Anzeige des Batteriemodus (v0.5.2 Beta)
 
@@ -98,7 +114,7 @@ der gewählten Version lesen und eine Sicherung erstellen.
   die Geräteseite dieses Repositorys öffnen. Die standardmäßig deaktivierte
   Schalter-Entität **Pre-release** aktivieren und anschließend einschalten.
   Die angebotene Beta installieren oder auf der Repositoryseite über **Andere
-  Version installieren** eine Beta wie `0.5.2b1` auswählen.
+  Version installieren** eine Beta wie `0.5.2b2` auswählen.
 - **Bis HA 2026.10 / HACS:** Dieses Repository öffnen, Vorabversionen aktivieren
   und über **Erneut herunterladen** die Beta auswählen. Die Beschriftung kann
   je nach HACS-Version abweichen.

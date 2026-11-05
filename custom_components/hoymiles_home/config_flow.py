@@ -24,7 +24,7 @@ from homeassistant.helpers.selector import (
 )
 
 from .api import HoymilesAuthError, HoymilesConnectionError, HoymilesHomeClient
-from .const import CONF_BATTERY_CONTROLS, CONF_BATTERY_TEMPERATURES, CONF_INVERTER_DETAILS, CONF_STATION_ID, CONF_STATION_TIMEZONE, DOMAIN
+from .const import CONF_BATTERY_CONTROLS, CONF_DEVICE_CONTROLS, CONF_BATTERY_TEMPERATURES, CONF_INVERTER_DETAILS, CONF_STATION_ID, CONF_STATION_TIMEZONE, DOMAIN
 from .telemetry import PV_POWER_SOURCE, PV_POWER_SOURCES
 
 
@@ -259,6 +259,10 @@ class HoymilesHomeOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(
                     CONF_BATTERY_CONTROLS,
                     default=self.config_entry.options.get(CONF_BATTERY_CONTROLS, False),
+                ): BooleanSelector(),
+                vol.Optional(
+                    CONF_DEVICE_CONTROLS,
+                    default=self.config_entry.options.get(CONF_DEVICE_CONTROLS, False),
                 ): BooleanSelector(),
                 vol.Optional(
                     CONF_BATTERY_TEMPERATURES,
