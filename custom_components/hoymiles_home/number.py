@@ -11,11 +11,11 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .api import HoymilesError
 from .const import CONF_STATION_ID, DOMAIN
 from .coordinator import HoymilesHomeCoordinator
-from .device_settings_entity import DeviceSettingsEntity
 from .device_settings import OFF_DELAY_FIELDS, OFF_DELAY_NEVER
+from .device_settings_entity import DeviceSettingsEntity
+from .errors import HoymilesError
 
 
 async def async_setup_entry(

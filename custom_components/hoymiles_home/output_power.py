@@ -2,7 +2,6 @@
 
 import asyncio
 from copy import deepcopy
-from datetime import UTC, datetime
 import json
 
 from . import device_settings as settings_runtime
@@ -88,10 +87,7 @@ class OutputPowerSettings(DeviceSettings):
 
     def _store(self, feature, value):
         self.output = deepcopy(value)
-        self.updated[feature] = datetime.now(UTC)
-        self.status[feature] = "readable"
-        self.last_error.pop(feature, None)
-        self._clear_read_retry(feature)
+        self._mark_readable(feature)
 
     async def async_set_power(self, value):
         if type(value) is not int or not 100 <= value <= 2**31 - 1:

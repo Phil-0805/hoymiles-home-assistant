@@ -2,22 +2,61 @@
 
 import logging
 
+from .const import (
+    AUTH_BASE_URLS, DATA_BASE_URL, STATION_SETTING_READ_URL,
+    STATION_SETTING_STATUS_URL, STATION_SETTING_WRITE_URL,
+)
 from .errors import HoymilesAuthError, HoymilesConnectionError, HoymilesRateLimitError
 from .telemetry import number
 
 LOGGER = logging.getLogger(__name__)
-STAGES = frozenset({"login_challenge", "login", "station_discovery", "station_validation",
-                    "reauthentication", "live_uri_mobile", "live_uri_web", "live_data", "other_api",
-                    "device_settings_status", "station_settings_status", "output_phase_lookup"}
-                   | {f"{feature}_{operation}"
-                      for feature in ("device_settings", "station_settings", "heating", "lighting",
-                                      "cutoffs", "output_power", "work_mode", "battery_settings")
-                      for operation in ("read", "write")})
+_SETTING_ROUTES = {
+    f"{DATA_BASE_URL}/pvm-ctl/api/0/dev/setting/read": ("device_settings", "read"),
+    f"{DATA_BASE_URL}/pvm-ctl/api/0/dev/setting/write": ("device_settings", "write"),
+    STATION_SETTING_READ_URL: ("station_settings", "read"),
+    STATION_SETTING_WRITE_URL: ("station_settings", "write"),
+}
+_SETTING_FEATURES = {
+    1518: "heating", 1529: "lighting", 1537: "cutoffs", 84: "output_power",
+    1532: "output_power", 83: "work_mode", 1013: "battery_settings",
+}
+_KNOWN_STAGES = {
+    f"{base}/iam/pub/3/auth/{operation}": stage
+    for base in AUTH_BASE_URLS.values()
+    for operation, stage in (("pre-insp", "login_challenge"), ("login", "login"))
+}
+_KNOWN_STAGES.update({
+    f"{DATA_BASE_URL}/pvmc/api/0/station/select_by_page_c": "station_discovery",
+    f"{DATA_BASE_URL}/pvmc/api/0/station/select_device_c": "station_validation",
+    f"{DATA_BASE_URL}/pvmc/api/0/station/get_sd_uri_c": "live_uri_mobile",
+    f"{DATA_BASE_URL}/pvm/api/0/station/get_sd_uri": "live_uri_web",
+    f"{DATA_BASE_URL}/pvm-ctl/api/0/dev/setting/status": "device_settings_status",
+    STATION_SETTING_STATUS_URL: "station_settings_status",
+    f"{DATA_BASE_URL}/pvmc/api/0/station/phase/type_s_c": "output_phase_lookup",
+})
+_SETTING_STAGES = {
+    f"{feature}_{operation}"
+    for feature in {"device_settings", "station_settings"} | set(_SETTING_FEATURES.values())
+    for operation in ("read", "write")
+}
+STAGES = frozenset(set(_KNOWN_STAGES.values()) | _SETTING_STAGES
+                   | {"reauthentication", "live_data", "other_api"})
 REASONS = frozenset({"http_error", "timeout", "transport_error", "redirect_rejected",
                      "invalid_json", "cloud_rejected", "invalid_challenge", "missing_token",
                      "missing_uri", "invalid_uri_type", "untrusted_uri", "invalid_live_data",
                      "unexpected_response", "authentication", "rate_limited", "connection", "unexpected_error",
                      "unsupported_auth_version", "unsupported_auth_region"})
+
+
+def request_stage(url, payload=None, live_uri=None):
+    """Match exact known routes/actions; never turn private input into labels."""
+    if url in _SETTING_ROUTES:
+        family, operation = _SETTING_ROUTES[url]
+        action = payload.get("action") if isinstance(payload, dict) else None
+        if type(action) is int:
+            family = _SETTING_FEATURES.get(action, family)
+        return f"{family}_{operation}"
+    return _KNOWN_STAGES.get(url, "live_data" if live_uri is not None and url == live_uri else "other_api")
 
 
 def safe_code(value):

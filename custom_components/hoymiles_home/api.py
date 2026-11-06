@@ -48,7 +48,10 @@ from .telemetry import number
 from .inverter import inverter_model
 from .module_data import MAX_MODULE_BYTES, decode_module_snapshot
 from .security import trusted_hoymiles_url, trusted_auth_redirect
-from .cloud_logging import CloudDiagnosticError, LOGGER as CLOUD_LOGGER, failure_reason, response_summary, live_response_summary
+from .cloud_logging import (
+    CloudDiagnosticError, LOGGER as CLOUD_LOGGER, failure_reason, response_summary,
+    live_response_summary, request_stage,
+)
 from .cloud_runtime import AccountRuntime, retry_delay
 from .errors import (
     HoymilesError, HoymilesAuthError, HoymilesConnectionError, HoymilesRateLimitError, HoymilesSettingsError,
@@ -167,34 +170,7 @@ class HoymilesHomeClient:
             CLOUD_LOGGER.warning("Cloud request failed: stage=%s reason=%s %s", stage, reason, summary)
 
     def _cloud_stage(self, url, payload=None):
-        # Exact endpoint matching, never log a URL or derive labels from input.
-        setting_routes = {
-            f"{DATA_BASE_URL}/pvm-ctl/api/0/dev/setting/read": ("device_settings", "read"),
-            f"{DATA_BASE_URL}/pvm-ctl/api/0/dev/setting/write": ("device_settings", "write"),
-            STATION_SETTING_READ_URL: ("station_settings", "read"),
-            STATION_SETTING_WRITE_URL: ("station_settings", "write"),
-        }
-        if url in setting_routes:
-            family, operation = setting_routes[url]
-            action = payload.get("action") if isinstance(payload, dict) else None
-            features = {1518: "heating", 1529: "lighting", 1537: "cutoffs",
-                        84: "output_power", 1532: "output_power", 83: "work_mode", 1013: "battery_settings"}
-            if type(action) is int:
-                family = features.get(action, family)
-            return f"{family}_{operation}"
-        known = {
-            **{f"{base}/iam/pub/3/auth/{operation}": stage
-               for base in AUTH_BASE_URLS.values()
-               for operation, stage in (("pre-insp", "login_challenge"), ("login", "login"))},
-            f"{DATA_BASE_URL}/pvmc/api/0/station/select_by_page_c": "station_discovery",
-            f"{DATA_BASE_URL}/pvmc/api/0/station/select_device_c": "station_validation",
-            f"{DATA_BASE_URL}/pvmc/api/0/station/get_sd_uri_c": "live_uri_mobile",
-            f"{DATA_BASE_URL}/pvm/api/0/station/get_sd_uri": "live_uri_web",
-            f"{DATA_BASE_URL}/pvm-ctl/api/0/dev/setting/status": "device_settings_status",
-            STATION_SETTING_STATUS_URL: "station_settings_status",
-            f"{DATA_BASE_URL}/pvmc/api/0/station/phase/type_s_c": "output_phase_lookup",
-        }
-        return known.get(url, "live_data" if self._live_uri is not None and url == self._live_uri else "other_api")
+        return request_stage(url, payload, self._live_uri)
 
     async def _json(self, url: str, payload: dict[str, Any]) -> dict[str, Any]:
         if not trusted_hoymiles_url(url):

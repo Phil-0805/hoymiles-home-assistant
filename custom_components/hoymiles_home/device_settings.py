@@ -105,7 +105,7 @@ def parse_lighting(data, target):
     except (ValueError, TypeError, RecursionError):
         raise HoymilesSettingsError("invalid_lighting", "Invalid light/display settings", data) from None
     values = {}
-    for key, maximum in LIGHT_FIELDS.items():
+    for key in LIGHT_FIELDS:
         value = lighting_integer(key, data.get(key))
         if key in data and value is None:
             raise HoymilesSettingsError("invalid_lighting", "Invalid light/display value", data)
@@ -120,7 +120,7 @@ def parse_lighting(data, target):
     snapshot = deepcopy(data)
     # Canonicalize known numeric fields for full readback comparison. Unknown
     # fields retain both their values and their original types.
-    for key, maximum in LIGHT_FIELDS.items():
+    for key in LIGHT_FIELDS:
         if key in data:
             snapshot[key] = lighting_integer(key, data[key])
     return {"values": values, "snapshot": snapshot}
@@ -220,6 +220,10 @@ class DeviceSettings:
             self.cutoffs = value
         else:
             self.lighting = value
+        self._mark_readable(feature)
+
+    def _mark_readable(self, feature):
+        """Record one successful read and cancel its pending recovery attempt."""
         self.updated[feature] = datetime.now(UTC)
         self.status[feature] = "readable"
         self.last_error.pop(feature, None)
