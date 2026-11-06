@@ -7,7 +7,12 @@ from .telemetry import number
 
 LOGGER = logging.getLogger(__name__)
 STAGES = frozenset({"login_challenge", "login", "station_discovery", "station_validation",
-                    "reauthentication", "live_uri_mobile", "live_uri_web", "live_data", "other_api"})
+                    "reauthentication", "live_uri_mobile", "live_uri_web", "live_data", "other_api",
+                    "device_settings_status", "station_settings_status", "output_phase_lookup"}
+                   | {f"{feature}_{operation}"
+                      for feature in ("device_settings", "station_settings", "heating", "lighting",
+                                      "cutoffs", "output_power", "work_mode", "battery_settings")
+                      for operation in ("read", "write")})
 REASONS = frozenset({"http_error", "timeout", "transport_error", "redirect_rejected",
                      "invalid_json", "cloud_rejected", "invalid_challenge", "missing_token",
                      "missing_uri", "invalid_uri_type", "untrusted_uri", "invalid_live_data",

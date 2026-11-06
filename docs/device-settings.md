@@ -113,3 +113,22 @@ Custom in the selector when they differ from app presets.
 Writes still require device-control permission, a fresh full snapshot, unchanged
 counterparts and full readback. Confirmation on the originally affected device
 remains pending.
+
+## Local preparation for the v0.6.0 prerelease
+
+Successful settings reads keep the 30-minute cadence. Generic failed reads may
+be retried twice, after 1 and 3 minutes, without re-reading successful features
+or repeating writes. Authentication/rate failures and invalid settings do not
+get accelerated retries. Account pacing, status-poll bounds and server pauses
+remain in force. See [timing and APK evidence](api-request-timing.md).
+
+At the maintainer's request, the diagnostic sensor **Maximum power setting
+(raw)** / **Maximale Leistungseinstellung (Rohwert)** (`battery_max_power`) is
+retired. Only that config entry's exact sensor unique ID is removed from the
+entity registry, including disabled/custom-named entries. The output-power
+number, station device, other sensors and other entries are preserved. The old
+unverified mode-setting raw field is not treated as equivalent to the separate
+action-84/1532 output control; no values or automation calls are redirected.
+Dashboards or automations explicitly referencing the retired sensor need manual
+adjustment. This local change is planned for v0.6.0b1 instead of the previously
+discussed b10; the prerelease has not yet been published.

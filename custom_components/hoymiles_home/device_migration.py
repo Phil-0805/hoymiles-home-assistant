@@ -1,4 +1,4 @@
-"""Migrate temperature devices and remove the incorrect b2 charge-limit entities."""
+"""Migrate temperature devices and remove exact obsolete setting entities."""
 
 import re
 
@@ -18,6 +18,16 @@ def async_remove_obsolete_charge_limit_entities(hass, entry):
     }
     for entity in er.async_entries_for_config_entry(registry, entry.entry_id):
         if entity.platform == DOMAIN and (entity.domain, entity.unique_id) in obsolete:
+            registry.async_remove(entity.entity_id)
+
+
+@callback
+def async_remove_obsolete_max_power_sensor(hass, entry):
+    """Retire only this config entry's raw maximum-power diagnostic sensor."""
+    registry = er.async_get(hass)
+    unique_id = f"{entry.entry_id}_battery_max_power"
+    for entity in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if entity.platform == DOMAIN and entity.domain == "sensor" and entity.unique_id == unique_id:
             registry.async_remove(entity.entity_id)
 
 

@@ -223,17 +223,6 @@ STATION_SENSORS = (
         ),
     ),
     HoymilesDescription(
-        key="battery_max_power",
-        translation_key="battery_max_power",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda data: _number(
-            data.get("battery_settings", {})
-            .get("active_settings", {})
-            .get("max_power")
-        ),
-        attributes_fn=lambda data: {"unit_verified": False},
-    ),
-    HoymilesDescription(
         key="battery_activity",
         translation_key="battery_activity",
         device_class=SensorDeviceClass.ENUM,
@@ -380,8 +369,6 @@ class HoymilesStationSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEn
 
     @property
     def available(self) -> bool:
-        if self.entity_description.key == "battery_max_power" and self.native_value is None:
-            return False
         if self.entity_description.key in {"today_energy", "month_energy", "year_energy", "total_energy"}:
             if not self.coordinator.station_is_fresh(self.entity_description.key):
                 return False

@@ -13,7 +13,10 @@ from .api import HoymilesHomeClient
 from .cloud_runtime import AccountPool
 from .const import CONF_BATTERY_CONTROLS, CONF_DEVICE_CONTROLS, CONF_INVERTER_DETAILS, CONF_STATION_ID, CONF_STATION_TIMEZONE, DOMAIN, PLATFORMS
 from .coordinator import HoymilesHomeCoordinator
-from .device_migration import async_migrate_battery_temperatures, async_remove_obsolete_charge_limit_entities
+from .device_migration import (
+    async_migrate_battery_temperatures, async_remove_obsolete_charge_limit_entities,
+    async_remove_obsolete_max_power_sensor,
+)
 from .telemetry import PV_POWER_SOURCE
 
 
@@ -52,6 +55,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             model="S-Miles Home station",
         )
         async_remove_obsolete_charge_limit_entities(hass, entry)
+        async_remove_obsolete_max_power_sensor(hass, entry)
         async_migrate_battery_temperatures(hass, entry)
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     except BaseException:

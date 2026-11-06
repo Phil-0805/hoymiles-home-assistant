@@ -91,6 +91,7 @@ class OutputPowerSettings(DeviceSettings):
         self.updated[feature] = datetime.now(UTC)
         self.status[feature] = "readable"
         self.last_error.pop(feature, None)
+        self._clear_read_retry(feature)
 
     async def async_set_power(self, value):
         if type(value) is not int or not 100 <= value <= 2**31 - 1:

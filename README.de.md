@@ -215,4 +215,4 @@ Die Cloud-API ist undokumentiert und kann sich ändern. Das Projekt ist nicht
 unabhängig geprüft.
 
 [MIT-Lizenz](LICENSE) · [Release-Hinweise](https://github.com/Phil-0805/hoymiles-home-assistant/releases) ·
-[Gerätetestplan](docs/testing-0.5.0.de.md) · [MQTT-Prüfung für v0.6](docs/roadmap-0.6.md)
+[Gerätetestplan](docs/testing-0.5.0.de.md) · [MQTT-Prüfung für v0.7.0](docs/roadmap-0.7.md)

@@ -1,9 +1,14 @@
-# v0.6 planning: optional MQTT support
+# v0.7.0 planning: optional MQTT support
 
 Maintainer request, 2026-11-05: investigate an optional MQTT connection alongside
-the existing cloud integration for v0.6. This is a planned investigation, not a
-compatibility or release commitment. It is separate from the v0.5.2 connection
-fixes. MQTT implementation is outside the v0.5.2 release scope.
+the existing cloud integration. On 2026-11-06 the maintainer moved this work to
+v0.7.0. This is a planned investigation, not a compatibility or release commitment.
+
+The accumulated v0.5.2 beta changes are planned for stable **v0.6.0**, preceded
+by **v0.6.0b1** with the prepared read-recovery/sensor cleanup and any additional
+reviewed changes. That prerelease replaces the previously discussed b10. MQTT
+implementation is outside the v0.6.0 release scope. Existing beta releases and
+tags remain unchanged; the new release has not yet been published.
 
 References:
 - Community report: https://github.com/Phil-0805/hoymiles-home-assistant/issues/9#issuecomment-6664727610
