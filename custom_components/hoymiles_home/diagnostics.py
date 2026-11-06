@@ -7,7 +7,7 @@ from .const import DOMAIN
 from .inverter import inverter_model, inverter_ports
 from .battery import work_mode_upper_soc, writable_modes
 from .telemetry import battery_activity, live_power, number, pv_power_details, status_codes
-from .errors import SETTINGS_ERROR_REASONS
+from .errors import SETTINGS_ERROR_REASONS, SETTINGS_DIAGNOSTIC_FIELDS
 
 
 def _settings_error_diagnostics(manager, feature):
@@ -19,7 +19,7 @@ def _settings_error_diagnostics(manager, feature):
     result = {"reason": reason if type(reason) is str and reason in SETTINGS_ERROR_REASONS else "connection"}
     shape = error.get("response_shape")
     kinds = {"object", "array", "string", "integer", "number", "boolean", "null", "other"}
-    fields = {"sl", "sh", "enable", "r", "g", "b", "slb", "slot", "ldb", "sot", "sid"}
+    fields = SETTINGS_DIAGNOSTIC_FIELDS
     if isinstance(shape, dict):
         kind = shape.get("type")
         field_types = shape.get("field_types", {})

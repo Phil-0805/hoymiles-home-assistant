@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
+import hashlib
 import json
 import re
 from typing import Any
@@ -100,6 +102,7 @@ class HoymilesHomeClient:
         self.runtime = runtime or AccountRuntime()
         self._live_uri: str | None = None
         self._cloud_log_states = {}
+        self._auth_version = None
 
     @property
     def _token(self):
@@ -152,6 +155,8 @@ class HoymilesHomeClient:
             summary = f"http_status={code} {summary}"
         if redirect_policy in {"allowed_auth_target", "blocked_target", "unsupported_status", "hop_limit", "not_auth_request"}:
             summary = f"redirect_policy={redirect_policy} {summary}"
+        if stage == "login" and type(self._auth_version) is int and self._auth_version in (1, 2, 3):
+            summary = f"{summary} auth_version={self._auth_version}"
         key = (stage, reason)
         if self._cloud_log_states.get(key) != summary:
             self._cloud_log_states[key] = summary
@@ -265,26 +270,45 @@ class HoymilesHomeClient:
             await self._async_login_unlocked()
 
     async def _async_login_unlocked(self) -> None:
-        """Run Argon2 outside the event loop; caller holds the login lock."""
+        """Follow the server-selected app protocol; never retry another algorithm."""
+        self._auth_version = None
         pre = await self._json(
             f"{AUTH_BASE_URL}/iam/pub/3/auth/pre-insp", {"u": self._email}
         )
-        data = self._unwrap(pre) or {}
+        data = self._unwrap(pre)
+        if not isinstance(data, dict):
+            self._cloud_report("login_challenge", "invalid_challenge", pre)
+            raise HoymilesAuthError("Incomplete pre-inspection response")
+        version = setting_integer(data.get("v"), 3)
+        if version not in (1, 2, 3):
+            self._cloud_report("login_challenge", "unsupported_auth_version", pre)
+            raise CloudDiagnosticError("unsupported_auth_version", "Unsupported S-Miles Home login protocol")
+        self._auth_version = version
         try:
-            salt = bytes.fromhex(data["a"])
-            nonce = data["n"]
-            if not 8 <= len(salt) <= 64 or not isinstance(nonce, str) or not 1 <= len(nonce) <= 1024:
+            nonce = data.get("n")
+            if nonce is not None and (not isinstance(nonce, str) or not 1 <= len(nonce) <= 1024):
                 raise ValueError("Invalid authentication challenge")
+            if version == 3:
+                salt = bytes.fromhex(data["a"])
+                if not 8 <= len(salt) <= 64 or nonce is None:
+                    raise ValueError("Invalid authentication challenge")
         except (KeyError, TypeError, ValueError):
             self._cloud_report("login_challenge", "invalid_challenge", pre)
             raise HoymilesAuthError("Incomplete pre-inspection response") from None
-        challenge = (await asyncio.to_thread(
-            hash_secret_raw,
-            self._password.encode(), salt, 3, 32768, 1, 32, Type.ID
-        )).hex()
+        if version == 3:
+            challenge = (await asyncio.to_thread(
+                hash_secret_raw,
+                self._password.encode(), salt, 3, 32768, 1, 32, Type.ID
+            )).hex()
+        else:
+            # ToolsUtil.e / web encryptPwd: MD5 hex + '.' + SHA-256 Base64.
+            # Selected only by an explicit v=1/2 challenge over trusted HTTPS.
+            password_bytes = self._password.encode()
+            challenge = (hashlib.md5(password_bytes).hexdigest() + "."
+                         + base64.b64encode(hashlib.sha256(password_bytes).digest()).decode("ascii"))
         login = await self._json(
             f"{AUTH_BASE_URL}/iam/pub/3/auth/login",
-            {"u": self._email, "ch": challenge, "n": nonce},
+            {"u": self._email, "ch": challenge, **({"n": nonce} if nonce is not None else {})},
         )
         login_data = self._unwrap(login)
         token = login_data.get("token") if isinstance(login_data, dict) else None
@@ -647,7 +671,11 @@ class HoymilesHomeClient:
                 status = _decode_json(status)
             if not isinstance(status, dict):
                 raise HoymilesConnectionError("Work mode returned an invalid status")
-            if status.get("code") == 2:
+            code = setting_integer(status.get("code"), 2**31 - 1)
+            if code is None:
+                raise HoymilesSettingsError("invalid_settings", "Invalid station command status", status)
+            status = {**status, "code": code}
+            if code == 2:
                 continue
             return status
         raise HoymilesConnectionError("Work mode request timed out")
@@ -878,10 +906,14 @@ class HoymilesHomeClient:
         ))
         phases = output_phases(phases)
         action = 1532 if phases else 84
-        data = {"type": 0} if phases else {}
-        result = await self._async_output_power_action(station_id, action, data)
+        # Both app and web read action 1532 with sid only; type=0 belongs
+        # exclusively to the output write, not the settings read.
+        result = await self._async_output_power_action(station_id, action, {})
         if isinstance(result, str):
-            result = _decode_json(result)
+            try:
+                result = _decode_json(result)
+            except HoymilesConnectionError:
+                raise HoymilesSettingsError("invalid_json", "Invalid output power JSON") from None
         return parse_output_settings(result, phases)
 
     async def async_write_output_power_settings(self, station_id, settings, value):
@@ -899,10 +931,10 @@ class HoymilesHomeClient:
         )
         job_id = self._unwrap(response)
         if type(job_id) not in (str, int) or not str(job_id) or len(str(job_id)) > 256:
-            raise HoymilesConnectionError("Output power command returned no id")
+            raise HoymilesSettingsError("invalid_command_id", "Output power command returned no id")
         result = await self._async_poll_station_setting_job(str(job_id))
         if type(result.get("code")) is not int or result["code"] != 0:
-            raise HoymilesConnectionError("Output power command failed")
+            raise HoymilesSettingsError("command_failed", "Output power command failed", result)
         return result.get("data")
 
     async def async_cutoff_settings(self, target):

@@ -83,6 +83,46 @@ comparison before hardware success is claimed. The historical b3 release is unch
 These are public client implementation details, not a published API guarantee
 or an authenticated device command capture.
 
+## B8: stored value outside the current write range
+
+The maintainer's web read returns an explicit empty phase list and a settings
+record with `power=2000`, `max_power=800`, and phase limit fields of 800. Only
+these allowlisted numeric values were retained, without account/device data.
+An empty phase list selects action 84, not 1532. The stored power setting is
+not evidence of actual physical output or permission to write 2000 W.
+
+The previous parser rejected that entire record because it required the stored
+value to fit the current write range. B8 preserves the actual
+stored integer even outside that range while still requiring explicit valid
+limits. It does not clamp the reading to a fictional 800 W. The number remains
+readable at 2000 W with a maximum allowed new setting of 800 W, and can be lowered
+after the existing fresh-read preflight. A write above the freshly reported
+maximum remains blocked, including a no-op request for the old 2000 W value.
+Values below 100 W are likewise readable, while new total settings remain
+restricted to at least 100 W. No maximum is invented when it is absent.
+
+The app's `getInteger` / `Integer.parseInt(String.valueOf(...))` parsing also
+supports short decimal integer strings. Known output values/limits and station
+job status codes are now canonicalized at the response boundary. Floats, booleans,
+oversized/invalid strings and missing values stay rejected; service inputs stay
+strict. For phases, a stored counterpart above its own fresh limit is readable
+but blocks a write that would resend that invalid counterpart.
+
+A separate source cross-check found that the 1532 read incorrectly included
+`type=0`. Both the archived web `OutPowerConfigDrawer` and Android
+`PhaseConstraintLayout.w` → `CommandRequestHelper.J0/Y` read with `{sid}` only.
+B8 removes the read-side type. Writes still use `type=0`:
+`OutPutPowerActivity` calls `PhaseConstraintLayout.B(..., 1, ...)`, which writes
+`type = argument - 1`. This does not explain the maintainer's phase-empty case;
+the captured out-of-range stored value does.
+
+Fixed output phase/settings/command error reasons now include only known field
+type labels. No raw settings snapshots or identifiers are added to diagnostics.
+Synthetic tests reproduce the 2000/800 record, a permitted lowering to 800 W,
+blocked writes above 800 W, numeric-string roundtrips, complete readback and the
+exact phase read/write payloads. Device-level confirmation of the updated control
+is still pending. Polling frequency, configuration 515 and permissions are unchanged.
+
 ## Android cross-check
 
 Android V2.13.0 independently uses action 84 for the legacy output-power page

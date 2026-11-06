@@ -18,6 +18,13 @@ SETTINGS_ERROR_REASONS = frozenset({
     "invalid_json", "invalid_station", "invalid_command_id", "command_failed",
     "invalid_settings", "authentication", "rate_limited", "timeout", "connection",
     "no_unique_target",
+    "invalid_output_phases", "invalid_output_settings",
+})
+
+SETTINGS_DIAGNOSTIC_FIELDS = frozenset({
+    "sl", "sh", "enable", "r", "g", "b", "slb", "slot", "ldb", "sot", "sid", "code",
+    "power", "max_power", "out_power_total", "out_power_a", "out_power_b", "out_power_c",
+    "power_a", "power_b", "power_c",
 })
 
 
@@ -26,7 +33,7 @@ def setting_response_shape(data):
     def kind(value):
         return {dict: "object", list: "array", str: "string", int: "integer",
                 float: "number", bool: "boolean", type(None): "null"}.get(type(value), "other")
-    fields = {"sl", "sh", "enable", "r", "g", "b", "slb", "slot", "ldb", "sot", "sid"}
+    fields = SETTINGS_DIAGNOSTIC_FIELDS
     return {"type": kind(data), "field_types": {
         key: kind(data[key]) for key in sorted(fields) if isinstance(data, dict) and key in data
     }}

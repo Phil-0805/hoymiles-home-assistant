@@ -136,7 +136,7 @@ async def test_redirected_rate_limit_preserves_backoff_and_original_stage(query,
 async def test_full_login_with_both_requests_redirected(caplog):
     api = client_with(
         response(302, location=PRE.replace("euapi", "neapi")),
-        response(data={"status": "0", "data": {"a": "0123456789abcdef", "n": SECRET}}),
+        response(data={"status": "0", "data": {"v": 3, "a": "0123456789abcdef", "n": SECRET}}),
         response(307, location=LOGIN.replace("euapi", "neapi")),
         response(data={"status": "0", "data": {"token": SECRET}}),
     )
@@ -189,10 +189,11 @@ async def test_times_marker_does_not_allow_other_queries(query, caplog):
     assert target not in caplog.text
 
 
-async def test_full_login_with_times_marker(caplog):
+@pytest.mark.parametrize("version", [1, 2, 3])
+async def test_full_login_with_times_marker(version, caplog):
     api = client_with(
         response(307, location=PRE + "?times=1"),
-        response(data={"status": "0", "data": {"a": "0123456789abcdef", "n": SECRET}}),
+        response(data={"status": "0", "data": {"v": version, "a": "0123456789abcdef", "n": SECRET}}),
         response(307, location=LOGIN + "?times=1"),
         response(data={"status": "0", "data": {"token": SECRET}}),
     )
