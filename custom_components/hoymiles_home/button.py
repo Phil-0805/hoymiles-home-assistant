@@ -11,14 +11,17 @@ from .device_settings_entity import DeviceSettingsEntity
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
+    coordinator = hass.data[DOMAIN][entry.entry_id]
     async_add_entities([
-        HoymilesRefreshBatterySettingsButton(hass.data[DOMAIN][entry.entry_id], entry)
+        HoymilesRefreshBatterySettingsButton(coordinator, entry)
     ])
-    if hass.data[DOMAIN][entry.entry_id].device_controls:
-        async_add_entities([HoymilesRefreshDeviceSettingsButton(hass.data[DOMAIN][entry.entry_id], entry)])
-    if hass.data[DOMAIN][entry.entry_id].battery_controls:
-        async_add_entities([HoymilesRefreshCutoffSettingsButton(hass.data[DOMAIN][entry.entry_id], entry)])
-        async_add_entities([HoymilesRefreshOutputPowerButton(hass.data[DOMAIN][entry.entry_id], entry)])
+    if coordinator.device_controls:
+        async_add_entities([HoymilesRefreshDeviceSettingsButton(coordinator, entry)])
+    if coordinator.battery_controls:
+        async_add_entities([
+            HoymilesRefreshCutoffSettingsButton(coordinator, entry),
+            HoymilesRefreshOutputPowerButton(coordinator, entry),
+        ])
 
 
 class HoymilesRefreshBatterySettingsButton(CoordinatorEntity, ButtonEntity):
@@ -55,7 +58,7 @@ class HoymilesRefreshDeviceSettingsButton(DeviceSettingsEntity, ButtonEntity):
 
     @property
     def available(self):
-        return (self.coordinator.last_update_success and self.coordinator.device_controls
+        return (self.coordinator.last_update_success and self.controls_enabled
                 and self.manager.enabled and not self.manager.stopped)
 
     async def async_press(self):
@@ -70,11 +73,6 @@ class HoymilesRefreshCutoffSettingsButton(HoymilesRefreshDeviceSettingsButton):
     @property
     def manager(self):
         return self.coordinator.cutoff_settings
-
-    @property
-    def available(self):
-        return (self.coordinator.last_update_success and self.coordinator.battery_controls
-                and self.manager.enabled and not self.manager.stopped)
 
 
 class HoymilesRefreshOutputPowerButton(HoymilesRefreshCutoffSettingsButton):

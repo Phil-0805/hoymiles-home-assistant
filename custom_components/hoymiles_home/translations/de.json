@@ -76,7 +76,6 @@
       "battery_settings_access": {"name": "Batterieeinstellungen Zugriff"},
       "battery_mode": {"name": "Batteriemodus", "state": {"self_consumption": "Eigenverbrauch", "economy": "Sparmodus", "backup": "Notstrom", "off_grid": "Inselbetrieb", "self_consumption_max_power": "Eigenverbrauch + maximale Leistung", "backup_max_power": "Notstrom + maximale Leistung", "peak_shaving": "Lastspitzenkappung", "time_of_use": "Zeitabhängiger Betrieb"}},
       "battery_reserve_soc": {"name": "Batterie Reserve-SOC"},
-      "battery_max_power": {"name": "Maximale Leistungseinstellung (Rohwert)"},
       "ems": {"name": "EMS-Status (Rohwert)"},
       "brs": {"name": "Batterierelais-Status (Rohwert)"},
       "chs": {"name": "Ladestatus (Rohwert)"},

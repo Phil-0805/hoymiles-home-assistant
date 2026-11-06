@@ -13,6 +13,9 @@ _LOGGER = logging.getLogger(__name__)
 
 SETTINGS_INTERVAL = timedelta(minutes=30)
 MANUAL_COOLDOWN = timedelta(seconds=30)
+# Conservative HA recovery policy, not a manufacturer account quota. Retry only
+# failed reads twice, then return to the normal thirty-minute schedule.
+READ_RETRY_DELAYS = (timedelta(minutes=1), timedelta(minutes=3))
 READBACK_ATTEMPTS = 3
 READBACK_DELAY = 3
 DISPLAY_FIELDS = {"ldb": 255, "sot": 3600}
@@ -20,6 +23,16 @@ STRIP_FIELDS = {"r": 255, "g": 255, "b": 255, "slb": 255, "slot": 3600}
 LIGHT_FIELDS = {**DISPLAY_FIELDS, **STRIP_FIELDS}
 OFF_DELAY_NEVER = 65535
 OFF_DELAY_FIELDS = frozenset({"slot", "sot"})
+
+
+def read_retry_delay(error, attempts):
+    """Never accelerate auth, rate, structural or rejected-redirect failures."""
+    if (isinstance(error, (HoymilesAuthError, HoymilesRateLimitError, HoymilesSettingsError))
+            or not isinstance(error, (HoymilesConnectionError, TimeoutError))
+            or getattr(error, "reason", None) not in (None, "cloud_rejected")
+            or attempts >= len(READ_RETRY_DELAYS)):
+        return None
+    return READ_RETRY_DELAYS[attempts]
 
 
 def setting_integer(value, maximum):
@@ -92,7 +105,7 @@ def parse_lighting(data, target):
     except (ValueError, TypeError, RecursionError):
         raise HoymilesSettingsError("invalid_lighting", "Invalid light/display settings", data) from None
     values = {}
-    for key, maximum in LIGHT_FIELDS.items():
+    for key in LIGHT_FIELDS:
         value = lighting_integer(key, data.get(key))
         if key in data and value is None:
             raise HoymilesSettingsError("invalid_lighting", "Invalid light/display value", data)
@@ -107,7 +120,7 @@ def parse_lighting(data, target):
     snapshot = deepcopy(data)
     # Canonicalize known numeric fields for full readback comparison. Unknown
     # fields retain both their values and their original types.
-    for key, maximum in LIGHT_FIELDS.items():
+    for key in LIGHT_FIELDS:
         if key in data:
             snapshot[key] = lighting_integer(key, data[key])
     return {"values": values, "snapshot": snapshot}
@@ -154,6 +167,8 @@ class DeviceSettings:
         self.task = None
         self.stopped = False
         self.last_attempt = self.next_allowed = datetime.min.replace(tzinfo=UTC)
+        self.read_retry_at = {}
+        self.read_retry_count = {}
 
     def available(self, feature):
         stamp = self.updated.get(feature)
@@ -165,19 +180,31 @@ class DeviceSettings:
             raise HoymilesConnectionError("Device controls are disabled")
 
     def start(self):
-        if not self.enabled or self.stopped or datetime.now(UTC) < self.next_allowed:
+        now = datetime.now(UTC)
+        if (not self.enabled or self.stopped or not self.may_write()
+                or now < getattr(self, "paused_until", datetime.min.replace(tzinfo=UTC))):
             return None
-        return self._start()
+        if now >= self.next_allowed:
+            return self._start()
+        due = tuple(feature for feature in self.features if feature in self.read_retry_at
+                    and now >= self.read_retry_at[feature])
+        return self._start(due) if due else None
 
-    def _start(self):
+    def _start(self, features=None):
         if self.task is None or self.task.done():
             self.last_attempt = datetime.now(UTC)
-            self.next_allowed = max(self.next_allowed, self.last_attempt + SETTINGS_INTERVAL)
-            self.task = self.hass.async_create_background_task(self._async_refresh(), "hoymiles_home device settings")
+            if features is None:
+                self.next_allowed = max(self.next_allowed, self.last_attempt + SETTINGS_INTERVAL)
+                self.read_retry_at.clear()
+                self.read_retry_count.clear()
+            else:
+                for feature in features:
+                    self.read_retry_at.pop(feature, None)
+            self.task = self.hass.async_create_background_task(self._async_refresh(features), "hoymiles_home device settings")
         return self.task
 
     async def async_refresh(self):
-        if not self.enabled or self.stopped:
+        if not self.enabled or self.stopped or not self.may_write():
             return False
         running = self.task is not None and not self.task.done()
         if not running and (datetime.now(UTC) - self.last_attempt < MANUAL_COOLDOWN
@@ -193,9 +220,26 @@ class DeviceSettings:
             self.cutoffs = value
         else:
             self.lighting = value
+        self._mark_readable(feature)
+
+    def _mark_readable(self, feature):
+        """Record one successful read and cancel its pending recovery attempt."""
         self.updated[feature] = datetime.now(UTC)
         self.status[feature] = "readable"
         self.last_error.pop(feature, None)
+        self._clear_read_retry(feature)
+
+    def _clear_read_retry(self, feature):
+        self.read_retry_at.pop(feature, None)
+        self.read_retry_count.pop(feature, None)
+
+    def _schedule_read_retry(self, feature, error):
+        self.read_retry_at.pop(feature, None)
+        count = self.read_retry_count.get(feature, 0)
+        delay = read_retry_delay(error, count)
+        if delay is not None and not self.stopped:
+            self.read_retry_count[feature] = count + 1
+            self.read_retry_at[feature] = datetime.now(UTC) + delay
 
     def _failure(self, feature, error):
         self.status[feature] = "unavailable"
@@ -223,28 +267,38 @@ class DeviceSettings:
     def _target(self, feature):
         return light_target(self.get_tree(), mobile_addressing=feature == "cutoffs")
 
-    async def _async_refresh(self):
+    async def _async_refresh(self, features=None):
+        selected = self.features if features is None else features
+        pending = set(selected)
         try:
             async with self.lock, asyncio.timeout(120):
-                if self.stopped:
+                if self.stopped or not self.enabled or not self.may_write():
                     return
-                for feature in self.features:
+                for feature in selected:
+                    if self.stopped or not self.may_write():
+                        return
                     target = self._target(feature) if feature != "heating" else None
                     if feature != "heating":
                         self.target = target
                         if target is None:
                             self.status[feature] = "no_unique_target"
                             self.last_error[feature] = {"reason": "no_unique_target"}
+                            self._clear_read_retry(feature)
+                            pending.discard(feature)
                             continue
                     try:
                         self._store(feature, await self._read(feature, target))
                     except (HoymilesAuthError, HoymilesConnectionError, TimeoutError) as err:
                         self._failure(feature, err)
                         if isinstance(err, (HoymilesAuthError, HoymilesRateLimitError)):
+                            self.read_retry_at.clear()
                             return
+                        self._schedule_read_retry(feature, err)
+                    pending.discard(feature)
         except TimeoutError as err:
-            for feature in self.status:
+            for feature in pending:
                 self._failure(feature, err)
+                self._schedule_read_retry(feature, err)
         finally:
             if not self.stopped:
                 self.on_update()
@@ -332,6 +386,7 @@ class DeviceSettings:
 
     async def async_shutdown(self):
         self.stopped = True
+        self.read_retry_at.clear()
         if self.task and not self.task.done():
             self.task.cancel()
             try:

@@ -262,5 +262,7 @@ redirects, privacy and no retries to a different host/algorithm.
 
 The dc=0 mismatch is source-proven and consistent with the supplied report. It
 does not yet establish a successful login at the affected account; no real
-account requests were performed by the agent. The correction is included in b9;
-confirmation on the affected account remains pending.
+account requests were performed by the agent. The correction is included in b9.
+On 2026-11-06 the affected reporter confirmed successful login and incoming
+values with b9. Data accuracy and screen presentation remain under review;
+this confirms that account's login/live connection, not every account or metric.

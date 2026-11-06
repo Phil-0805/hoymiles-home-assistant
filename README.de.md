@@ -15,9 +15,9 @@ unterstützte Batterieeinstellungen über die Hoymiles-Cloud einzubinden.
 Node-RED oder ein MQTT-Broker sind nicht erforderlich. Das Community-Projekt
 ist unabhängig von Hoymiles und offiziell im HACS-Standardkatalog gelistet.
 
-**Release-Stand:** v0.5.2 befindet sich derzeit im Betatest. Der Release-Badge
+**Release-Stand:** v0.6.0 befindet sich derzeit im Betatest. Der Release-Badge
 verlinkt die aktuelle stabile Version; die [Release-Hinweise](https://github.com/Phil-0805/hoymiles-home-assistant/releases)
-enthalten Beta-Änderungen und offene Einschränkungen. Mit **0.5.2** markierte
+enthalten Beta-Änderungen und offene Einschränkungen. Mit **0.6.0** markierte
 Funktionen werden für die nächste stabile Veröffentlichung getestet.
 
 [Installation](#installation) · [Funktionen](#funktionen) · [Steuerung](#steuerung) ·
@@ -48,10 +48,10 @@ Die Verfügbarkeit hängt von Gerät, Firmware und Cloud-Antwort ab.
 | Energie | Gelieferte Energiezähler der Anlage; lokal berechnete tägliche Lade-, Entlade- und Hausverbrauchsenergie |
 | PV-Module | Leistung, Spannung und Strom aus Fünf-Minuten-Diagrammen; wählbare PV-Datenquelle |
 | Batterie | Modus, Reserve-SOC und schreibgeschützte Statusdiagnose |
-| Batterie — **0.5.2** | Automatische Temperaturabfrage und getrennte Lade-/Entladeschlussstufen |
-| Geräteeinstellungen — **0.5.2** | Freigabe automatischer Batterieheizung, LED-Farbe/-Helligkeit, Displayhelligkeit und getrennte Ausschaltverzögerungen |
-| Ausgangsleistung — **0.5.2** | Watt-Regler bei vollständigen Cloud-Einstellungen, Grenzen und Phasenangaben; Gerätebestätigung noch offen |
-| Diagnose — **0.5.2** | Fehlerstelle und Fehlergrund bei Login-/Verbindungsproblemen sowie Wiederherstellungsversuch bei fehlender Live-Serveradresse |
+| Batterie — **0.6.0** | Automatische Temperaturabfrage und getrennte Lade-/Entladeschlussstufen |
+| Geräteeinstellungen — **0.6.0** | Freigabe automatischer Batterieheizung, LED-Farbe/-Helligkeit, Displayhelligkeit und getrennte Ausschaltverzögerungen |
+| Ausgangsleistung — **0.6.0** | Watt-Regler bei vollständigen Cloud-Einstellungen, Grenzen und Phasenangaben; Gerätebestätigung noch offen |
+| Diagnose — **0.6.0** | Fehlerstelle und Fehlergrund bei Login-/Verbindungsproblemen sowie Wiederherstellungsversuch bei fehlender Live-Serveradresse |
 
 Live-Abfragen folgen dem von Hoymiles vorgegebenen Intervall, normalerweise etwa
 drei Sekunden. Moduldiagramme und Batterietemperaturen werden ungefähr alle fünf
@@ -65,8 +65,8 @@ Unter **Einstellungen → Geräte & Dienste → Hoymiles S-Miles Home → Konfig
 
 | Option | Aktiviert |
 | --- | --- |
-| **Batteriesteuerung freigeben** | Batteriemodus und Reserve-SOC; in 0.5.2 zusätzlich getrennte Schlussstufen und unterstützte Ausgangsleistungseinstellungen |
-| **Gerätesteuerung freigeben** — **0.5.2** | Heizungsfreigabe, LED- und Displayeinstellungen |
+| **Batteriesteuerung freigeben** | Batteriemodus und Reserve-SOC; in 0.6.0 zusätzlich getrennte Schlussstufen und unterstützte Ausgangsleistungseinstellungen |
+| **Gerätesteuerung freigeben** — **0.6.0** | Heizungsfreigabe, LED- und Displayeinstellungen |
 | **Zusätzliche Wechselrichter-Messwerte (Beta)** | Optionale Wechselrichtertemperatur, Frequenz und AC-Spannung, soweit verfügbar |
 
 Schreibzugriffe sind standardmäßig deaktiviert. Änderungen lesen zuerst die
@@ -100,7 +100,7 @@ Batterie-Entitäten liefern nur mit unterstütztem Speicher sinnvolle Daten.
 Berechnete Tagesenergien können bei Ausfällen Lücken enthalten und sind nicht
 für Abrechnungszwecke geeignet.
 
-## Update auf 0.5.2
+## Update auf 0.6.0
 
 Hinweise der gewählten Veröffentlichung lesen, Update installieren und Home
 Assistant neu starten. Bestehende Konfigurationseinträge und Entitäten behalten.
@@ -112,6 +112,8 @@ Assistant neu starten. Bestehende Konfigurationseinträge und Entitäten behalte
   Betroffene Automationen bewusst auf die getrennten App-Schlussstufen umstellen.
 - Batterietemperaturen benötigen die bisherige Freigabe nicht mehr.
   Zusätzliche Wechselrichterwerte bleiben optional.
+- Der alte Sensor **Maximale Leistungseinstellung (Rohwert)** entfällt.
+  Verweise in Dashboards oder Automationen anpassen; der Ausgangsleistungs-Regler bleibt.
 
 ## Beta-Versionen testen
 
@@ -124,7 +126,7 @@ der gewählten Version lesen und eine Sicherung erstellen.
   die Geräteseite dieses Repositorys öffnen. Die standardmäßig deaktivierte
   Schalter-Entität **Pre-release** aktivieren und anschließend einschalten.
   Die angebotene Beta installieren oder auf der Repositoryseite über **Andere
-  Version installieren** eine Beta wie `0.5.2b6` auswählen.
+  Version installieren** eine Beta wie `0.6.0b1` auswählen.
 - **Bis HA 2026.10 / HACS:** Dieses Repository öffnen, Vorabversionen aktivieren
   und über **Erneut herunterladen** die Beta auswählen. Die Beschriftung kann
   je nach HACS-Version abweichen.
@@ -144,10 +146,10 @@ Automationen werden bei geänderten Sensorzuständen nicht automatisch angepasst
 ## Probleme untersuchen
 
 Installierte Integrationsversion, HA-Version sowie Gerät und Firmware prüfen.
-Bei Login-/Verbindungsfehlern mit den 0.5.2-Betas unter **Einstellungen → System →
+Bei Login-/Verbindungsfehlern mit den 0.6.0-Betas unter **Einstellungen → System →
 Protokolle → Home Assistant Core** nach `hoymiles_home.cloud_logging` suchen.
 Warnungen nennen `stage`, `reason` und gegebenenfalls numerische Statuscodes.
-Debug-Logging ist nicht erforderlich. Siehe [Verbindungstest](docs/release-0.5.2b6.md).
+Debug-Logging ist nicht erforderlich. Siehe [Verbindungstest](docs/release-0.6.0b1.md).
 Fehlende Live-Serveradresse und fehlgeschlagener Login können verschiedene
 Ursachen haben.
 
@@ -215,4 +217,4 @@ Die Cloud-API ist undokumentiert und kann sich ändern. Das Projekt ist nicht
 unabhängig geprüft.
 
 [MIT-Lizenz](LICENSE) · [Release-Hinweise](https://github.com/Phil-0805/hoymiles-home-assistant/releases) ·
-[Gerätetestplan](docs/testing-0.5.0.de.md) · [MQTT-Prüfung für v0.6](docs/roadmap-0.6.md)
+[Gerätetestplan](docs/testing-0.5.0.de.md) · [MQTT-Prüfung für v0.7.0](docs/roadmap-0.7.md)

@@ -48,7 +48,10 @@ from .telemetry import number
 from .inverter import inverter_model
 from .module_data import MAX_MODULE_BYTES, decode_module_snapshot
 from .security import trusted_hoymiles_url, trusted_auth_redirect
-from .cloud_logging import CloudDiagnosticError, LOGGER as CLOUD_LOGGER, failure_reason, response_summary, live_response_summary
+from .cloud_logging import (
+    CloudDiagnosticError, LOGGER as CLOUD_LOGGER, failure_reason, response_summary,
+    live_response_summary, request_stage,
+)
 from .cloud_runtime import AccountRuntime, retry_delay
 from .errors import (
     HoymilesError, HoymilesAuthError, HoymilesConnectionError, HoymilesRateLimitError, HoymilesSettingsError,
@@ -166,23 +169,13 @@ class HoymilesHomeClient:
             self._cloud_log_states[key] = summary
             CLOUD_LOGGER.warning("Cloud request failed: stage=%s reason=%s %s", stage, reason, summary)
 
-    def _cloud_stage(self, url):
-        # Exact endpoint matching, never log a URL or derive labels from input.
-        known = {
-            **{f"{base}/iam/pub/3/auth/{operation}": stage
-               for base in AUTH_BASE_URLS.values()
-               for operation, stage in (("pre-insp", "login_challenge"), ("login", "login"))},
-            f"{DATA_BASE_URL}/pvmc/api/0/station/select_by_page_c": "station_discovery",
-            f"{DATA_BASE_URL}/pvmc/api/0/station/select_device_c": "station_validation",
-            f"{DATA_BASE_URL}/pvmc/api/0/station/get_sd_uri_c": "live_uri_mobile",
-            f"{DATA_BASE_URL}/pvm/api/0/station/get_sd_uri": "live_uri_web",
-        }
-        return known.get(url, "live_data" if self._live_uri is not None and url == self._live_uri else "other_api")
+    def _cloud_stage(self, url, payload=None):
+        return request_stage(url, payload, self._live_uri)
 
     async def _json(self, url: str, payload: dict[str, Any]) -> dict[str, Any]:
         if not trusted_hoymiles_url(url):
             raise HoymilesConnectionError("Untrusted Hoymiles API URL")
-        stage = self._cloud_stage(url)
+        stage = self._cloud_stage(url, payload)
         is_auth = stage in {"login_challenge", "login"}
         headers = self.headers
         if is_auth:
@@ -232,6 +225,9 @@ class HoymilesHomeClient:
             if err.status == 401:
                 self._token_expires = datetime.min.replace(tzinfo=UTC)
                 raise HoymilesAuthError("Hoymiles authentication expired (HTTP 401)") from None
+            if 400 <= err.status < 500:
+                # A rejected request is not an occasion for accelerated reads.
+                raise CloudDiagnosticError("http_error", f"Hoymiles API request failed (HTTP {err.status})") from None
             raise HoymilesConnectionError(
                 f"Hoymiles API request failed (HTTP {err.status})"
             ) from None

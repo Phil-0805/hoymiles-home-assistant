@@ -76,7 +76,6 @@
       "battery_settings_access": {"name": "Battery settings access"},
       "battery_mode": {"name": "Battery mode", "state": {"self_consumption": "Self-Consumption", "economy": "Economy", "backup": "Backup", "off_grid": "Off-Grid", "self_consumption_max_power": "Self-Consumption + Max Power", "backup_max_power": "Backup + Max Power", "peak_shaving": "Peak Shaving", "time_of_use": "Time of Use"}},
       "battery_reserve_soc": {"name": "Battery reserve SOC"},
-      "battery_max_power": {"name": "Maximum power setting (raw)"},
       "ems": {"name": "EMS status (raw)"},
       "brs": {"name": "Battery relay status (raw)"},
       "chs": {"name": "Charge status (raw)"},
