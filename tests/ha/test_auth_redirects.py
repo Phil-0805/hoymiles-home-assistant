@@ -72,6 +72,12 @@ async def test_auth_redirect_keeps_post_and_body_and_never_forwards_old_token(so
     "https://" + SECRET + "@neapi.hoymiles.com/iam/pub/3/auth/pre-insp",
     "https://neapi.hoymiles.com:444/iam/pub/3/auth/pre-insp",
     "https://neapi.hoymiles.com/iam/pub/3/auth/pre-insp\n",
+    "https://evil.example/iam/pub/3/auth/pre-insp?times=1",
+    "https://static.hoymiles.com/iam/pub/3/auth/pre-insp?times=1",
+    "http://neapi.hoymiles.com/iam/pub/3/auth/pre-insp?times=1",
+    "https://neapi.hoymiles.com:444/iam/pub/3/auth/pre-insp?times=1",
+    "https://neapi.hoymiles.com/iam/pub/3/auth/login?times=1",
+    "https://" + SECRET + "@neapi.hoymiles.com/iam/pub/3/auth/pre-insp?times=1",
     PRE,
 ])
 async def test_untrusted_auth_target_is_never_contacted_or_logged(target, caplog):
@@ -117,8 +123,9 @@ async def test_non_auth_redirect_remains_blocked(caplog):
     assert SECRET not in caplog.text
 
 
-async def test_redirected_rate_limit_preserves_backoff_and_original_stage(caplog):
-    api = client_with(response(302, location=PRE.replace("euapi", "neapi")), response(429))
+@pytest.mark.parametrize("query", ["", "?times=1"])
+async def test_redirected_rate_limit_preserves_backoff_and_original_stage(query, caplog):
+    api = client_with(response(302, location=PRE.replace("euapi", "neapi") + query), response(429))
     with pytest.raises(HoymilesRateLimitError):
         await api._json(PRE, {"u": SECRET})
     assert api._session.post.call_count == 2
@@ -136,4 +143,75 @@ async def test_full_login_with_both_requests_redirected(caplog):
     await api.async_login()
     assert api._token == SECRET
     assert api._session.post.call_count == 4
+    assert SECRET not in caplog.text
+
+
+@pytest.mark.parametrize("operation", ["pre-insp", "login"])
+async def test_observed_times_marker_preserves_auth_request(operation, caplog):
+    source = f"https://euapi.hoymiles.com/iam/pub/3/auth/{operation}"
+    target = f"https://euapi.hoymiles.com/iam/pub/3/auth/{operation}?times=1"
+    final = {"status": "0", "data": {"n": SECRET}}
+    api = client_with(response(307, location=target), response(data=final))
+    payload = {"u": SECRET, "ch": SECRET, "n": SECRET}
+
+    assert await api._json(source, payload) == final
+    calls = api._session.post.call_args_list
+    assert [call.args[0] for call in calls] == [source, target]
+    assert api.runtime.request.call_count == 2
+    for call in calls:
+        assert call.kwargs["json"] == payload
+        assert call.kwargs["allow_redirects"] is False
+        assert "Authorization" not in call.kwargs["headers"]
+    assert SECRET not in caplog.text
+    assert target not in caplog.text
+
+
+def test_observed_browser_redirect_is_trusted():
+    assert trusted_auth_redirect(PRE.replace("euapi", "neapi"), PRE + "?times=1")
+    assert not trusted_auth_redirect(PRE + "?times=1", PRE.replace("euapi", "neapi"))
+
+
+@pytest.mark.parametrize("query", [
+    "times=0", "times=2", "times=-1", "times=01", "times=1.0", "times=",
+    "times", "Times=1", "times=%31", "t%69mes=1", "times=1&times=1",
+    "times=1&", "times=1;other=1", "times=1&token=" + SECRET,
+    "token=" + SECRET, "times=1#" + SECRET,
+])
+async def test_times_marker_does_not_allow_other_queries(query, caplog):
+    target = PRE + "?" + query
+    api = client_with(response(307, location=target))
+    assert not trusted_auth_redirect(PRE, target)
+    with pytest.raises(HoymilesConnectionError):
+        await api._json(PRE, {"u": SECRET})
+    assert api._session.post.call_count == 1
+    assert "redirect_policy=blocked_target" in caplog.text
+    assert SECRET not in caplog.text
+    assert target not in caplog.text
+
+
+async def test_full_login_with_times_marker(caplog):
+    api = client_with(
+        response(307, location=PRE + "?times=1"),
+        response(data={"status": "0", "data": {"a": "0123456789abcdef", "n": SECRET}}),
+        response(307, location=LOGIN + "?times=1"),
+        response(data={"status": "0", "data": {"token": SECRET}}),
+    )
+    await api.async_login()
+    assert api._token == SECRET
+    assert [call.args[0] for call in api._session.post.call_args_list] == [
+        PRE, PRE + "?times=1", LOGIN, LOGIN + "?times=1",
+    ]
+    assert api.runtime.request.call_count == 4
+    assert SECRET not in caplog.text
+
+
+async def test_second_redirect_with_times_marker_is_still_blocked(caplog):
+    blocked = client_with(
+        response(307, location=PRE + "?times=1"),
+        response(307, location=PRE.replace("euapi", "neapi") + "?times=1"),
+    )
+    with pytest.raises(HoymilesConnectionError):
+        await blocked._json(PRE, {"u": SECRET})
+    assert blocked._session.post.call_count == 2
+    assert "redirect_policy=hop_limit" in caplog.text
     assert SECRET not in caplog.text

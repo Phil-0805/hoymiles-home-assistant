@@ -99,6 +99,8 @@
       "strip_off_delay": {"name": "Leuchtstreifen Ausschaltverzögerung"}
     },
     "select": {
+      "display_off_delay_preset": {"name": "Display Ausschaltzeit", "state": {"one_minute": "1 Minute", "five_minutes": "5 Minuten", "fifteen_minutes": "15 Minuten", "one_hour": "1 Stunde", "never": "Nie", "custom": "Benutzerdefiniert (Sekunden-Regler)"}},
+      "strip_off_delay_preset": {"name": "Leuchtstreifen Ausschaltzeit", "state": {"one_minute": "1 Minute", "five_minutes": "5 Minuten", "fifteen_minutes": "15 Minuten", "one_hour": "1 Stunde", "never": "Nie", "custom": "Benutzerdefiniert (Sekunden-Regler)"}},
       "battery_mode": {"name": "Batteriemodus"}
     },
     "switch": {"battery_heating": {"name": "Batterieheizung erlauben"}},

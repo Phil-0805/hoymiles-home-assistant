@@ -15,6 +15,7 @@ from .api import HoymilesError
 from .const import CONF_STATION_ID, DOMAIN
 from .coordinator import HoymilesHomeCoordinator
 from .device_settings_entity import DeviceSettingsEntity
+from .device_settings import OFF_DELAY_FIELDS, OFF_DELAY_NEVER
 
 
 async def async_setup_entry(
@@ -114,12 +115,13 @@ class HoymilesDeviceSettingNumber(DeviceSettingsEntity, NumberEntity):
 
     @property
     def available(self):
-        return super().available and self.field in self.values
+        return (super().available and self.field in self.values
+                and not (self.field in OFF_DELAY_FIELDS and self.values[self.field] == OFF_DELAY_NEVER))
 
     @property
     def native_value(self):
         value = self.values.get(self.field)
-        if value is None:
+        if value is None or (self.field in OFF_DELAY_FIELDS and value == OFF_DELAY_NEVER):
             return None
         return round(value * 100 / 255) if self.field == "ldb" else value
 
