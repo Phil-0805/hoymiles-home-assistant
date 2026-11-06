@@ -11,10 +11,13 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .api import HoymilesError
 from .battery import BATTERY_MODE_NAMES, writable_modes
 from .const import CONF_STATION_ID, DOMAIN
 from .coordinator import HoymilesHomeCoordinator
+from .device_settings import OFF_DELAY_NEVER
+from .device_settings_entity import DeviceSettingsEntity
+from .errors import HoymilesError
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -24,6 +27,11 @@ async def async_setup_entry(
     """Set up battery setting selects."""
     coordinator: HoymilesHomeCoordinator = hass.data[DOMAIN][entry.entry_id]
     async_add_entities([HoymilesBatteryModeSelect(coordinator, entry)])
+    if coordinator.device_controls:
+        async_add_entities([
+            HoymilesOffDelaySelect(coordinator, entry, "display_off_delay_preset", "sot"),
+            HoymilesOffDelaySelect(coordinator, entry, "strip_off_delay_preset", "slot"),
+        ])
 
 
 class HoymilesBatteryModeSelect(
@@ -97,3 +105,46 @@ class HoymilesBatteryModeSelect(
                 translation_key="battery_setting_write_failed",
                 translation_placeholders={"error": str(err)},
             ) from err
+
+
+OFF_DELAY_OPTIONS = {"one_minute": 60, "five_minutes": 300, "fifteen_minutes": 900,
+                     "one_hour": 3600, "never": OFF_DELAY_NEVER}
+
+
+class HoymilesOffDelaySelect(DeviceSettingsEntity, SelectEntity):
+    """Expose the app presets, preserving existing numeric entity identities."""
+
+    def __init__(self, coordinator, entry, key, field):
+        super().__init__(coordinator, entry, key)
+        self.field = field
+
+    @property
+    def available(self):
+        return super().available and self.field in self.values
+
+    @property
+    def options(self):
+        options = list(OFF_DELAY_OPTIONS)
+        if self.field in self.values and self.values[self.field] not in OFF_DELAY_OPTIONS.values():
+            options.append("custom")
+        return options
+
+    @property
+    def current_option(self):
+        value = self.values.get(self.field)
+        if value is None:
+            return None
+        return next((key for key, raw in OFF_DELAY_OPTIONS.items() if raw == value), "custom")
+
+    @property
+    def extra_state_attributes(self):
+        value = self.values.get(self.field)
+        return {"delay_seconds": None if value == OFF_DELAY_NEVER else value,
+                "automatic_off": None if value is None else value != OFF_DELAY_NEVER}
+
+    async def async_select_option(self, option):
+        if option == "custom" and self.current_option == "custom":
+            return  # Retain a duration set through the existing seconds number.
+        if option not in OFF_DELAY_OPTIONS:
+            raise HomeAssistantError("Unsupported light/display off-delay preset")
+        await self._async_change(self.manager.async_set_lighting({self.field: OFF_DELAY_OPTIONS[option]}))

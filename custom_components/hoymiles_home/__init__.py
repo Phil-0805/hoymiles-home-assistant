@@ -6,13 +6,17 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers import device_registry as dr
 from homeassistant.util import dt as dt_util
 
 from .api import HoymilesHomeClient
 from .cloud_runtime import AccountPool
-from .const import CONF_BATTERY_CONTROLS, CONF_BATTERY_TEMPERATURES, CONF_INVERTER_DETAILS, CONF_STATION_ID, CONF_STATION_TIMEZONE, DOMAIN, PLATFORMS
+from .const import CONF_BATTERY_CONTROLS, CONF_DEVICE_CONTROLS, CONF_INVERTER_DETAILS, CONF_STATION_ID, CONF_STATION_TIMEZONE, DOMAIN, PLATFORMS
 from .coordinator import HoymilesHomeCoordinator
-from .device_migration import async_migrate_battery_temperatures
+from .device_migration import (
+    async_migrate_battery_temperatures, async_remove_obsolete_charge_limit_entities,
+    async_remove_obsolete_max_power_sensor,
+)
 from .telemetry import PV_POWER_SOURCE
 
 
@@ -34,14 +38,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         coordinator = HoymilesHomeCoordinator(
             hass, client, entry.data[CONF_STATION_ID],
             battery_controls=entry.options.get(CONF_BATTERY_CONTROLS, False) is True,
+            device_controls=entry.options.get(CONF_DEVICE_CONTROLS, False) is True,
             pv_power_source=entry.options.get(PV_POWER_SOURCE, "auto"),
-            battery_temperatures=entry.options.get(CONF_BATTERY_TEMPERATURES, False) is True,
+            battery_temperatures=True,
             inverter_details=entry.options.get(CONF_INVERTER_DETAILS, False),
             station_timezone=station_timezone,
         )
         await coordinator.async_initialize()
         await coordinator.async_config_entry_first_refresh()
         domain_data[entry.entry_id] = coordinator
+        # Register the station before child platforms resolve its registry ID.
+        dr.async_get(hass).async_get_or_create(
+            config_entry_id=entry.entry_id,
+            identifiers={(DOMAIN, f"station_{entry.data[CONF_STATION_ID]}")},
+            manufacturer="Hoymiles", name=f"S-Miles Home {entry.data[CONF_STATION_ID]}",
+            model="S-Miles Home station",
+        )
+        async_remove_obsolete_charge_limit_entities(hass, entry)
+        async_remove_obsolete_max_power_sensor(hass, entry)
         async_migrate_battery_temperatures(hass, entry)
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     except BaseException:

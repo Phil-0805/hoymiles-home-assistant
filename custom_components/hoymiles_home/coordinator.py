@@ -21,6 +21,8 @@ from .api import (
     microinverters,
 )
 from .battery_telemetry import BatteryTelemetryPoller
+from .device_settings import DeviceSettings, read_retry_delay
+from .output_power import OutputPowerSettings
 from .battery import battery_settings_confirmed, writable_modes
 from .const import (
     BATTERY_SETTINGS_INTERVAL,
@@ -51,6 +53,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         pv_power_source: str = "auto",
         inverter_details: bool = False, station_timezone: tzinfo | None = None,
         battery_temperatures: bool = False, battery_controls: bool = False,
+        device_controls: bool = False,
     ) -> None:
         super().__init__(
             hass,
@@ -82,6 +85,9 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._station_updated = datetime.min.replace(tzinfo=UTC)
         self._station_attempted = datetime.min.replace(tzinfo=UTC)
         self._battery_settings_updated = datetime.min.replace(tzinfo=UTC)
+        self._battery_read_retry_at = None
+        self._battery_read_retry_count = 0
+        self._battery_settings_paused_until = datetime.min.replace(tzinfo=UTC)
         self._energy_store: Store[dict[str, Any]] = Store(
             hass,
             STORAGE_VERSION,
@@ -100,6 +106,29 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._battery_settings_lock = asyncio.Lock()
         self._battery_settings_task: asyncio.Task | None = None
         self._stopped = False
+        self.device_controls = device_controls is True
+        self.device_settings = DeviceSettings(
+            hass, client, station_id, self.device_controls,
+            lambda: self.device_tree,
+            lambda: self.device_controls and not self._stopped,
+            self._publish_device_settings,
+        )
+        self.cutoff_settings = DeviceSettings(
+            hass, client, station_id, self.battery_controls,
+            lambda: self.device_tree,
+            lambda: self.battery_controls and not self._stopped,
+            self._publish_device_settings, features=("cutoffs",),
+        )
+        self.output_settings = OutputPowerSettings(
+            hass, client, station_id, self.battery_controls,
+            lambda: self.device_tree,
+            lambda: self.battery_controls and not self._stopped,
+            self._publish_device_settings,
+        )
+
+    def _publish_device_settings(self) -> None:
+        if not self._stopped and self.data is not None:
+            self.async_update_listeners()
 
     async def async_initialize(self) -> None:
         """Restore today's calculated battery energy."""
@@ -123,6 +152,10 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def async_shutdown(self) -> None:
         """Cancel our background read before the entry is removed or reloaded."""
         self._stopped = True
+        self._battery_read_retry_at = None
+        await self.device_settings.async_shutdown()
+        await self.cutoff_settings.async_shutdown()
+        await self.output_settings.async_shutdown()
         await super().async_shutdown()
         await self.module_polling.async_shutdown()
         await self.battery_telemetry.async_shutdown()
@@ -133,10 +166,13 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             except asyncio.CancelledError:
                 pass
 
-    def _start_battery_settings_refresh(self) -> asyncio.Task | None:
-        if self._stopped:
+    def _start_battery_settings_refresh(self, *, retry=False) -> asyncio.Task | None:
+        if self._stopped or datetime.now(UTC) < self._battery_settings_paused_until:
             return None
         if self._battery_settings_task is None or self._battery_settings_task.done():
+            self._battery_read_retry_at = None
+            if not retry:
+                self._battery_read_retry_count = 0
             self._battery_settings_task = self.hass.async_create_background_task(
                 self._async_refresh_battery_settings(),
                 f"{DOMAIN} battery settings",
@@ -146,7 +182,9 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def async_refresh_battery_settings(self) -> bool:
         """Manually refresh read-only settings, coalescing concurrent requests."""
         running = self._battery_settings_task and not self._battery_settings_task.done()
-        if not running and datetime.now(UTC) - self._battery_settings_updated < timedelta(seconds=30):
+        now = datetime.now(UTC)
+        if not running and (now - self._battery_settings_updated < timedelta(seconds=30)
+                            or now < self._battery_settings_paused_until):
             return False
         task = self._start_battery_settings_refresh()
         if task is not None:
@@ -213,11 +251,24 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     self.station_id
                 )
         except (HoymilesAuthError, HoymilesConnectionError, TimeoutError) as err:
+            self._battery_read_retry_at = None
+            delay = read_retry_delay(err, self._battery_read_retry_count)
+            if delay is not None and not self._stopped:
+                self._battery_read_retry_count += 1
+                self._battery_read_retry_at = datetime.now(UTC) + delay
+            if isinstance(err, HoymilesRateLimitError):
+                self._battery_settings_paused_until = max(
+                    self._battery_settings_paused_until,
+                    datetime.now(UTC) + timedelta(seconds=err.retry_after),
+                )
             self.battery_settings = {
                 "readable": False,
                 "error": str(err) or "Battery settings read timed out",
             }
             _LOGGER.debug("Could not read battery settings: %s", err)
+        else:
+            self._battery_read_retry_at = None
+            self._battery_read_retry_count = 0
         if not self._stopped:
             self._battery_settings_updated = datetime.now(UTC)
             if self.data is not None:
@@ -312,14 +363,15 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
 
     async def _async_apply_battery_settings(
-        self, mode: int | None, *, reserve_soc: int | None = None
+        self, mode: int | None, *, reserve_soc: int | None = None,
     ) -> None:
         """Write battery settings, read them back and notify entities."""
         async with self._battery_settings_lock:
             self._check_battery_controls()
+            soc_change = reserve_soc is not None
             # Every write uses current cloud settings, including SOC changes.
             # The lock only serializes HA tasks; it cannot protect app edits.
-            if reserve_soc is None:
+            if not soc_change:
                 if type(mode) is not int or mode not in writable_modes(self.battery_settings):
                     raise HoymilesConnectionError("Battery mode is not supported for writing")
             method = self.battery_settings.get("request_method")
@@ -330,10 +382,10 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if self.data is not None:
                 self.data["battery_settings"] = fresh
                 self.async_update_listeners()
-            if reserve_soc is None and fresh.get("mode") == mode:
+            if not soc_change and fresh.get("mode") == mode:
                 return
             # Build the payload after taking the lock, using the latest readback.
-            if reserve_soc is not None:
+            if soc_change:
                 mode = self.battery_settings.get("mode")
                 settings = self.battery_settings.get("active_settings")
             else:
@@ -426,11 +478,19 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 else:
                     self._station_updated = now
 
-            if now - self._battery_settings_updated >= BATTERY_SETTINGS_INTERVAL:
+            if (now >= self._battery_settings_paused_until
+                    and now - self._battery_settings_updated >= BATTERY_SETTINGS_INTERVAL):
                 self._battery_settings_updated = now
                 self._start_battery_settings_refresh()
+            elif (now >= self._battery_settings_paused_until
+                  and self._battery_read_retry_at is not None
+                  and now >= self._battery_read_retry_at):
+                self._start_battery_settings_refresh(retry=True)
 
             self.battery_telemetry.start()
+            self.device_settings.start()
+            self.cutoff_settings.start()
+            self.output_settings.start()
             if now - self._modules_updated >= MODULE_INTERVAL:
                 self._modules_updated = now
                 self.module_polling.start(self.inverters)

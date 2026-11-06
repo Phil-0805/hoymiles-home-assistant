@@ -23,6 +23,7 @@ from homeassistant.const import (
     UnitOfFrequency,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -222,17 +223,6 @@ STATION_SENSORS = (
         ),
     ),
     HoymilesDescription(
-        key="battery_max_power",
-        translation_key="battery_max_power",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda data: _number(
-            data.get("battery_settings", {})
-            .get("active_settings", {})
-            .get("max_power")
-        ),
-        attributes_fn=lambda data: {"unit_verified": False},
-    ),
-    HoymilesDescription(
         key="battery_activity",
         translation_key="battery_activity",
         device_class=SensorDeviceClass.ENUM,
@@ -296,6 +286,16 @@ MODULE_SENSORS = (
         SensorDeviceClass.CURRENT,
     ),
 )
+
+
+def _station_parent_id(coordinator, entry):
+    registry = dr.async_get(coordinator.hass)
+    identifier = (DOMAIN, f"station_{entry.data[CONF_STATION_ID]}")
+    if hasattr(registry, "async_get_device_by_identifier"):
+        parent = registry.async_get_device_by_identifier(identifier, entry.entry_id)
+    else:
+        parent = registry.async_get_device(identifiers={identifier})
+    return parent.id if parent is not None else None
 
 
 async def async_setup_entry(
@@ -369,8 +369,6 @@ class HoymilesStationSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEn
 
     @property
     def available(self) -> bool:
-        if self.entity_description.key == "battery_max_power" and self.native_value is None:
-            return False
         if self.entity_description.key in {"today_energy", "month_energy", "year_energy", "total_energy"}:
             if not self.coordinator.station_is_fresh(self.entity_description.key):
                 return False
@@ -422,7 +420,7 @@ class HoymilesModuleSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEnt
             name="Hoymiles microinverter",
             model=inverter_model(inverter),
             serial_number=inverter.get("sn"),
-            via_device=(DOMAIN, f"station_{entry.data[CONF_STATION_ID]}"),
+            via_device_id=_station_parent_id(coordinator, entry),
         )
 
     @property
@@ -462,7 +460,7 @@ class HoymilesInverterDetailSensor(CoordinatorEntity[HoymilesHomeCoordinator], S
             identifiers={(DOMAIN, f"inverter_{inverter['id']}")},
             manufacturer="Hoymiles", name="Hoymiles microinverter",
             model=inverter_model(inverter),
-            via_device=(DOMAIN, f"station_{entry.data[CONF_STATION_ID]}"),
+            via_device_id=_station_parent_id(coordinator, entry),
         )
 
     @property

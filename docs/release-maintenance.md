@@ -2,7 +2,7 @@
 
 CI runs tests, HACS validation and Hassfest before creating a release. Published
 version tags are never moved. Stable versions publish from `main`; the configured
-beta branches (including `beta/v0.5.2`) publish prereleases.
+beta branches (including `beta/v0.6.0`) publish prereleases.
 
 Stable publication additionally requires the repository Actions secret
 `RELEASE_READINESS_JSON`. Store the approval privately, with this structure:

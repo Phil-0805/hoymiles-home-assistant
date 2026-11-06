@@ -42,15 +42,9 @@ async def test_hidden_active_mode_does_not_become_a_writable_choice(hass):
     api.async_write_battery_settings.assert_not_awaited()
 
 
-async def test_missing_max_power_is_unavailable_and_has_no_invented_unit(hass):
-    coordinator = HoymilesHomeCoordinator(hass, AsyncMock(), 123, battery_controls=True)
-    coordinator.data = {"battery_settings": {"active_settings": {}}, "live": {"power": None}}
-    description = next(d for d in STATION_SENSORS if d.key == "battery_max_power")
-    entity = HoymilesStationSensor(coordinator, SimpleNamespace(entry_id="entry", data={"station_id": 123}), description)
-    assert not entity.available
-    assert entity.native_unit_of_measurement is None
-    assert entity.extra_state_attributes["unit_verified"] is False
-    assert pv_power_details(coordinator.data)["value"] is None
+def test_retired_max_power_sensor_is_not_created():
+    assert "battery_max_power" not in {description.key for description in STATION_SENSORS}
+    assert pv_power_details({"live": {"power": None}})["value"] is None
 
 
 def test_nested_setting_changes_must_be_confirmed_too():

@@ -34,7 +34,7 @@
     },
     "error": {
       "cannot_connect": "Could not connect to Hoymiles",
-      "invalid_auth": "Invalid S-Miles Home credentials",
+      "invalid_auth": "S-Miles Home rejected authentication",
       "invalid_station": "No devices were found for this station ID. Check the number and account access.",
       "unknown": "Unexpected error",
       "discovery_failed": "Could not load the plant list. You can enter the station ID manually.",
@@ -50,12 +50,13 @@
     "battery_setting_write_failed": {
       "message": "The battery setting could not be saved: {error}"
     },
+    "device_setting_write_failed": {"message": "The device setting could not be confirmed: {error}"},
     "battery_mode_unavailable": {
       "message": "Battery mode {mode} is unavailable."
     }
   },
   "entity": {
-    "button": {"refresh_battery_settings": {"name": "Refresh battery settings"}},
+    "button": {"refresh_battery_settings": {"name": "Refresh battery settings"}, "refresh_output_power": {"name": "Refresh output power settings"}, "refresh_battery_cutoffs": {"name": "Refresh battery cutoffs"}, "refresh_device_settings": {"name": "Refresh heating and display settings"}},
     "sensor": {
       "inverter_voltage": {"name": "AC voltage"},
       "inverter_frequency": {"name": "Grid frequency"},
@@ -75,7 +76,6 @@
       "battery_settings_access": {"name": "Battery settings access"},
       "battery_mode": {"name": "Battery mode", "state": {"self_consumption": "Self-Consumption", "economy": "Economy", "backup": "Backup", "off_grid": "Off-Grid", "self_consumption_max_power": "Self-Consumption + Max Power", "backup_max_power": "Backup + Max Power", "peak_shaving": "Peak Shaving", "time_of_use": "Time of Use"}},
       "battery_reserve_soc": {"name": "Battery reserve SOC"},
-      "battery_max_power": {"name": "Maximum power setting (raw)"},
       "ems": {"name": "EMS status (raw)"},
       "brs": {"name": "Battery relay status (raw)"},
       "chs": {"name": "Charge status (raw)"},
@@ -89,22 +89,32 @@
       "module_current": {"name": "PV{port} current"}
     },
     "number": {
-      "battery_reserve_soc": {"name": "Reserve SOC"}
+      "battery_reserve_soc": {"name": "Reserve SOC"},
+      "battery_charge_cutoff": {"name": "Charge cutoff SOC"},
+      "battery_discharge_cutoff": {"name": "Discharge cutoff SOC"},
+      "output_power_limit": {"name": "Output power limit"},
+      "display_brightness": {"name": "Display brightness"},
+      "display_off_delay": {"name": "Display off delay"},
+      "strip_off_delay": {"name": "Indicator strip off delay"}
     },
     "select": {
+      "display_off_delay_preset": {"name": "Display off-delay preset", "state": {"one_minute": "1 minute", "five_minutes": "5 minutes", "fifteen_minutes": "15 minutes", "one_hour": "1 hour", "never": "Never", "custom": "Custom (seconds control)"}},
+      "strip_off_delay_preset": {"name": "Strip off-delay preset", "state": {"one_minute": "1 minute", "five_minutes": "5 minutes", "fifteen_minutes": "15 minutes", "one_hour": "1 hour", "never": "Never", "custom": "Custom (seconds control)"}},
       "battery_mode": {"name": "Battery mode"}
     },
+    "switch": {"battery_heating": {"name": "Allow battery heating"}},
+    "light": {"battery_indicator": {"name": "Battery indicator strip"}},
     "binary_sensor": {"connected": {"name": "Connection"}}
   },
   "options": {
     "step": {
       "init": {
         "title": "Station settings",
-        "description": "Compare the PV power sensor attributes pv and pv2 with the S-Miles Home app. Select another source only after confirming the match. Automatic preserves the existing behavior: pv2 when available, otherwise pv; zero is a valid value. This changes only the display in HA. Additional telemetry is optional and read at most every five minutes. Select the actual station timezone for daily boundaries and charts. Battery commands are disabled by default, including after an upgrade. Enable battery controls only if Home Assistant should change the mode and reserve SOC. Avoid simultaneous changes in the S-Miles Home app.",
+        "description": "Compare the PV power sensor attributes pv and pv2 with the S-Miles Home app. Select another source only after confirming the match. Automatic preserves the existing behavior: pv2 when available, otherwise pv; zero is a valid value. This changes only the display in HA. Battery temperatures are read automatically at most every five minutes. Additional inverter telemetry is optional. Select the actual station timezone for daily boundaries and charts. Battery commands are disabled by default, including after an upgrade. Enable battery controls only if Home Assistant should change the mode, reserve SOC and separate charge/discharge cutoffs. Cutoffs and output power add reads every 30 minutes. Output power is bounded by the freshly reported maximum; the new control still needs device testing. Avoid simultaneous changes in the S-Miles Home app. Device controls additionally read heating and display settings every 30 minutes and are separately disabled by default. The heating switch permits automatic heating; it does not force the heater to run. Available lighting functions depend on the device.",
         "data": {
-          "battery_controls": "Allow battery controls (mode and reserve SOC)",
+          "device_controls": "Allow device controls (heating, light and display; beta)",
+          "battery_controls": "Allow battery controls (mode, SOC and output power)",
           "pv_power_source": "PV power source",
-          "battery_temperatures": "Battery temperatures (beta, one extra request every five minutes)",
           "inverter_details": "Additional inverter telemetry (beta)",
           "station_timezone": "Station timezone"
         }

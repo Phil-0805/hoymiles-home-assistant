@@ -25,3 +25,23 @@ Only a supported, complete TOU selection actually returned by the account is off
 Before a mode switch, read current settings once under the write lock and use the current saved target configuration, not the thirty-minute cache. After writing, require the original API method, readable settings, target mode and complete target configuration to match. No automatic repeat writes. All requests use the shared account budget and certificate-verified HTTPS with redirects disabled. Periodic polling remains unchanged.
 
 The reserve-SOC control applies to the confirmed self-consumption settings only; TOU uses its own plan thresholds. A mode/schedule match confirms cloud readback, not that the battery physically charged/discharged. Real-device switching and comparison against the app remain required before stable publication.
+
+## Explicit upper SOC limit
+
+**Correction after b2 device feedback:** this is an upper work-mode SOC value.
+Matching cloud readback did not change the separate app charge/discharge
+cutoffs. b3 removes the b2 upper-limit control; the historical
+implementation rationale below does not establish app-cutoff support. See
+[corrected mapping](battery-charge-limit.md).
+
+The same manufacturer bundle was fetched again on 5 November 2026; its SHA-256
+still matches the source above. The self-consumption write includes both
+`soc_l` and `soc_h`. The new upper-limit control therefore reuses action 83 and
+its existing readback verification. It is enabled only when `soc_h` is actually
+present in the selected read layout; the historical parser default of 100 does
+not establish upper-limit capability. The control preserves the freshly read
+lower limit, rejects unsupported/TOU modes and never retries the write.
+
+App screenshots identify the feature and its percentage unit; they do not prove
+command availability on every device. The new control still needs device/app
+validation before being described as verified on a particular model.

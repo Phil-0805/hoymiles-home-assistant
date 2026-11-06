@@ -34,7 +34,7 @@
     },
     "error": {
       "cannot_connect": "Verbindung zu Hoymiles fehlgeschlagen",
-      "invalid_auth": "Ungültige S-Miles-Home-Zugangsdaten",
+      "invalid_auth": "S-Miles Home hat die Anmeldung abgelehnt",
       "invalid_station": "Für diese Anlagen-ID wurden keine Geräte gefunden. Prüfe die Nummer und den Kontozugriff.",
       "unknown": "Unerwarteter Fehler",
       "discovery_failed": "Die Anlagenliste konnte nicht geladen werden. Du kannst die Station-ID manuell eingeben.",
@@ -50,12 +50,13 @@
     "battery_setting_write_failed": {
       "message": "Die Batterieeinstellung konnte nicht gespeichert werden: {error}"
     },
+    "device_setting_write_failed": {"message": "Die Geräteeinstellung konnte nicht bestätigt werden: {error}"},
     "battery_mode_unavailable": {
       "message": "Der Batteriemodus {mode} ist nicht verfügbar."
     }
   },
   "entity": {
-    "button": {"refresh_battery_settings": {"name": "Batterieeinstellungen aktualisieren"}},
+    "button": {"refresh_battery_settings": {"name": "Batterieeinstellungen aktualisieren"}, "refresh_output_power": {"name": "Ausgangsleistung aktualisieren"}, "refresh_battery_cutoffs": {"name": "Lade-/Entladeschluss aktualisieren"}, "refresh_device_settings": {"name": "Heizungs- und Displayeinstellungen aktualisieren"}},
     "sensor": {
       "inverter_voltage": {"name": "AC-Spannung"},
       "inverter_frequency": {"name": "Netzfrequenz"},
@@ -75,7 +76,6 @@
       "battery_settings_access": {"name": "Batterieeinstellungen Zugriff"},
       "battery_mode": {"name": "Batteriemodus", "state": {"self_consumption": "Eigenverbrauch", "economy": "Sparmodus", "backup": "Notstrom", "off_grid": "Inselbetrieb", "self_consumption_max_power": "Eigenverbrauch + maximale Leistung", "backup_max_power": "Notstrom + maximale Leistung", "peak_shaving": "Lastspitzenkappung", "time_of_use": "Zeitabhängiger Betrieb"}},
       "battery_reserve_soc": {"name": "Batterie Reserve-SOC"},
-      "battery_max_power": {"name": "Maximale Leistungseinstellung (Rohwert)"},
       "ems": {"name": "EMS-Status (Rohwert)"},
       "brs": {"name": "Batterierelais-Status (Rohwert)"},
       "chs": {"name": "Ladestatus (Rohwert)"},
@@ -89,22 +89,32 @@
       "module_current": {"name": "PV{port} Strom"}
     },
     "number": {
-      "battery_reserve_soc": {"name": "Reserve-SOC"}
+      "battery_reserve_soc": {"name": "Reserve-SOC"},
+      "battery_charge_cutoff": {"name": "Ladeschlussstufe"},
+      "battery_discharge_cutoff": {"name": "Entladeschlussstufe"},
+      "output_power_limit": {"name": "Ausgangsleistungsgrenze"},
+      "display_brightness": {"name": "Displayhelligkeit"},
+      "display_off_delay": {"name": "Display Ausschaltverzögerung"},
+      "strip_off_delay": {"name": "Leuchtstreifen Ausschaltverzögerung"}
     },
     "select": {
+      "display_off_delay_preset": {"name": "Display Ausschaltzeit", "state": {"one_minute": "1 Minute", "five_minutes": "5 Minuten", "fifteen_minutes": "15 Minuten", "one_hour": "1 Stunde", "never": "Nie", "custom": "Benutzerdefiniert (Sekunden-Regler)"}},
+      "strip_off_delay_preset": {"name": "Leuchtstreifen Ausschaltzeit", "state": {"one_minute": "1 Minute", "five_minutes": "5 Minuten", "fifteen_minutes": "15 Minuten", "one_hour": "1 Stunde", "never": "Nie", "custom": "Benutzerdefiniert (Sekunden-Regler)"}},
       "battery_mode": {"name": "Batteriemodus"}
     },
+    "switch": {"battery_heating": {"name": "Batterieheizung erlauben"}},
+    "light": {"battery_indicator": {"name": "Batterie Leuchtstreifen"}},
     "binary_sensor": {"connected": {"name": "Verbindung"}}
   },
   "options": {
     "step": {
       "init": {
         "title": "Anlageneinstellungen",
-        "description": "Vergleiche die Attribute pv und pv2 des Sensors PV-Leistung mit der S-Miles-Home-App. Wähle eine andere Quelle nur, wenn der Vergleich das bestätigt. Automatisch behält das bisherige Verhalten bei: pv2, falls verfügbar, sonst pv; auch 0 ist ein gültiger Wert. Die Auswahl ändert nur die Anzeige in HA. Zusätzliche Messwerte sind optional und werden höchstens alle fünf Minuten gelesen. Wähle die tatsächliche Zeitzone der Anlage für Tagesgrenzen und Diagramme. Batteriebefehle sind standardmäßig gesperrt, auch nach einem Update. Aktiviere die Batteriesteuerung nur, wenn Home Assistant Modus und Reserve-SOC ändern darf. Gleichzeitige Änderungen in der S-Miles-Home-App vermeiden.",
+        "description": "Vergleiche die Attribute pv und pv2 des Sensors PV-Leistung mit der S-Miles-Home-App. Wähle eine andere Quelle nur, wenn der Vergleich das bestätigt. Automatisch behält das bisherige Verhalten bei: pv2, falls verfügbar, sonst pv; auch 0 ist ein gültiger Wert. Die Auswahl ändert nur die Anzeige in HA. Batterietemperaturen werden automatisch höchstens alle fünf Minuten gelesen. Zusätzliche Wechselrichterwerte sind optional. Wähle die tatsächliche Zeitzone der Anlage für Tagesgrenzen und Diagramme. Batteriebefehle sind standardmäßig gesperrt, auch nach einem Update. Aktiviere die Batteriesteuerung nur, wenn Home Assistant Modus, Reserve-SOC und die separaten Lade-/Entladeschlussstufen ändern darf. Schlussstufen und Ausgangsleistung werden zusätzlich alle 30 Minuten gelesen. Die Ausgangsleistung ist auf den frisch gemeldeten Höchstwert begrenzt; die neue Steuerung benötigt noch einen Gerätetest. Gleichzeitige Änderungen in der S-Miles-Home-App vermeiden. Gerätesteuerung liest zusätzlich Heizungs- und Displayeinstellungen alle 30 Minuten. Sie ist separat standardmäßig gesperrt. Der Heizungsschalter erlaubt das automatische Heizen; er erzwingt keinen laufenden Heizbetrieb. Je nach Gerät sind nicht alle Lichtfunktionen verfügbar.",
         "data": {
-          "battery_controls": "Batteriesteuerung freigeben (Modus und Reserve-SOC)",
+          "device_controls": "Gerätesteuerung freigeben (Heizung, Licht und Display; Beta)",
+          "battery_controls": "Batteriesteuerung freigeben (Modus, SOC und Ausgangsleistung)",
           "pv_power_source": "Quelle der PV-Leistung",
-          "battery_temperatures": "Batterietemperaturen (Beta, zusätzliche Abfrage alle fünf Minuten)",
           "inverter_details": "Zusätzliche Wechselrichter-Messwerte (Beta)",
           "station_timezone": "Zeitzone der Anlage"
         }

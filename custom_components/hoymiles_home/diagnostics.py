@@ -5,8 +5,76 @@ from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
 from .inverter import inverter_model, inverter_ports
-from .battery import writable_modes
+from .battery import work_mode_upper_soc, writable_modes
 from .telemetry import battery_activity, live_power, number, pv_power_details, status_codes
+from .errors import SETTINGS_ERROR_REASONS, SETTINGS_DIAGNOSTIC_FIELDS
+
+
+def _settings_error_diagnostics(manager, feature):
+    errors = getattr(manager, "last_error", {})
+    error = errors.get(feature) if isinstance(errors, dict) else None
+    if not isinstance(error, dict):
+        return None
+    reason = error.get("reason")
+    result = {"reason": reason if type(reason) is str and reason in SETTINGS_ERROR_REASONS else "connection"}
+    shape = error.get("response_shape")
+    kinds = {"object", "array", "string", "integer", "number", "boolean", "null", "other"}
+    fields = SETTINGS_DIAGNOSTIC_FIELDS
+    if isinstance(shape, dict):
+        kind = shape.get("type")
+        field_types = shape.get("field_types", {})
+        result["response_shape"] = {
+            "type": kind if type(kind) is str and kind in kinds else "other",
+            "field_types": {key: value for key, value in field_types.items()
+                            if key in fields and type(value) is str and value in kinds}
+            if isinstance(field_types, dict) else {},
+        }
+    return result
+
+
+def _cutoff_diagnostics(manager):
+    """Only fixed status and cutoff percentages, never controller addresses."""
+    statuses = {"pending", "disabled", "readable", "unavailable", "no_unique_target"}
+    status = getattr(manager, "status", {}).get("cutoffs", "disabled")
+    values = getattr(manager, "cutoffs", None) or {}
+    return {
+        "enabled": getattr(manager, "enabled", False) is True,
+        "status": status if status in statuses else "unavailable",
+        "source": "android_action_1537",
+        "last_error": _settings_error_diagnostics(manager, "cutoffs"),
+        "target_selected": getattr(manager, "target", None) is not None,
+        "discharge_cutoff_soc": number(values.get("sl")),
+        "charge_cutoff_soc": number(values.get("sh")),
+    }
+
+
+def _output_power_diagnostics(manager):
+    statuses = {"pending", "disabled", "readable", "unavailable", "no_unique_target"}
+    status = getattr(manager, "status", {}).get("output_power", "disabled")
+    data = getattr(manager, "output", None) or {}
+    phases = data.get("phases", [])
+    return {
+        "enabled": getattr(manager, "enabled", False) is True,
+        "status": status if status in statuses else "unavailable",
+        "last_error": _settings_error_diagnostics(manager, "output_power"),
+        "action": data.get("action") if type(data.get("action")) is int and data["action"] in {84, 1532} else None,
+        "phases": [phase for phase in phases if type(phase) is str and phase in {"A", "B", "C"}],
+        "power_w": number(data.get("values", {}).get("total")),
+        "maximum_w": number(data.get("limits", {}).get("total")),
+    }
+
+
+def _device_settings_diagnostics(manager):
+    statuses = {"pending", "disabled", "readable", "unavailable", "no_unique_target"}
+    status = getattr(manager, "status", {})
+    return {
+        "enabled": getattr(manager, "enabled", False) is True,
+        "target_selected": getattr(manager, "target", None) is not None,
+        **{feature: {
+            "status": status.get(feature) if status.get(feature) in statuses else "unavailable",
+            "last_error": _settings_error_diagnostics(manager, feature),
+        } for feature in ("heating", "lighting")},
+    }
 
 
 def _battery_diagnostics(settings: dict) -> dict:
@@ -28,6 +96,7 @@ def _battery_diagnostics(settings: dict) -> dict:
         "has_error": bool(settings.get("error")),
         "mode": number(settings.get("mode")),
         "reserve_soc": number(active.get("reserve_soc")),
+        "work_mode_upper_soc": work_mode_upper_soc(settings),
         "max_power": number(active.get("max_power")),
         "available_modes": modes,
         "mode_control": "multiple_modes" if len(writable_modes(settings)) > 1 else "single_or_no_mode",
@@ -79,6 +148,9 @@ async def async_get_config_entry_diagnostics(
             "device_count": len(getattr(getattr(coordinator, "battery_telemetry", None), "values", {})),
         },
         "pv_power": pv_power_details(data),
+        "battery_cutoffs": _cutoff_diagnostics(getattr(coordinator, "cutoff_settings", None)),
+        "device_settings": _device_settings_diagnostics(getattr(coordinator, "device_settings", None)),
+        "output_power_settings": _output_power_diagnostics(getattr(coordinator, "output_settings", None)),
         "battery": {
             "power": number(live_power(data).get("bat")),
             "soc": number(live.get("soc")),

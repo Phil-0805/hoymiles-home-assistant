@@ -1,80 +1,118 @@
 # Hoymiles S-Miles Home for Home Assistant
 
+[![HACS Default](https://img.shields.io/badge/Marketplace%20%7C%20HACS-Default-orange)](https://github.com/hacs/default/blob/master/integration)
+[![Release](https://img.shields.io/github/v/release/Phil-0805/hoymiles-home-assistant)](https://github.com/Phil-0805/hoymiles-home-assistant/releases/latest)
+[![Last commit](https://img.shields.io/github/last-commit/Phil-0805/hoymiles-home-assistant/main?label=last%20commit%20%28main%29)](https://github.com/Phil-0805/hoymiles-home-assistant/commits/main)
+[![Tests](https://img.shields.io/github/actions/workflow/status/Phil-0805/hoymiles-home-assistant/tests.yml?branch=main&label=tests%20%28main%29)](https://github.com/Phil-0805/hoymiles-home-assistant/actions/workflows/tests.yml)
+[![HA tested](https://img.shields.io/badge/HA%20tested-2026.10.4%20%7C%202026.11.0-blue)](https://github.com/Phil-0805/hoymiles-home-assistant/actions/workflows/tests.yml)
+[![Release downloads](https://img.shields.io/github/downloads/Phil-0805/hoymiles-home-assistant/total?label=release%20downloads)](https://github.com/Phil-0805/hoymiles-home-assistant/releases)
+[![License MIT](https://img.shields.io/github/license/Phil-0805/hoymiles-home-assistant)](LICENSE)
+
 **English** | [Deutsch](README.de.md)
 
-Unofficial Home Assistant integration for **S-Miles Home** accounts. It reads
-Hoymiles cloud data directly; Node-RED, MQTT and local inverter access are not
-required. Developed and tested on an HMS-2000-4WB with HiBattery. During the
-0.4.2 beta test on 28 October 2026, the maintainer verified the correct model
-labels and PV readings on HMS-2000-4WB and HMS-800-2WB installations. This does
-not confirm every function or every firmware/account combination.
+Connect your **S-Miles Home** account to Home Assistant to monitor your solar
+installation and supported battery settings through the Hoymiles cloud.
+No Node-RED or MQTT broker is required. This is a community integration,
+unaffiliated with Hoymiles, and officially listed in the HACS default catalog.
 
-For a **HiBattery 4020-X with one expansion battery**, a user confirms PV
-readings after choosing the matching PV source, battery temperatures, relay
-direction and battery commands in v0.5.1. These observations apply to that
-setup. Maximum-power settings remain unavailable on its current settings path;
-some raw status codes are undocumented. See
-[issue #9](https://github.com/Phil-0805/hoymiles-home-assistant/issues/9).
+**v0.6.0** brings account-aware login, separate battery cutoffs and light/display
+controls to the stable channel. It includes the fixes tested throughout the
+v0.5.2 betas and v0.6.0b1. Existing installations can update without starting over.
 
-## Select your plant during setup
+[What changed in v0.6.0](docs/release-0.6.0.md) · [Upgrade notes](#updating-to-060)
 
-From version 0.4.0, sign in with your S-Miles Home account, then select a plant
-by name and numeric station ID. To add another plant, add the integration again.
-Existing configured stations and their identifiers are preserved.
+[Installation](#installation) · [Features](#features) · [Controls](#controls) ·
+[Beta testing](#testing-beta-versions) · [Troubleshooting](#troubleshooting)
 
-You can also type a numeric station ID into the dropdown. If discovery is
-unavailable or returns no plants, setup offers manual ID entry. Before saving,
-the ID is checked against the account's device tree.
+## Installation
 
-The maintainer verified plant selection and duplicate detection with his account
-on 26 October 2026; existing history and measurements were preserved. Other
-accounts and device models may behave differently with this unofficial API.
-For manual setup, see [Finding your station ID](#finding-your-station-id).
+1. Open HACS / Marketplace and search for **Hoymiles S-Miles Home**.
+   It is in the default catalog; adding a custom repository is unnecessary.
+2. Install the integration and restart Home Assistant.
+3. Open **Settings → Devices & services → Add integration** and choose
+   **Hoymiles S-Miles Home**.
+4. Enter your S-Miles Home email and password, then select your plant.
+   For another plant, add the integration again.
+
+If plant discovery is unavailable, enter the numeric station ID manually.
+See [Finding your station ID](#finding-your-station-id). Updates do not require
+recreating an existing integration or its entities.
 
 ## Features
 
-- Live PV, load, grid and battery power when the station supplies these values
-- Persistent daily home-consumption energy calculated from the live load
-- Correct WB battery charge/discharge direction using the live relay state
-- Separate positive battery charge and discharge power sensors
-- Persistent daily battery charge and discharge energy counters
-- Writable reserve SOC and battery mode controls with read-back verification
-- Read-only battery setting diagnostics
-- Battery state of charge and raw operating flags
-- Per-module power, voltage and current from five-minute charts, where available
-- Station connectivity
-- Daily, monthly, yearly and total energy when supplied by the station endpoint
-- UI setup through Home Assistant
+Availability depends on the device, firmware and cloud response.
 
-## Battery controls
+| Area | Available features |
+| --- | --- |
+| Live data | PV, grid, home load and battery power; connectivity and battery SOC |
+| Energy | Station energy totals where supplied; locally calculated daily battery charge/discharge and home-consumption energy |
+| PV modules | Power, voltage and current from five-minute charts; selectable PV source |
+| Battery | Mode, reserve SOC and read-only status diagnostics |
+| Battery controls | Automatic temperature readings and separate charge/discharge cutoff settings |
+| Device settings | Automatic-heating permission, LED colour/brightness, display brightness and separate off delays |
+| Output power | Watt control when the cloud reports complete settings, limits and phase information; device validation remains open |
+| Diagnostics | Login/connection error stages and reasons, plus attempted recovery when the mobile API supplies no live-server address |
 
-Battery commands are disabled by default, including when upgrading an existing installation. Under **Settings → Devices & services → Hoymiles S-Miles Home → Configure**, enable **Allow battery controls** to use the mode and reserve-SOC entities. Turn it off again for read-only operation. Existing entity identities and history are preserved; telemetry and settings refreshes continue while controls are disabled. Avoid simultaneous changes in the S-Miles Home app.
+Live polling follows Hoymiles' requested interval, normally around three seconds.
+Module charts and battery temperatures refresh about every five minutes.
+Settings normally refresh every 30 minutes and have manual refresh buttons.
+Transient settings-read failures receive at most two additional attempts, after
+one and then three minutes. Authentication errors, rate limits and invalid
+settings keep their normal handling. Cloud availability can affect all readings.
 
-Use v0.5.1 or newer for the current security fixes. Earlier versions are superseded. After updating, restart Home Assistant and explicitly enable battery controls if needed. This also applies to existing automations that change the battery mode or reserve SOC.
+## Controls
 
-## Battery mode display (v0.5.2 beta)
+Under **Settings → Devices & services → Hoymiles S-Miles Home → Configure**:
 
-The battery mode sensor uses translated states with stable keys such as
-`self_consumption` and `time_of_use`. Its entity ID is preserved. When installing this beta, adjust
-automations/templates that compare this sensor to the old English text (for example `Self-Consumption`). Battery
-command select options keep their existing English values.
+| Option | Enables |
+| --- | --- |
+| **Allow battery controls** | Battery mode, reserve SOC, separate charge/discharge cutoffs and supported output-power settings |
+| **Allow device controls** | Heating permission, LED and display settings |
+| **Additional inverter telemetry (beta)** | Optional inverter temperature, frequency and AC voltage where available |
 
-## Installation with HACS / Marketplace
+Write controls are disabled by default. Changes read current settings first,
+preserve related values and verify the result by readback. Check the app after
+a change and avoid simultaneous app/HA edits.
 
-**Hoymiles S-Miles Home is officially listed in the [HACS default catalog](https://github.com/hacs/default/blob/master/integration).** You can install it directly from HACS without adding a custom repository. This remains an unofficial Hoymiles integration.
+- **Reserve SOC and discharge cutoff are separate settings.** See
+  [battery cutoff details](docs/battery-charge-limit.md).
+- **Heating permission** allows automatic heating; it does not force heating or
+  report heater activity. Named light effects are not exposed. See
+  [device settings](docs/device-settings.md).
+- **Output power** requires explicit cloud limits. An unavailable control does
+  not establish a device fault. This control does not raise the separately
+  permitted maximum or change the grid-export limit. See
+  [output-power details](docs/output-power-settings.md).
 
-1. On HA 2026.11+, open **Settings → Marketplace**. On HA 2026.10 or older,
-   install HACS if needed and open HACS.
-2. Search for **Hoymiles S-Miles Home** and install it. Beta versions are not required.
-3. Restart Home Assistant.
-4. Under **Settings → Devices & services → Add integration**, search for
-   **Hoymiles S-Miles Home**, enter your S-Miles Home email and password, then
-   select your plant. For manual setup, see
-   [Finding your station ID](#finding-your-station-id).
+## Device compatibility
 
-Subsequent releases are available through HACS. Existing installations added as
-a custom repository can continue using the integration without recreating their
-Home Assistant config entries.
+| Setup | Evidence so far |
+| --- | --- |
+| HMS-2000-4WB with HiBattery | Maintainer setup; model/PV readings and selected battery/device controls tested |
+| HMS-800-2WB | Model and PV readings confirmed; battery/device settings can differ between installations |
+| HiBattery 4020-X with one expansion battery | User confirmed selected PV source, temperatures, relay direction and battery commands in v0.5.1; [issue #9](https://github.com/Phil-0805/hoymiles-home-assistant/issues/9) |
+
+These observations do not establish support for every setting or firmware.
+The tests badge tracks `main`; the HA badge names versions covered by the current
+test matrix, not a minimum HA version. Models use explicit device metadata;
+otherwise the name remains generic. Missing values remain unavailable. Battery
+entities only provide useful data when the installation has supported storage.
+Daily calculated energy can have gaps during outages and is not a billing meter.
+
+## Updating to 0.6.0
+
+Read the selected release's notes, install it and restart Home Assistant.
+Keep existing config entries and entity identities.
+
+- Battery mode sensor states use keys such as `self_consumption` and
+  `time_of_use`, displayed in your language. Update templates that compare
+  against the previous English sensor text. Command select values remain unchanged.
+- The incorrectly mapped b2 charge-limit number and its sensor are removed.
+  Automations using them need deliberate changes to use the separate app cutoffs.
+- Battery temperatures no longer require their previous opt-in. Additional
+  inverter telemetry remains optional.
+- The obsolete **Maximum power setting (raw)** sensor is removed. Update any
+  dashboards or automations referencing it; the output-power control remains.
 
 ## Testing beta versions
 
@@ -85,7 +123,7 @@ and create a backup before testing.
 - **HA 2026.11+ / Marketplace:** Open **Settings → Devices & services → Marketplace**
   and the device page for this repository. Enable the disabled **Pre-release**
   switch entity, then turn it on. Install the offered beta, or use **Install
-  another version** on the repository page to select a beta such as `0.5.2b1`.
+  another version** on the repository page to select a beta such as `0.6.0b1`.
 - **HA 2026.10 or older / HACS:** Open this repository, enable prereleases and use
   **Redownload** to choose the beta. Labels vary with the HACS version.
 
@@ -99,12 +137,30 @@ To leave beta testing, disable prereleases. For an immediate rollback, restore
 your pre-beta backup; see the [Marketplace version guidance](https://www.home-assistant.io/integrations/marketplace/#installing-another-version).
 Automations are not automatically adapted when sensor states change.
 
+## Troubleshooting
+
+Check the installed integration version, HA version and device/firmware model.
+For login or connection failures, open **Settings → System → Logs →
+Home Assistant Core** and look for `hoymiles_home.cloud_logging`.
+Warnings identify `stage`, `reason` and, where relevant, numeric status codes.
+Debug logging is not required. See [connection test instructions](docs/release-0.6.0.md).
+A missing live-server address and a failed login can have different causes.
+If readings stop, compare with the official app. Stale values in both may indicate
+a shared device/cloud issue; this alone does not establish its cause.
+A settings refresh may take several minutes after a transient startup failure.
+
+Download diagnostics for the affected integration under **Devices & services**.
+Report the version, affected setting and matching app observation in an
+[issue](https://github.com/Phil-0805/hoymiles-home-assistant/issues).
+Do not publish credentials, tokens, serial numbers or unredacted screenshots.
+
 ## Manual installation
 
-Extract the release ZIP and copy `custom_components/hoymiles_home` into the
-Home Assistant configuration directory as `custom_components/hoymiles_home`.
-Restart Home Assistant, then add **Hoymiles S-Miles Home** under
-**Settings → Devices & services**.
+If the release includes **hoymiles_home.zip**, extract its contents directly into
+`<config>/custom_components/hoymiles_home/`; `manifest.json` must be directly in
+that folder. For a GitHub **Source code (zip)** archive or older releases,
+copy its `custom_components/hoymiles_home` folder into `<config>/custom_components/`.
+Restart Home Assistant and add the integration under **Devices & services**.
 
 ## Finding your station ID
 
@@ -132,49 +188,19 @@ your plant. If the URL differs or you cannot identify a numeric station ID, ask
 in issue #2 rather than entering a serial number. Never post passwords, login
 tokens or unredacted diagnostics in a public issue.
 
-## What to expect
+## Privacy
 
-- From version 0.4.2, model discovery reads `model_no` and tries optional
-  read-only web device metadata when the Home tree lacks a model. Some accounts
-  may not have access. Download integration diagnostics under **Settings →
-  Devices & services** if the model remains generic; the `inverters` section
-  reports the result without raw account/device data.
-- Inverter model names are taken from explicit HMS model numbers in device
-  metadata; otherwise the device is labelled "Hoymiles microinverter". Known
-  models use their physical PV input count. Without a model, the integration
-  retains its four-input chart probing; this does not mean four inputs or a
-  2000 W rating were detected. Existing sensor and device identifiers are retained.
-- Live data follows the interval supplied by Hoymiles, normally about three
-  seconds. Module chart values typically refresh every five minutes. This is
-  cloud polling, not a guarantee of true inverter-side real time.
-- Battery entities and controls are useful only with a supported battery.
-  A microinverter without storage will not gain battery measurements.
-- Battery charge/discharge and home-consumption daily energy are calculated
-  locally from power readings. Short outages can leave gaps; these are not
-  revenue-grade meters.
-- Reserve SOC is the configured minimum charge, not the current state of
-  charge. Changes are sent to the device through Hoymiles and can take several
-  seconds to appear. Check the S-Miles Home app after changing a control.
+Login data is sent to Hoymiles over HTTPS. The password is stored in Home
+Assistant's local config entry for reconnects; protect the host and backups.
+Account tokens are restricted to HTTPS Hoymiles hosts. Login permits one redirect
+to the same auth path on explicitly allowed HTTPS API hosts, without forwarding
+a previous token. Other API redirects remain blocked.
+The integration sends no measurements or credentials to this project or an
+additional analytics service. New cloud diagnostic logs use fixed labels and
+structural information, without raw responses, identifiers or credentials.
 
-## Privacy and security
+The cloud API is undocumented and can change. This project is not independently
+audited.
 
-The integration sends account login data to Hoymiles over HTTPS, then uses an
-account token to request data from Hoymiles endpoints. It does not send your
-measurements or credentials to this GitHub project or to an additional analytics
-service. The password is retained in Home Assistant's local config entry so it
-can reconnect; protect your Home Assistant host and backups. This is **not**
-end-to-end private or independently audited: Hoymiles already handles your
-plant data, and its undocumented API can change. The token is only sent to
-HTTPS Hoymiles hosts; redirects and unexpected live-data hosts are rejected.
-Do not expose Home Assistant publicly without its normal access controls.
-
-## Notes
-
-- This integration uses an unofficial cloud API and is not affiliated with Hoymiles.
-- Additional inverter readings and battery temperatures can be enabled under
-  **Configure**. They are off by default and may initially be unavailable.
-- Changing battery mode or reserve SOC sends a real control command. Avoid
-  simultaneous changes in the app and check the result there.
-
-See the [release notes and known limitations](docs/release-0.5.1.md) and
-[device test plan](docs/testing-0.5.0.de.md) for details.
+[MIT license](LICENSE) · [Release notes](https://github.com/Phil-0805/hoymiles-home-assistant/releases) ·
+[Device test plan](docs/testing-0.5.0.de.md) · [MQTT investigation for v0.7.0](docs/roadmap-0.7.md)

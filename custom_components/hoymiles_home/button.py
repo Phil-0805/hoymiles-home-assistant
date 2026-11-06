@@ -7,12 +7,21 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_STATION_ID, DOMAIN
+from .device_settings_entity import DeviceSettingsEntity
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
+    coordinator = hass.data[DOMAIN][entry.entry_id]
     async_add_entities([
-        HoymilesRefreshBatterySettingsButton(hass.data[DOMAIN][entry.entry_id], entry)
+        HoymilesRefreshBatterySettingsButton(coordinator, entry)
     ])
+    if coordinator.device_controls:
+        async_add_entities([HoymilesRefreshDeviceSettingsButton(coordinator, entry)])
+    if coordinator.battery_controls:
+        async_add_entities([
+            HoymilesRefreshCutoffSettingsButton(coordinator, entry),
+            HoymilesRefreshOutputPowerButton(coordinator, entry),
+        ])
 
 
 class HoymilesRefreshBatterySettingsButton(CoordinatorEntity, ButtonEntity):
@@ -38,3 +47,38 @@ class HoymilesRefreshBatterySettingsButton(CoordinatorEntity, ButtonEntity):
                 translation_domain=DOMAIN,
                 translation_key="settings_refresh_wait",
             )
+
+
+class HoymilesRefreshDeviceSettingsButton(DeviceSettingsEntity, ButtonEntity):
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:refresh"
+
+    def __init__(self, coordinator, entry):
+        super().__init__(coordinator, entry, "refresh_device_settings")
+
+    @property
+    def available(self):
+        return (self.coordinator.last_update_success and self.controls_enabled
+                and self.manager.enabled and not self.manager.stopped)
+
+    async def async_press(self):
+        if not await self.manager.async_refresh():
+            raise HomeAssistantError(translation_domain=DOMAIN, translation_key="settings_refresh_wait")
+
+
+class HoymilesRefreshCutoffSettingsButton(HoymilesRefreshDeviceSettingsButton):
+    def __init__(self, coordinator, entry):
+        DeviceSettingsEntity.__init__(self, coordinator, entry, "refresh_battery_cutoffs", "cutoffs")
+
+    @property
+    def manager(self):
+        return self.coordinator.cutoff_settings
+
+
+class HoymilesRefreshOutputPowerButton(HoymilesRefreshCutoffSettingsButton):
+    def __init__(self, coordinator, entry):
+        DeviceSettingsEntity.__init__(self, coordinator, entry, "refresh_output_power", "output_power")
+
+    @property
+    def manager(self):
+        return self.coordinator.output_settings
