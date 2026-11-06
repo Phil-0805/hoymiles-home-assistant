@@ -87,3 +87,29 @@ a second station showed only "unavailable", so it did not establish a specific
 cause. If settings remain unavailable, use the relevant refresh button after
 the 30-second cooldown and provide a new diagnostic export rather than deleting
 and recreating the integration. No device write is needed to test the read.
+
+## B7: Never off delay
+
+The Android V2.13.0 `LedTimeType` enum defines `NONE = 65535`, alongside 60,
+300, 900 and 3600 seconds. `LedManagerPageActivity` uses this enum for both `slot`
+(strip timeout) and `sot` (display timeout), for reading and writing.
+
+The earlier parser rejected anything above 3600 for either field and consequently
+rejected the complete light/display snapshot. An app screenshot from the second
+installation shows Never for the strip, consistent with that failure. The exact
+live response value has not been exported; the sentinel is independently
+established by the inspected app implementation.
+
+B7 accepts exactly the 65535 sentinel for these two fields
+and preserves it through unrelated writes. It does not accept intermediate
+out-of-range durations or use the sentinel for colour/brightness values.
+Two new translated timeout selectors offer 1/5/15 minutes, 1 hour and Never.
+Existing seconds numbers keep their entity IDs for automations and are
+unavailable while Never is selected; they do not show 65535 as elapsed seconds.
+Select a regular duration to restore the corresponding seconds number. Durations
+set through the existing numeric control remain supported and are labelled
+Custom in the selector when they differ from app presets.
+
+Writes still require device-control permission, a fresh full snapshot, unchanged
+counterparts and full readback. Confirmation on the originally affected device
+remains pending.

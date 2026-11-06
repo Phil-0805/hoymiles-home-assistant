@@ -44,6 +44,8 @@ def trusted_auth_redirect(source: str, target: str) -> bool:
         and destination.hostname in AUTH_REDIRECT_HOSTS
         and origin.path in AUTH_PATHS
         and destination.path == origin.path
-        and not origin.query and not destination.query
+        # Observed manufacturer 307 target (2026-11-06) adds this exact marker.
+        # Match the raw query so duplicates, extra keys and encodings stay out.
+        and not origin.query and destination.query in ("", "times=1")
         and target != source
     )

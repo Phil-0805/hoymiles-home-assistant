@@ -18,6 +18,8 @@ READBACK_DELAY = 3
 DISPLAY_FIELDS = {"ldb": 255, "sot": 3600}
 STRIP_FIELDS = {"r": 255, "g": 255, "b": 255, "slb": 255, "slot": 3600}
 LIGHT_FIELDS = {**DISPLAY_FIELDS, **STRIP_FIELDS}
+OFF_DELAY_NEVER = 65535
+OFF_DELAY_FIELDS = frozenset({"slot", "sot"})
 
 
 def setting_integer(value, maximum):
@@ -25,6 +27,13 @@ def setting_integer(value, maximum):
     if isinstance(value, str) and len(value) <= len(str(maximum)) and re.fullmatch(r"[0-9]+", value):
         value = int(value)
     return value if type(value) is int and 0 <= value <= maximum else None
+
+
+def lighting_integer(key, value):
+    """Android LedTimeType.NONE uses a sentinel, not a duration in seconds."""
+    if key in OFF_DELAY_FIELDS and setting_integer(value, OFF_DELAY_NEVER) == OFF_DELAY_NEVER:
+        return OFF_DELAY_NEVER
+    return setting_integer(value, LIGHT_FIELDS[key])
 
 
 def parse_cutoffs(data):
@@ -84,7 +93,7 @@ def parse_lighting(data, target):
         raise HoymilesSettingsError("invalid_lighting", "Invalid light/display settings", data) from None
     values = {}
     for key, maximum in LIGHT_FIELDS.items():
-        value = setting_integer(data.get(key), maximum)
+        value = lighting_integer(key, data.get(key))
         if key in data and value is None:
             raise HoymilesSettingsError("invalid_lighting", "Invalid light/display value", data)
         if value is not None:
@@ -100,7 +109,7 @@ def parse_lighting(data, target):
     # fields retain both their values and their original types.
     for key, maximum in LIGHT_FIELDS.items():
         if key in data:
-            snapshot[key] = setting_integer(data[key], maximum)
+            snapshot[key] = lighting_integer(key, data[key])
     return {"values": values, "snapshot": snapshot}
 
 
@@ -110,7 +119,7 @@ def light_update(settings, updates):
             or not updates.keys() <= LIGHT_FIELDS.keys()):
         raise HoymilesConnectionError("Unsupported light/display change")
     for key, value in updates.items():
-        if type(value) is not int or not 0 <= value <= LIGHT_FIELDS[key]:
+        if type(value) is not int or lighting_integer(key, value) is None:
             raise HoymilesConnectionError("Light/display value is outside its supported range")
     snapshot = deepcopy(settings["snapshot"])
     snapshot.update(updates)

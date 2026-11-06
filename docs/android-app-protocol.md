@@ -97,3 +97,89 @@ uses the existing account budget and rate-limit handling. Logs record fixed
 policy labels and HTTP status, never Location contents. This deliberately
 restricts the Android client's broader behavior. Real affected-account testing
 is required to confirm whether its redirect falls within this policy.
+
+## Login redirects — follow-up inspection, 2026-11-06
+
+The b6 report from gillesBdl still shows HTTP 307 with `blocked_target` at
+`login_challenge`. The Germany/own-account statement in issue #16 belongs to
+ElchCarlo, a different reporter; it does not establish gillesBdl's account region.
+The French Home Assistant log labels do not establish a cloud region either.
+
+The same archived APK was checked again; both archive hashes above still match.
+The readable call chain is `LoginActivity.O0` → `Auth3PreManager.g` →
+`EasyRequest.b/c` → `HttpUtils.h/i/b` → `HttpUrlManager.a` →
+`DomainManager.g`. Pre-inspection sends only `{u: account}`. The bundled
+`assets/domain/online_domain.json` maps both v3 auth operations to domain id 1,
+`https://euapi.hoymiles.com`, with the same paths used by the integration.
+`HttpUrlManager` concatenates the configured domain and URI for these operations;
+its special station-AK handling does not apply to login.
+
+`HttpUtils.k/l/n` supplies JSON/UTF-8, a language label and the app user agent.
+The latter is built from the installed version, tenant and stored user DC, with
+DC 0 when no user is stored. The inspected tenant constant resolves to 159.
+The integration currently advertises app version 2.12.1; this differs from the
+archived app's 2.13.0, but no evidence links that difference to this 307.
+`Auth3PreManager` also supports legacy challenge versions; that is a separate
+compatibility observation after successful pre-inspection, not an explanation
+for an HTTP redirect rejected before reading a challenge.
+
+The app can replace bundled routing through `AppConfigUtil.v` and
+`DomainManager.m`. The exact public, unauthenticated configuration request was
+verified from the APK: POST `/dict/pub/0/dyn/uri_s` on `euapi`, with
+`{app_type: 1, h: "-1", dc: 1}` when no configuration/challenge is stored.
+The inlined `PercentLayoutHelper` constant was resolved to the literal `h`.
+One request without an account, password or token on 2026-11-06 returned status
+0 and the same auth routes and domains as the archive. The additional `eud0`
+domain is not mapped to auth by this result and is not evidence to enable it
+as a login destination. Response SHA-256:
+`dd8c03a30936c3a4890c1e2faa1d1d1cd6d6a5082c6870c0a4f7ddd4014ece32`.
+
+The currently delivered public web entry was also fetched from
+`https://global.hoymiles.com/website` on 2026-11-06. Its configuration names
+`neapi` as `serviceHost`, `euapi` as `euHost`, and `indapi` as `indiaHost`.
+The linked `https://static.hoymiles.com/cdncache/website/js/index-BTRAEMTt.js`
+defaults Axios to `serviceHost`, uses the same v3 auth paths, and can override
+the base for stored DC/OEM state. These are static defaults, not an observed
+affected-account request. Entry SHA-256:
+`76328c3b1e03e0a86e30d08fc91b5691262ac17812f275d9a1184ce50a9786eb`;
+linked JavaScript SHA-256:
+`093c693196cf7966d1565ee7cca170d65f7de28ba5d9078f911ec9e164b64164`.
+
+Before the subsequent browser capture below, an account-free HEAD request to the documented euapi pre-inspection path returned
+HTTP 200 without a redirect. It does not reproduce an account-bearing POST.
+The maintainer reports successful browser login; the affected reporter's
+redirect destination remains unknown. No real account or device was accessed
+by the agent, no redirect restriction was relaxed, and no verified login fix
+can yet be claimed. Private captures and vendor binaries/sources stay outside
+the repository.
+
+## Observed auth redirect marker — b7 fix, 2026-11-06
+
+The maintainer supplied browser network screenshots from a successful login.
+They show POST to `https://neapi.hoymiles.com/iam/pub/3/auth/pre-insp`, HTTP
+307 with Location `https://euapi.hoymiles.com/iam/pub/3/auth/pre-insp?times=1`,
+then HTTP 200 at the destination. The marker is observed server output;
+its meaning is not inferred. The private screenshots are not stored in the repo.
+
+B6 rejects this exact target because it rejects every nonempty query. The local
+fix allows only the literal raw query `times=1`, alongside the existing empty
+query, for a same-operation redirect between the three known HTTPS auth hosts.
+The same check covers both auth operations, matching the APK's shared redirect
+interceptor; only pre-inspection was captured in these screenshots. Other values,
+encoded variants, duplicates and additional parameters stay blocked. The source
+must still have no query. There is still only one hop, POST/body are preserved,
+old Authorization tokens are omitted, and other API redirects stay blocked.
+No change to start host, user agent, challenge calculation or polling is needed.
+
+This reproduces a concrete b6 defect using synthetic responses. The screenshots
+are from the maintainer's account, not gillesBdl's; confirmation that the same
+marker causes that reporter's 307 remains outstanding. No real account was
+accessed by the agent. This targeted change is included in b7.
+
+## Light/display Never timeout — b7
+
+`com.balcony.bean.enums.LedTimeType` in the archived V2.13.0 app defines times
+60, 300, 900, 3600 and `NONE = 65535`. The settings activity writes `getTime()`
+to both `slot` and `sot` and reads each via `findByTime`. This establishes the
+Never sentinel independently of the screenshot. The app's fallback to MIN_15
+for unknown values is not adopted as evidence of a real device setting.

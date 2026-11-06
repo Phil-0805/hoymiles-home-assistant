@@ -99,6 +99,8 @@
       "strip_off_delay": {"name": "Indicator strip off delay"}
     },
     "select": {
+      "display_off_delay_preset": {"name": "Display off-delay preset", "state": {"one_minute": "1 minute", "five_minutes": "5 minutes", "fifteen_minutes": "15 minutes", "one_hour": "1 hour", "never": "Never", "custom": "Custom (seconds control)"}},
+      "strip_off_delay_preset": {"name": "Strip off-delay preset", "state": {"one_minute": "1 minute", "five_minutes": "5 minutes", "fifteen_minutes": "15 minutes", "one_hour": "1 hour", "never": "Never", "custom": "Custom (seconds control)"}},
       "battery_mode": {"name": "Battery mode"}
     },
     "switch": {"battery_heating": {"name": "Allow battery heating"}},
