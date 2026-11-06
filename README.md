@@ -15,10 +15,11 @@ installation and supported battery settings through the Hoymiles cloud.
 No Node-RED or MQTT broker is required. This is a community integration,
 unaffiliated with Hoymiles, and officially listed in the HACS default catalog.
 
-**Release status:** v0.6.0 is currently in beta. The release badge links to the
-latest stable version; the [release notes](https://github.com/Phil-0805/hoymiles-home-assistant/releases)
-list beta changes and remaining limitations. Features marked **0.6.0** below are
-being tested for the next stable release.
+**v0.6.0** brings account-aware login, separate battery cutoffs and light/display
+controls to the stable channel. It includes the fixes tested throughout the
+v0.5.2 betas and v0.6.0b1. Existing installations can update without starting over.
+
+[What changed in v0.6.0](docs/release-0.6.0.md) · [Upgrade notes](#updating-to-060)
 
 [Installation](#installation) · [Features](#features) · [Controls](#controls) ·
 [Beta testing](#testing-beta-versions) · [Troubleshooting](#troubleshooting)
@@ -47,15 +48,17 @@ Availability depends on the device, firmware and cloud response.
 | Energy | Station energy totals where supplied; locally calculated daily battery charge/discharge and home-consumption energy |
 | PV modules | Power, voltage and current from five-minute charts; selectable PV source |
 | Battery | Mode, reserve SOC and read-only status diagnostics |
-| Battery — **0.6.0** | Automatic temperature readings and separate charge/discharge cutoff settings |
-| Device settings — **0.6.0** | Automatic-heating permission, LED colour/brightness, display brightness and separate off delays |
-| Output power — **0.6.0** | Watt control when the cloud reports complete settings, limits and phase information; device validation remains open |
-| Diagnostics — **0.6.0** | Login/connection error stages and reasons, plus attempted recovery when the mobile API supplies no live-server address |
+| Battery controls | Automatic temperature readings and separate charge/discharge cutoff settings |
+| Device settings | Automatic-heating permission, LED colour/brightness, display brightness and separate off delays |
+| Output power | Watt control when the cloud reports complete settings, limits and phase information; device validation remains open |
+| Diagnostics | Login/connection error stages and reasons, plus attempted recovery when the mobile API supplies no live-server address |
 
 Live polling follows Hoymiles' requested interval, normally around three seconds.
 Module charts and battery temperatures refresh about every five minutes.
-Settings refresh less often and have manual refresh buttons. Cloud polling is
-subject to network interruptions and manufacturer rate limits.
+Settings normally refresh every 30 minutes and have manual refresh buttons.
+Transient settings-read failures receive at most two additional attempts, after
+one and then three minutes. Authentication errors, rate limits and invalid
+settings keep their normal handling. Cloud availability can affect all readings.
 
 ## Controls
 
@@ -63,8 +66,8 @@ Under **Settings → Devices & services → Hoymiles S-Miles Home → Configure*
 
 | Option | Enables |
 | --- | --- |
-| **Allow battery controls** | Battery mode and reserve SOC; in 0.6.0, separate charge/discharge cutoffs and supported output-power settings |
-| **Allow device controls** — **0.6.0** | Heating permission, LED and display settings |
+| **Allow battery controls** | Battery mode, reserve SOC, separate charge/discharge cutoffs and supported output-power settings |
+| **Allow device controls** | Heating permission, LED and display settings |
 | **Additional inverter telemetry (beta)** | Optional inverter temperature, frequency and AC voltage where available |
 
 Write controls are disabled by default. Changes read current settings first,
@@ -113,7 +116,6 @@ Keep existing config entries and entity identities.
 
 ## Testing beta versions
 
-
 Stable is recommended for everyday use; betas remain available for volunteers.
 Read the selected version's [release notes](https://github.com/Phil-0805/hoymiles-home-assistant/releases)
 and create a backup before testing.
@@ -138,11 +140,14 @@ Automations are not automatically adapted when sensor states change.
 ## Troubleshooting
 
 Check the installed integration version, HA version and device/firmware model.
-For login or connection failures on 0.6.0 betas, open **Settings → System → Logs →
+For login or connection failures, open **Settings → System → Logs →
 Home Assistant Core** and look for `hoymiles_home.cloud_logging`.
 Warnings identify `stage`, `reason` and, where relevant, numeric status codes.
-Debug logging is not required. See [connection test instructions](docs/release-0.6.0b1.md).
+Debug logging is not required. See [connection test instructions](docs/release-0.6.0.md).
 A missing live-server address and a failed login can have different causes.
+If readings stop, compare with the official app. Stale values in both may indicate
+a shared device/cloud issue; this alone does not establish its cause.
+A settings refresh may take several minutes after a transient startup failure.
 
 Download diagnostics for the affected integration under **Devices & services**.
 Report the version, affected setting and matching app observation in an
@@ -158,7 +163,6 @@ copy its `custom_components/hoymiles_home` folder into `<config>/custom_componen
 Restart Home Assistant and add the integration under **Devices & services**.
 
 ## Finding your station ID
-
 
 Setup requires the numeric **station ID** (`sid`) of your plant, not the
 inverter serial number or an individual device's numeric `id`.
