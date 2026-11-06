@@ -17,6 +17,8 @@ SALT = "0123456789abcdef"
 
 def client(challenge, password="password", result=None):
     api = HoymilesHomeClient(MagicMock(), ACCOUNT, password)
+    if isinstance(challenge, dict):
+        challenge = {"dc": 1, **challenge}
     api._json = AsyncMock(side_effect=[
         {"status": 0, "data": challenge},
         result or {"status": 0, "data": {"token": TOKEN}},
@@ -71,8 +73,9 @@ async def test_unknown_or_missing_version_never_guesses_an_algorithm(version, ca
 
 
 @pytest.mark.parametrize("version", [1, 2, 3])
-async def test_cloud_rejection_does_not_retry_with_another_protocol(version):
-    api = client({"v": version, "a": SALT, "n": NONCE}, result={
+@pytest.mark.parametrize("dc", [0, 1, 4])
+async def test_cloud_rejection_does_not_retry_with_another_protocol_or_host(version, dc):
+    api = client({"v": version, "dc": dc, "a": SALT, "n": NONCE}, result={
         "status": 1, "message": "login failed", "data": "PRIVATE_RESPONSE",
     })
     with pytest.raises(HoymilesAuthError):
@@ -102,3 +105,54 @@ def test_auth_failure_diagnostics_only_add_a_known_version(caplog):
     api._cloud_report("login", "cloud_rejected", {"status": 1, "data": NONCE, "message": TOKEN})
     assert "auth_version=1" in caplog.text
     assert NONCE not in caplog.text and TOKEN not in caplog.text and ACCOUNT not in caplog.text
+
+
+@pytest.mark.parametrize("dc,host", [("0", "neapi"), ("1", "euapi"), ("4", "indapi")])
+async def test_app_integer_dc_strings_select_only_explicit_known_hosts(dc, host):
+    api = client({"v": 3, "dc": dc, "a": SALT, "n": NONCE})
+    await api.async_login()
+    assert api._json.await_args.args[0] == f"https://{host}.hoymiles.com/iam/pub/3/auth/login"
+
+
+@pytest.mark.parametrize("dc", [None, True, False, 0.0, 1.0, 2, 3, 41, -1, "00", "0.0", "PRIVATE_REGION", {}])
+async def test_missing_invalid_or_unknown_dc_stops_before_login(dc, caplog):
+    api = client({"v": 3, "dc": dc, "a": SALT, "n": NONCE})
+    with pytest.raises(CloudDiagnosticError, match="authentication region"):
+        await api.async_login()
+    assert api._json.await_count == 1
+    assert "reason=unsupported_auth_region" in caplog.text
+    assert NONCE not in caplog.text and "PRIVATE_REGION" not in caplog.text
+
+
+async def test_each_login_uses_its_fresh_challenge_region():
+    api = client({"v": 1})
+    api._json.side_effect = [
+        {"status": 0, "data": {"v": 1, "dc": 0, "n": NONCE}},
+        {"status": 0, "data": {"token": TOKEN}},
+        {"status": 0, "data": {"v": 1, "dc": 1, "n": NONCE}},
+        {"status": 0, "data": {"token": TOKEN}},
+    ]
+    await api.async_login()
+    await api.async_login()
+    assert [call.args[0] for call in api._json.await_args_list][1::2] == [
+        "https://neapi.hoymiles.com/iam/pub/3/auth/login",
+        "https://euapi.hoymiles.com/iam/pub/3/auth/login",
+    ]
+
+
+async def test_unsupported_dc_is_not_reused_after_previous_login(caplog):
+    api = client({"v": 1, "dc": 0})
+    await api.async_login()
+    api._json.side_effect = [{"status": 0, "data": {"v": 1}}]
+    with pytest.raises(CloudDiagnosticError):
+        await api.async_login()
+    assert api._auth_dc is None
+
+
+def test_auth_dc_diagnostics_use_known_codes_only(caplog):
+    api = client({"v": 3})
+    api._auth_version = 3
+    api._auth_dc = 0
+    api._cloud_report("login", "cloud_rejected", {"status": 1, "data": NONCE})
+    assert "auth_version=3 auth_dc=0" in caplog.text
+    assert NONCE not in caplog.text

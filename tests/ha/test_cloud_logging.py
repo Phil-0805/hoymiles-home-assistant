@@ -143,7 +143,7 @@ async def test_actual_cloud_rejection_logs_numeric_code_and_shape_not_message(ca
 
 
 async def test_login_challenge_invalid_is_identified_without_values(caplog):
-    api = client(ok({"v": 3, "a": SECRET, "n": SECRET}))
+    api = client(ok({"v": 3, "dc": 1, "a": SECRET, "n": SECRET}))
     with pytest.raises(HoymilesAuthError):
         await api.async_login()
     assert "stage=login_challenge reason=invalid_challenge" in caplog.text
@@ -151,7 +151,7 @@ async def test_login_challenge_invalid_is_identified_without_values(caplog):
 
 
 async def test_login_missing_token_is_identified_without_values(caplog):
-    api = client(ok({"v": 3, "a": "0123456789abcdef", "n": SECRET}), ok({SECRET: SECRET}))
+    api = client(ok({"v": 3, "dc": 1, "a": "0123456789abcdef", "n": SECRET}), ok({SECRET: SECRET}))
     with pytest.raises(HoymilesAuthError):
         await api.async_login()
     assert "stage=login reason=missing_token" in caplog.text

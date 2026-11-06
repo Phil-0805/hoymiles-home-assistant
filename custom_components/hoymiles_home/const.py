@@ -13,6 +13,13 @@ CONF_INVERTER_DETAILS = "inverter_details"
 CONF_STATION_TIMEZONE = "station_timezone"
 
 AUTH_BASE_URL = "https://euapi.hoymiles.com"
+# Account DC routing from the official web client and Android configuration.
+# This selects the login destination, not a user's country or telemetry host.
+AUTH_BASE_URLS = {
+    0: "https://neapi.hoymiles.com",
+    1: "https://euapi.hoymiles.com",
+    4: "https://indapi.hoymiles.com",
+}
 DATA_BASE_URL = "https://neapi.hoymiles.com"
 USER_AGENT = "sma/ad/2.12.1/159/0"
 

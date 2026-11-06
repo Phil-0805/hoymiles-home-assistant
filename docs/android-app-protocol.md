@@ -221,3 +221,46 @@ tests also cover unchanged v3 worker parameters, malformed challenges, no
 fallback/downgrade attempts, redirect transport and privacy. This fixes a
 source-proven compatibility gap, but does not yet prove the cause of the
 reporter's authentication rejection. No real account was accessed by the agent.
+
+## B9: account-selected authentication destination
+
+The affected reporter supplied a redacted successful web pre-inspection response:
+`v=3, dc=0, f=0, t=159`. This rules out the missing v1/v2 support as the cause of
+that reporter's rejection. The maintainer's working account instead uses dc=1.
+Neither DC value establishes a user's country of residence.
+
+In the same archived web bundle, `useLogin` reads dc before login. The default
+`serviceHost` is neapi; dc=1 selects euapi and dc=4 selects indapi. The APK's
+`LoginActivity.R0` calls `AppConfigUtil.v` between pre-inspection and login,
+passing the challenge's dc to the public dynamic route configuration lookup.
+`HttpUrlManager.a` subsequently resolves the login through that configuration.
+
+The exact public configuration read documented above was repeated without an
+account/token for dc=0. It returned both auth operations with did=0, resolving
+to `https://neapi.hoymiles.com`; SHA-256:
+`44ea6f5c31dd3312a021bb843f19ba80a70122ec9e021da1cef6a6f5ca002163`.
+The earlier dc=1 response maps the same operations to did=1/euapi; its hash is
+recorded above. A separate dc=4 configuration read returned null auth did values,
+so it does not independently confirm Android routing for dc=4. The explicit
+dc=4→indapi rule is supported by the web client, not that configuration response.
+DC=4 configuration response SHA-256:
+`1b9e8e36467bdb81d7498a50a96c65dcf8cca93e3dbe9c6f365d34b7fc3db71c`.
+
+B8 always starts both operations on euapi. B9 keeps the
+app's initial euapi pre-inspection and selects only the subsequent login base
+from the freshly returned dc: 0→neapi, 1→euapi, 4→indapi. Missing, malformed or
+unknown codes stop before login; no server is tried as a fallback. No extra
+configuration request is added to the integration. Telemetry routing remains
+unchanged. The v3 hash, nonce and original password bytes remain unchanged.
+
+All three exact auth hosts/paths are recognized as public auth requests, so
+region-selected login omits previous tokens and preserves the existing bounded
+redirect rules, TLS verification, account budget and rate handling. Failure logs
+may add only the known numeric auth_dc. Synthetic tests cover exact destinations,
+all protocol versions, fresh region changes, invalid codes, token omission,
+redirects, privacy and no retries to a different host/algorithm.
+
+The dc=0 mismatch is source-proven and consistent with the supplied report. It
+does not yet establish a successful login at the affected account; no real
+account requests were performed by the agent. The correction is included in b9;
+confirmation on the affected account remains pending.
