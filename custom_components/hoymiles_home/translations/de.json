@@ -34,7 +34,7 @@
     },
     "error": {
       "cannot_connect": "Verbindung zu Hoymiles fehlgeschlagen",
-      "invalid_auth": "Ungültige S-Miles-Home-Zugangsdaten",
+      "invalid_auth": "S-Miles Home hat die Anmeldung abgelehnt",
       "invalid_station": "Für diese Anlagen-ID wurden keine Geräte gefunden. Prüfe die Nummer und den Kontozugriff.",
       "unknown": "Unerwarteter Fehler",
       "discovery_failed": "Die Anlagenliste konnte nicht geladen werden. Du kannst die Station-ID manuell eingeben.",

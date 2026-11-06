@@ -183,3 +183,41 @@ accessed by the agent. This targeted change is included in b7.
 to both `slot` and `sot` and reads each via `findByTime`. This establishes the
 Never sentinel independently of the screenshot. The app's fallback to MIN_15
 for unknown values is not adopted as evidence of a real device setting.
+
+## B8: authentication protocol versions
+
+The reporter now reaches `stage=login`, with `cloud_status=1` and an
+authentication rejection. That is later than the previous blocked redirect;
+it does not establish that the password is wrong. The maintainer's separate
+working web account returns `v=3`, `dc=1`, `f=0`, `t=159`. The affected reporter's
+challenge version is still unknown.
+
+The previously archived APK's `Auth3PreManager.e` selects Argon2 only for
+`JgLoginUrlBean.v == 3`; otherwise it calls `ToolsUtil.e`. That helper constructs
+`MD5(password UTF-8).hex_lower + "." + Base64(SHA256(password UTF-8))`.
+`StringUtilsDawn.T` was followed through its leading-zero branch; the inlined
+`TlbConst.TYPELIB_MINOR_VERSION_SHELL` resolves to the literal `"0"`.
+`com.fuqianguoji.library.ali.Base64.encode` produces ordinary padded Base64.
+`HttpHelper.B` sends `{u, ch, n}`, omitting a null nonce through JSONObject's
+standard null handling. `Argon2IDUtil` and `Argon2KtResult.f(false)` confirm the
+v3 parameters and lowercase raw hash already used by this integration.
+
+The current web bundle archived above independently confirms this: `useLogin`
+reads `{a,n,v,dc,f}`; `v=1` and `v=2` call `encryptPwd`, which builds the same
+MD5/SHA-256 composite, whereas `v=3` calls `encryptPwdV3` with Argon2id,
+iterations 3, memory 32768, parallelism 1 and hash length 32.
+
+B8 requires an explicit supported challenge version. It keeps
+v3 unchanged, supports the documented v1/v2 composite, preserves the original
+password bytes including Unicode/whitespace, and never tries another algorithm
+after rejection. Missing/unknown versions stop before login. A nonce is required
+for v3; a missing/null legacy nonce is omitted, matching both clients' JSON
+behavior. Diagnostic failures include only a known numeric `auth_version`, not
+the challenge, nonce, salt, password or hashes. The authentication error text now
+states rejection rather than asserting incorrect credentials.
+
+Synthetic legacy vectors were independently calculated with Node's crypto API;
+tests also cover unchanged v3 worker parameters, malformed challenges, no
+fallback/downgrade attempts, redirect transport and privacy. This fixes a
+source-proven compatibility gap, but does not yet prove the cause of the
+reporter's authentication rejection. No real account was accessed by the agent.

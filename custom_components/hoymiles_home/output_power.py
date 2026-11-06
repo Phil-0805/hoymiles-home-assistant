@@ -6,8 +6,8 @@ from datetime import UTC, datetime
 import json
 
 from . import device_settings as settings_runtime
-from .device_settings import DeviceSettings, settings_equal
-from .errors import HoymilesAuthError, HoymilesConnectionError
+from .device_settings import DeviceSettings, setting_integer, settings_equal
+from .errors import HoymilesAuthError, HoymilesConnectionError, HoymilesSettingsError
 
 
 def output_phases(data):
@@ -15,15 +15,15 @@ def output_phases(data):
         # Some app responses encode this tiny flat array as JSON text. Keep its
         # decoder bounded without relaxing the HTTP client's object-root rule.
         if len(data) > 128:
-            raise HoymilesConnectionError("Output phase information is oversized")
+            raise HoymilesSettingsError("invalid_output_phases", "Output phase information is oversized")
         try:
             data = json.loads(data)
         except (ValueError, RecursionError):
-            raise HoymilesConnectionError("Invalid output phase information") from None
+            raise HoymilesSettingsError("invalid_output_phases", "Invalid output phase information") from None
     if (not isinstance(data, list) or len(data) > 3
             or any(type(phase) is not str or phase not in {"A", "B", "C"} for phase in data)
             or len(set(data)) != len(data)):
-        raise HoymilesConnectionError("Output phase information is unavailable")
+        raise HoymilesSettingsError("invalid_output_phases", "Output phase information is unavailable", data)
     return sorted(data)
 
 
@@ -43,7 +43,7 @@ def validate_output_settings(settings):
         # The inspected Android code reads Java Integer values. This bound only
         # validates that representation; the actual maximum must come from data.
         if (type(limits[key]) is not int or not 100 <= limits[key] <= 2**31 - 1
-                or type(values[key]) is not int or not 100 <= values[key] <= limits[key]):
+                or type(values[key]) is not int or not 0 <= values[key] <= 2**31 - 1):
             raise HoymilesConnectionError("Output power values or limits are invalid")
     return {"action": action, "phases": phases, "values": dict(values), "limits": dict(limits)}
 
@@ -51,14 +51,17 @@ def validate_output_settings(settings):
 def parse_output_settings(data, phases):
     phases = output_phases(phases)
     if not isinstance(data, dict):
-        raise HoymilesConnectionError("Output power settings are unavailable")
-    values = {"total": data.get("out_power_total" if phases else "power")}
-    limits = {"total": data.get("max_power")}
+        raise HoymilesSettingsError("invalid_output_settings", "Output power settings are unavailable", data)
+    values = {"total": setting_integer(data.get("out_power_total" if phases else "power"), 2**31 - 1)}
+    limits = {"total": setting_integer(data.get("max_power"), 2**31 - 1)}
     for phase in phases:
-        values[phase] = data.get(f"out_power_{phase.lower()}")
-        limits[phase] = data.get(f"power_{phase.lower()}")
-    return validate_output_settings({"action": 1532 if phases else 84,
-                                     "phases": phases, "values": values, "limits": limits})
+        values[phase] = setting_integer(data.get(f"out_power_{phase.lower()}"), 2**31 - 1)
+        limits[phase] = setting_integer(data.get(f"power_{phase.lower()}"), 2**31 - 1)
+    try:
+        return validate_output_settings({"action": 1532 if phases else 84,
+                                         "phases": phases, "values": values, "limits": limits})
+    except HoymilesConnectionError:
+        raise HoymilesSettingsError("invalid_output_settings", "Output power values or limits are invalid", data) from None
 
 
 def output_write_data(settings, value):
@@ -67,6 +70,8 @@ def output_write_data(settings, value):
         raise HoymilesConnectionError("Output power must be within the freshly reported range")
     if settings["action"] == 84:
         return {"power": value}
+    if any(settings["values"][phase] > settings["limits"][phase] for phase in settings["phases"]):
+        raise HoymilesConnectionError("A preserved phase setting exceeds its freshly reported limit")
     return {"type": 0, "power_total": value,
             **{f"power_{phase.lower()}": settings["values"][phase] for phase in settings["phases"]}}
 

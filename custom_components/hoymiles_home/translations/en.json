@@ -34,7 +34,7 @@
     },
     "error": {
       "cannot_connect": "Could not connect to Hoymiles",
-      "invalid_auth": "Invalid S-Miles Home credentials",
+      "invalid_auth": "S-Miles Home rejected authentication",
       "invalid_station": "No devices were found for this station ID. Check the number and account access.",
       "unknown": "Unexpected error",
       "discovery_failed": "Could not load the plant list. You can enter the station ID manually.",

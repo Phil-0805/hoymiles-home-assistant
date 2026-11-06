@@ -77,7 +77,7 @@ async def test_concurrent_expired_token_calls_share_one_login():
 async def test_argon2_runs_outside_event_loop():
     api = api_client()
     api._json = AsyncMock(side_effect=[
-        {"status": "0", "data": {"a": "0123456789abcdef", "n": "nonce"}},
+        {"status": "0", "data": {"v": 3, "a": "0123456789abcdef", "n": "nonce"}},
         {"status": "0", "data": {"token": "NEW"}},
     ])
     with patch("custom_components.hoymiles_home.api.asyncio.to_thread", new=AsyncMock(return_value=b"challenge")) as worker:
