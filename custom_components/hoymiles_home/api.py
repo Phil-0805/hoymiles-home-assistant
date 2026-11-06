@@ -29,6 +29,7 @@ from .battery import (
 )
 from .const import (
     AUTH_BASE_URL,
+    AUTH_BASE_URLS,
     BATTERY_CONFIG_URL,
     BATTERY_SETTINGS_ACTION,
     BATTERY_SETTINGS_MAX_POLLS,
@@ -103,6 +104,7 @@ class HoymilesHomeClient:
         self._live_uri: str | None = None
         self._cloud_log_states = {}
         self._auth_version = None
+        self._auth_dc = None
 
     @property
     def _token(self):
@@ -157,6 +159,8 @@ class HoymilesHomeClient:
             summary = f"redirect_policy={redirect_policy} {summary}"
         if stage == "login" and type(self._auth_version) is int and self._auth_version in (1, 2, 3):
             summary = f"{summary} auth_version={self._auth_version}"
+        if stage == "login" and type(self._auth_dc) is int and self._auth_dc in AUTH_BASE_URLS:
+            summary = f"{summary} auth_dc={self._auth_dc}"
         key = (stage, reason)
         if self._cloud_log_states.get(key) != summary:
             self._cloud_log_states[key] = summary
@@ -165,8 +169,9 @@ class HoymilesHomeClient:
     def _cloud_stage(self, url):
         # Exact endpoint matching, never log a URL or derive labels from input.
         known = {
-            f"{AUTH_BASE_URL}/iam/pub/3/auth/pre-insp": "login_challenge",
-            f"{AUTH_BASE_URL}/iam/pub/3/auth/login": "login",
+            **{f"{base}/iam/pub/3/auth/{operation}": stage
+               for base in AUTH_BASE_URLS.values()
+               for operation, stage in (("pre-insp", "login_challenge"), ("login", "login"))},
             f"{DATA_BASE_URL}/pvmc/api/0/station/select_by_page_c": "station_discovery",
             f"{DATA_BASE_URL}/pvmc/api/0/station/select_device_c": "station_validation",
             f"{DATA_BASE_URL}/pvmc/api/0/station/get_sd_uri_c": "live_uri_mobile",
@@ -272,6 +277,7 @@ class HoymilesHomeClient:
     async def _async_login_unlocked(self) -> None:
         """Follow the server-selected app protocol; never retry another algorithm."""
         self._auth_version = None
+        self._auth_dc = None
         pre = await self._json(
             f"{AUTH_BASE_URL}/iam/pub/3/auth/pre-insp", {"u": self._email}
         )
@@ -284,6 +290,11 @@ class HoymilesHomeClient:
             self._cloud_report("login_challenge", "unsupported_auth_version", pre)
             raise CloudDiagnosticError("unsupported_auth_version", "Unsupported S-Miles Home login protocol")
         self._auth_version = version
+        dc = setting_integer(data.get("dc"), 4)
+        if dc not in AUTH_BASE_URLS:
+            self._cloud_report("login_challenge", "unsupported_auth_region", pre)
+            raise CloudDiagnosticError("unsupported_auth_region", "Unsupported S-Miles Home authentication region")
+        self._auth_dc = dc
         try:
             nonce = data.get("n")
             if nonce is not None and (not isinstance(nonce, str) or not 1 <= len(nonce) <= 1024):
@@ -307,7 +318,7 @@ class HoymilesHomeClient:
             challenge = (hashlib.md5(password_bytes).hexdigest() + "."
                          + base64.b64encode(hashlib.sha256(password_bytes).digest()).decode("ascii"))
         login = await self._json(
-            f"{AUTH_BASE_URL}/iam/pub/3/auth/login",
+            f"{AUTH_BASE_URLS[dc]}/iam/pub/3/auth/login",
             {"u": self._email, "ch": challenge, **({"n": nonce} if nonce is not None else {})},
         )
         login_data = self._unwrap(login)
