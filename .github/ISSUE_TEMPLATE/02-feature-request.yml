@@ -1,6 +1,7 @@
 name: Feature request
 description: Suggest an improvement and explain the problem it would solve.
 title: "[Feature]: "
+labels: [enhancement]
 body:
   - type: markdown
     attributes:
@@ -11,7 +12,6 @@ body:
 
         **Everything posted here is public.** Do not share credentials, email addresses, private server addresses,
         station/device IDs, serial numbers, HAR files or raw API responses. Redact screenshots before uploading.
-        A feature being visible in the official app does not establish how its cloud API works.
 
   - type: textarea
     id: problem
@@ -33,7 +33,7 @@ body:
     id: devices-and-app
     attributes:
       label: Affected models and official app behaviour (optional)
-      description: For device-specific features, give model names and firmware if known. Explain whether the official app already offers this setting and what it calls it. A redacted screenshot can help; no device IDs or serial numbers.
+      description: Model names, firmware if known and whether the official app offers this feature. Redacted screenshots are welcome; no device IDs or serial numbers.
     validations:
       required: false
 

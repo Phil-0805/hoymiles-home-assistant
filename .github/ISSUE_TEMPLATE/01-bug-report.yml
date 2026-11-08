@@ -1,23 +1,23 @@
 name: Bug report
 description: Report a problem with setup, readings or controls.
 title: "[Bug]: "
+labels: [bug]
 body:
   - type: markdown
     attributes:
       value: |
-        Please report one problem per issue and search [existing issues](https://github.com/Phil-0805/hoymiles-home-assistant/issues) first.
-        Check the [troubleshooting guide](https://github.com/Phil-0805/hoymiles-home-assistant#troubleshooting) for common problems.
-        You can answer in English or German.
+        Search [existing issues](https://github.com/Phil-0805/hoymiles-home-assistant/issues) first and report one problem per issue.
+        English or German is welcome. See [troubleshooting](https://github.com/Phil-0805/hoymiles-home-assistant#troubleshooting) for help.
 
         **This issue and all attachments will be public.** Do not include passwords, tokens, email addresses,
         private server addresses, station/device IDs, serial numbers or unredacted screenshots.
-        Logs and screenshots are optional. Never attach HAR files, account exports or raw API responses.
+        Never attach HAR files, account exports or raw API responses.
 
   - type: input
     id: integration-version
     attributes:
       label: Integration version
-      description: Copy the installed Hoymiles S-Miles Home version from HACS / Marketplace. Include the full beta suffix if applicable.
+      description: Installed version from HACS / Marketplace, including any beta suffix.
       placeholder: "For example: 0.6.0"
     validations:
       required: true
@@ -26,28 +26,16 @@ body:
     id: ha-version
     attributes:
       label: Home Assistant Core version
-      description: Find the Core version under Settings → About. Please enter the version number rather than "latest".
+      description: Settings → About. Enter the version number rather than "latest".
       placeholder: "For example: 2026.11.0"
-    validations:
-      required: true
-
-  - type: dropdown
-    id: installation
-    attributes:
-      label: Installation method
-      options:
-        - HACS / Marketplace
-        - Manual installation
-        - Development checkout
-        - Not sure
     validations:
       required: true
 
   - type: textarea
     id: devices
     attributes:
-      label: Device models and firmware
-      description: List the inverter and battery models involved, plus firmware versions if known. Model names only; omit serial numbers and device/station IDs. Write "unknown" if necessary.
+      label: Device models
+      description: Inverter and battery models; firmware if known. No serial numbers or IDs. Write "unknown" if setup or login has not completed.
       placeholder: |
         Inverter model:
         Battery model (or no battery):
@@ -58,37 +46,29 @@ body:
   - type: textarea
     id: actual-behaviour
     attributes:
-      label: What happened?
-      description: Name the affected sensor, setting or setup step. Include the error message if safe to share, how often it happens and whether it started after an update.
-      placeholder: Describe the problem and when you first noticed it.
-    validations:
-      required: true
-
-  - type: textarea
-    id: expected-behaviour
-    attributes:
-      label: What did you expect?
-      description: Describe the expected reading or behaviour. Include units when relevant.
+      label: What happened, and what did you expect?
+      description: Name the affected setup step, sensor or setting. Describe the problem and expected behaviour; include a safe-to-share error message if available.
+      placeholder: Describe the problem and when it happens.
     validations:
       required: true
 
   - type: textarea
     id: reproduction
     attributes:
-      label: Steps to reproduce
-      description: Describe the steps that led to the issue. If it is intermittent, explain what was happening beforehand. Do not repeat device control commands just to reproduce a problem.
+      label: Steps or additional context (optional)
+      description: How did it happen? Mention recent updates, manual installation or whether a refresh helped. Redacted screenshots are welcome; no full diagnostics. Do not repeat control commands just to reproduce an issue.
       placeholder: |
         1. Open ...
         2. Select ...
         3. Observe ...
     validations:
-      required: true
+      required: false
 
   - type: dropdown
     id: app-comparison
     attributes:
-      label: What does the official S-Miles Home app show?
-      description: Compare the same installation at roughly the same time if possible. You do not need to change settings or send commands.
+      label: Official S-Miles Home app comparison (optional)
+      description: If already checked, does the app have the same problem?
       options:
         - The app shows the expected values or behaviour
         - The app has the same problem
@@ -96,22 +76,14 @@ body:
         - I have not checked
         - Not applicable
     validations:
-      required: true
+      required: false
 
   - type: textarea
     id: logs
     attributes:
       label: Relevant log lines (optional)
-      description: Paste only relevant hoymiles_home.cloud_logging warnings from Settings → System → Logs. Review and redact them first. Debug logging and full log files are not required. For login errors, keep stage/reason and numeric cloud_status/auth_version/auth_dc if present; omit account data and URLs.
+      description: Relevant hoymiles_home.cloud_logging warnings from Settings → System → Logs. Redact private data first. Debug logging and full log files are not required.
       render: text
-    validations:
-      required: false
-
-  - type: textarea
-    id: additional-context
-    attributes:
-      label: Additional context or redacted screenshots (optional)
-      description: Mention useful observations, such as whether a manual settings refresh helped. Check every attachment for private information before uploading. Do not upload diagnostics unless requested and reviewed for private data.
     validations:
       required: false
 
