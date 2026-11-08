@@ -1,0 +1,79 @@
+name: Notify ntfy
+
+on:
+  issues:
+    types: [opened, reopened, closed]
+  issue_comment:
+    types: [created]
+  pull_request_target:
+    types: [opened, reopened, closed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Publish notification
+        env:
+          NTFY_TOKEN: ${{ secrets.NTFY_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          EVENT_PATH: ${{ github.event_path }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          if os.environ["ACTOR"].lower() == "phil-0805":
+              print("Skipping own activity")
+              raise SystemExit(0)
+          token = os.environ.get("NTFY_TOKEN")
+          if not token:
+              raise SystemExit("Missing NTFY_TOKEN")
+          with open(os.environ["EVENT_PATH"], encoding="utf-8") as f:
+              event = json.load(f)
+          kind = os.environ["EVENT_NAME"]
+          action = os.environ.get("EVENT_ACTION", "")
+          actor = event.get("sender", {}).get("login", os.environ["ACTOR"])
+          if kind == "workflow_dispatch":
+              title, message = "GitHub ntfy test", "Test notification delivered"
+              link = "https://github.com/Phil-0805/hoymiles-home-assistant/actions"
+          elif kind == "issues":
+              issue = event["issue"]
+              title = f"Issue #{issue['number']}: {issue['title']}"
+              message = f"{actor}: {action}"
+              link = issue["html_url"]
+          elif kind == "issue_comment":
+              issue, comment = event["issue"], event["comment"]
+              label = "PR comment" if "pull_request" in issue else "Issue comment"
+              title = f"{label} #{issue['number']}: {issue['title']}"
+              message = f"{actor}: {' '.join(comment.get('body', '').split())[:400]}"
+              link = comment["html_url"]
+          elif kind == "pull_request_target":
+              pr = event["pull_request"]
+              title = f"PR #{pr['number']}: {pr['title']}"
+              state = "merged" if action == "closed" and pr.get("merged") else action
+              message = f"{actor}: {state}"
+              link = pr["html_url"]
+          else:
+              raise SystemExit(0)
+          # JSON ensures headers remain valid even with Unicode or newlines.
+          payload = json.dumps({
+              "topic": "github-hoymiles",
+              "title": title[:180],
+              "message": message[:500],
+              "click": link,
+              "priority": 3,
+          }).encode("utf-8")
+          req = urllib.request.Request(
+              "https://ntfy.bachmanncloud.de/",
+              data=payload,
+              headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+              method="POST",
+          )
+          with urllib.request.urlopen(req, timeout=15) as response:
+              print("ntfy HTTP", response.status)
+          PY
