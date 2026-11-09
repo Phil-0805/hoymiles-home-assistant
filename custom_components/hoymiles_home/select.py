@@ -56,10 +56,17 @@ class HoymilesBatteryModeSelect(
 
     def _mode_options(self) -> dict[str, int]:
         settings = self.coordinator.battery_settings
-        return {
+        options = {
             BATTERY_MODE_NAMES.get(mode, f"Unknown ({mode})"): mode
             for mode in writable_modes(settings)
         }
+        # Show the reported current mode even if its plan cannot be resent.
+        # Command validation continues to use only writable_modes().
+        mode = settings.get("mode")
+        if (settings.get("request_method") == "station_action_83"
+                and settings.get("readable") is True and type(mode) is int and mode in (1, 8)):
+            options[BATTERY_MODE_NAMES[mode]] = mode
+        return options
 
     @property
     def available(self) -> bool:
@@ -69,7 +76,7 @@ class HoymilesBatteryModeSelect(
             and self.coordinator.battery_settings.get("readable") is True
             and self.coordinator.battery_settings.get("writable") is True
             and self.coordinator.battery_settings.get("mode") in self._mode_options().values()
-            and bool(self._mode_options())
+            and bool(writable_modes(self.coordinator.battery_settings))
         )
 
     @property
@@ -85,7 +92,10 @@ class HoymilesBatteryModeSelect(
 
     @property
     def extra_state_attributes(self) -> dict:
-        return {"mode_change_available": self.available and len(self._mode_options()) > 1}
+        return {"mode_change_available": self.available and any(
+            mode != self.coordinator.battery_settings.get("mode")
+            for mode in writable_modes(self.coordinator.battery_settings)
+        )}
 
     async def async_select_option(self, option: str) -> None:
         mode = self._mode_options().get(option)
