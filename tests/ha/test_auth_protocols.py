@@ -20,6 +20,7 @@ def client(challenge, password="password", result=None):
     if isinstance(challenge, dict):
         challenge = {"dc": 1, **challenge}
     api._json = AsyncMock(side_effect=[
+        {"status": 0, "data": {"dc": 1, "login_url": "https://euapi.hoymiles.com"}},
         {"status": 0, "data": challenge},
         result or {"status": 0, "data": {"token": TOKEN}},
     ])
@@ -36,7 +37,7 @@ async def test_legacy_matches_independent_node_crypto_vectors(version, password,
     with patch("custom_components.hoymiles_home.api.asyncio.to_thread", new=AsyncMock()) as worker:
         await api.async_login()
     worker.assert_not_awaited()
-    assert api._json.await_count == 2
+    assert api._json.await_count == 3
     assert api._json.await_args.args[1] == {"u": ACCOUNT, "ch": expected, "n": NONCE}
     assert api._token == TOKEN
 
@@ -57,7 +58,7 @@ async def test_invalid_challenge_shape_stops_before_login(challenge, caplog):
     api = client(challenge)
     with pytest.raises(HoymilesAuthError):
         await api.async_login()
-    assert api._json.await_count == 1
+    assert api._json.await_count == 2
     assert "private" not in caplog.text
 
 
@@ -66,7 +67,7 @@ async def test_unknown_or_missing_version_never_guesses_an_algorithm(version, ca
     api = client({"v": version, "a": SALT, "n": NONCE})
     with pytest.raises(CloudDiagnosticError, match="Unsupported"):
         await api.async_login()
-    assert api._json.await_count == 1
+    assert api._json.await_count == 2
     assert "reason=unsupported_auth_version" in caplog.text
     assert "PRIVATE_VERSION" not in caplog.text
     assert NONCE not in caplog.text
@@ -80,7 +81,7 @@ async def test_cloud_rejection_does_not_retry_with_another_protocol_or_host(vers
     })
     with pytest.raises(HoymilesAuthError):
         await api.async_login()
-    assert api._json.await_count == 2
+    assert api._json.await_count == 3
     assert api._token is None
 
 
@@ -96,7 +97,7 @@ async def test_invalid_v3_challenge_is_not_downgraded(updates):
     api = client({"v": 3, "a": SALT, "n": NONCE, **updates})
     with pytest.raises(HoymilesAuthError):
         await api.async_login()
-    assert api._json.await_count == 1
+    assert api._json.await_count == 2
 
 
 def test_auth_failure_diagnostics_only_add_a_known_version(caplog):
@@ -119,7 +120,7 @@ async def test_missing_invalid_or_unknown_dc_stops_before_login(dc, caplog):
     api = client({"v": 3, "dc": dc, "a": SALT, "n": NONCE})
     with pytest.raises(CloudDiagnosticError, match="authentication region"):
         await api.async_login()
-    assert api._json.await_count == 1
+    assert api._json.await_count == 2
     assert "reason=unsupported_auth_region" in caplog.text
     assert NONCE not in caplog.text and "PRIVATE_REGION" not in caplog.text
 
@@ -127,14 +128,16 @@ async def test_missing_invalid_or_unknown_dc_stops_before_login(dc, caplog):
 async def test_each_login_uses_its_fresh_challenge_region():
     api = client({"v": 1})
     api._json.side_effect = [
+        {"status": 0, "data": {"dc": 1, "login_url": "https://euapi.hoymiles.com"}},
         {"status": 0, "data": {"v": 1, "dc": 0, "n": NONCE}},
         {"status": 0, "data": {"token": TOKEN}},
+        {"status": 0, "data": {"dc": 1, "login_url": "https://euapi.hoymiles.com"}},
         {"status": 0, "data": {"v": 1, "dc": 1, "n": NONCE}},
         {"status": 0, "data": {"token": TOKEN}},
     ]
     await api.async_login()
     await api.async_login()
-    assert [call.args[0] for call in api._json.await_args_list][1::2] == [
+    assert [call.args[0] for call in api._json.await_args_list][2::3] == [
         "https://neapi.hoymiles.com/iam/pub/3/auth/login",
         "https://euapi.hoymiles.com/iam/pub/3/auth/login",
     ]
@@ -143,7 +146,7 @@ async def test_each_login_uses_its_fresh_challenge_region():
 async def test_unsupported_dc_is_not_reused_after_previous_login(caplog):
     api = client({"v": 1, "dc": 0})
     await api.async_login()
-    api._json.side_effect = [{"status": 0, "data": {"v": 1}}]
+    api._json.side_effect = [{"status": 0, "data": {"dc": 1, "login_url": "https://euapi.hoymiles.com"}}, {"status": 0, "data": {"v": 1}}]
     with pytest.raises(CloudDiagnosticError):
         await api.async_login()
     assert api._auth_dc is None

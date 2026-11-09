@@ -158,6 +158,13 @@ Sind beide betroffen, kann eine gemeinsame Geräte-/Cloud-Störung vorliegen;
 die konkrete Ursache ist damit noch nicht geklärt. Nach einem vorübergehenden
 Startfehler kann das Nachladen der Einstellungen einige Minuten dauern.
 
+Bei Loginmeldungen die genaue getestete App nennen: **S-Miles Home** und
+**S-Miles Installer** sind unterschiedliche Clients. Ein erfolgreicher
+Installer-/Weblogin bestätigt keinen Zugriff über die Home-API. Die Beta
+v0.6.1b1 prüft die anfängliche Kontoroute; siehe
+[Testanleitung](docs/release-0.6.1b1.md) und
+[Befunde und offene Grenzen](docs/login-routing-0.6.1.md).
+
 Die Diagnose der betroffenen Integration unter **Geräte & Dienste** herunterladen.
 Version, betroffene Einstellung und den passenden App-Vergleich in einem
 [Issue](https://github.com/Phil-0805/hoymiles-home-assistant/issues) angeben.

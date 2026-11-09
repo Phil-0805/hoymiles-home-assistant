@@ -47,10 +47,10 @@ from .protobuf import latest_values
 from .telemetry import number
 from .inverter import inverter_model
 from .module_data import MAX_MODULE_BYTES, decode_module_snapshot
-from .security import trusted_hoymiles_url, trusted_auth_redirect
+from .security import trusted_hoymiles_url, trusted_auth_redirect, trusted_auth_base
 from .cloud_logging import (
     CloudDiagnosticError, LOGGER as CLOUD_LOGGER, failure_reason, response_summary,
-    live_response_summary, request_stage,
+    live_response_summary, request_stage, cloud_failure_reason, work_mode_response_summary,
 )
 from .cloud_runtime import AccountRuntime, retry_delay
 from .errors import (
@@ -144,7 +144,8 @@ class HoymilesHomeClient:
             "Accept": "application/json",
             "Charset": "UTF-8",
             "language": "en_us",
-            "User-Agent": USER_AGENT,
+            "User-Agent": (USER_AGENT.rsplit("/", 1)[0] + f"/{self.runtime.auth_dc}"
+                           if self.runtime.auth_dc in AUTH_BASE_URLS else USER_AGENT),
         }
         if self._token:
             headers["Authorization"] = self._token
@@ -154,6 +155,8 @@ class HoymilesHomeClient:
         # One warning per changed failure shape, without storing private input.
         summary = (live_response_summary(response.get("data"))
                    if stage == "live_data" and reason == "invalid_live_data" and isinstance(response, dict)
+                   else work_mode_response_summary(response)
+                   if stage == "work_mode_read" and reason == "invalid_work_mode_settings"
                    else response_summary(response))
         if http_status is not None:
             code = http_status if type(http_status) is int and 100 <= http_status <= 599 else "unavailable"
@@ -162,8 +165,9 @@ class HoymilesHomeClient:
             summary = f"redirect_policy={redirect_policy} {summary}"
         if stage == "login" and type(self._auth_version) is int and self._auth_version in (1, 2, 3):
             summary = f"{summary} auth_version={self._auth_version}"
-        if stage == "login" and type(self._auth_dc) is int and self._auth_dc in AUTH_BASE_URLS:
-            summary = f"{summary} auth_dc={self._auth_dc}"
+        auth_dc = self._auth_dc if self._auth_dc is not None else self.runtime.auth_dc
+        if stage in {"login_region", "login_challenge", "login"} and type(auth_dc) is int and auth_dc in AUTH_BASE_URLS:
+            summary = f"{summary} auth_dc={auth_dc}"
         key = (stage, reason)
         if self._cloud_log_states.get(key) != summary:
             self._cloud_log_states[key] = summary
@@ -176,7 +180,7 @@ class HoymilesHomeClient:
         if not trusted_hoymiles_url(url):
             raise HoymilesConnectionError("Untrusted Hoymiles API URL")
         stage = self._cloud_stage(url, payload)
-        is_auth = stage in {"login_challenge", "login"}
+        is_auth = stage in {"login_region", "login_challenge", "login"}
         headers = self.headers
         if is_auth:
             # These public authentication operations need no previous token.
@@ -244,16 +248,31 @@ class HoymilesHomeClient:
         if not isinstance(data, dict):
             raise HoymilesConnectionError("Unexpected API response")
         expects_envelope = stage in {
-            "login_challenge", "login", "station_discovery", "station_validation",
+            "login_region", "login_challenge", "login", "station_discovery", "station_validation",
             "live_uri_mobile", "live_uri_web",
         }
-        if ("status" in data or expects_envelope) and str(data.get("status")) not in {"0", "100"}:
-            self._cloud_report(stage, "cloud_rejected", data)
+        if "status" in data or expects_envelope:
+            reason = cloud_failure_reason(data)
+            if reason:
+                self._cloud_report(stage, reason, data)
+            if reason == "session_expired":
+                self._token = None
+                self._token_expires = datetime.min.replace(tzinfo=UTC)
+                self._live_uri = None
+                raise HoymilesAuthError("Hoymiles session expired")
+            if reason == "rate_limited":
+                self.runtime.pause(3600)
+                raise HoymilesRateLimitError("Hoymiles daily login limit reached", 3600)
         return data
 
     @staticmethod
     def _unwrap(response: dict[str, Any]) -> Any:
-        if str(response.get("status")) not in {"0", "100"}:
+        reason = cloud_failure_reason(response)
+        if reason:
+            if reason == "session_expired":
+                raise HoymilesAuthError("Hoymiles session expired")
+            if reason in {"client_update_required", "home_app_required"}:
+                raise CloudDiagnosticError(reason, "Hoymiles rejected the client profile")
             message = str(response.get("message") or "Hoymiles API rejected request")
             if "logins exceeds the daily maximum limit" in message.lower():
                 raise HoymilesRateLimitError("Hoymiles daily login limit reached", 3600)
@@ -274,8 +293,20 @@ class HoymilesHomeClient:
         """Follow the server-selected app protocol; never retry another algorithm."""
         self._auth_version = None
         self._auth_dc = None
+        self.runtime.auth_dc = None
+        self._token = None
+        self._token_expires = datetime.min.replace(tzinfo=UTC)
+        self._live_uri = None
+        region = await self._json(f"{AUTH_BASE_URL}/iam/pub/0/c/region_c", {"email": self._email})
+        routing = self._unwrap(region)
+        dc = setting_integer(routing.get("dc"), 4) if isinstance(routing, dict) else None
+        base = routing.get("login_url") if isinstance(routing, dict) else None
+        if dc not in AUTH_BASE_URLS or not trusted_auth_base(base) or base.rstrip("/") != AUTH_BASE_URLS[dc]:
+            self._cloud_report("login_region", "invalid_auth_routing", region)
+            raise CloudDiagnosticError("invalid_auth_routing", "Invalid Hoymiles authentication routing")
+        self.runtime.auth_dc = dc
         pre = await self._json(
-            f"{AUTH_BASE_URL}/iam/pub/3/auth/pre-insp", {"u": self._email}
+            f"{AUTH_BASE_URLS[dc]}/iam/pub/3/auth/pre-insp", {"u": self._email}
         )
         data = self._unwrap(pre)
         if not isinstance(data, dict):
@@ -291,6 +322,7 @@ class HoymilesHomeClient:
             self._cloud_report("login_challenge", "unsupported_auth_region", pre)
             raise CloudDiagnosticError("unsupported_auth_region", "Unsupported S-Miles Home authentication region")
         self._auth_dc = dc
+        self.runtime.auth_dc = dc
         try:
             nonce = data.get("n")
             if nonce is not None and (not isinstance(nonce, str) or not 1 <= len(nonce) <= 1024):
@@ -700,6 +732,7 @@ class HoymilesHomeClient:
         try:
             return parse_work_mode_settings(status)
         except BatterySettingsError as err:
+            self._cloud_report("work_mode_read", "invalid_work_mode_settings", status)
             raise HoymilesConnectionError(str(err)) from err
 
     async def _async_write_battery_settings_request(

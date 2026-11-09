@@ -135,6 +135,7 @@ async def test_redirected_rate_limit_preserves_backoff_and_original_stage(query,
 
 async def test_full_login_with_both_requests_redirected(caplog):
     api = client_with(
+        response(data={"status": 0, "data": {"dc": 1, "login_url": "https://euapi.hoymiles.com"}}),
         response(302, location=PRE.replace("euapi", "neapi")),
         response(data={"status": "0", "data": {"v": 3, "dc": 1, "a": "0123456789abcdef", "n": SECRET}}),
         response(307, location=LOGIN.replace("euapi", "neapi")),
@@ -142,7 +143,7 @@ async def test_full_login_with_both_requests_redirected(caplog):
     )
     await api.async_login()
     assert api._token == SECRET
-    assert api._session.post.call_count == 4
+    assert api._session.post.call_count == 5
     assert SECRET not in caplog.text
 
 
@@ -192,6 +193,7 @@ async def test_times_marker_does_not_allow_other_queries(query, caplog):
 @pytest.mark.parametrize("version", [1, 2, 3])
 async def test_full_login_with_times_marker(version, caplog):
     api = client_with(
+        response(data={"status": 0, "data": {"dc": 1, "login_url": "https://euapi.hoymiles.com"}}),
         response(307, location=PRE + "?times=1"),
         response(data={"status": "0", "data": {"v": version, "dc": 1, "a": "0123456789abcdef", "n": SECRET}}),
         response(307, location=LOGIN + "?times=1"),
@@ -200,9 +202,9 @@ async def test_full_login_with_times_marker(version, caplog):
     await api.async_login()
     assert api._token == SECRET
     assert [call.args[0] for call in api._session.post.call_args_list] == [
-        PRE, PRE + "?times=1", LOGIN, LOGIN + "?times=1",
+        "https://euapi.hoymiles.com/iam/pub/0/c/region_c", PRE, PRE + "?times=1", LOGIN, LOGIN + "?times=1",
     ]
-    assert api.runtime.request.call_count == 4
+    assert api.runtime.request.call_count == 5
     assert SECRET not in caplog.text
 
 
@@ -222,20 +224,21 @@ async def test_second_redirect_with_times_marker_is_still_blocked(caplog):
 @pytest.mark.parametrize("version", [1, 2, 3])
 async def test_account_selected_login_host_keeps_auth_transport_guards(dc, host, version, caplog):
     api = client_with(
+        response(data={"status": 0, "data": {"dc": 1, "login_url": "https://euapi.hoymiles.com"}}),
         response(data={"status": 0, "data": {"v": version, "dc": dc, "f": 0, "t": 159,
                                               "a": "0123456789abcdef", "n": SECRET}}),
         response(data={"status": 0, "data": {"token": SECRET}}),
     )
     await api.async_login()
     calls = api._session.post.call_args_list
-    assert [call.args[0] for call in calls] == [PRE, f"https://{host}.hoymiles.com/iam/pub/3/auth/login"]
-    assert api._cloud_stage(calls[1].args[0]) == "login"
-    assert api.runtime.request.call_count == 2
+    assert [call.args[0] for call in calls] == ["https://euapi.hoymiles.com/iam/pub/0/c/region_c", PRE, f"https://{host}.hoymiles.com/iam/pub/3/auth/login"]
+    assert api._cloud_stage(calls[2].args[0]) == "login"
+    assert api.runtime.request.call_count == 3
     for call in calls:
         assert "Authorization" not in call.kwargs["headers"]
         assert call.kwargs["allow_redirects"] is False
-        assert call.kwargs["json"]["u"] == SECRET
-    assert calls[1].kwargs["json"]["n"] == SECRET
+        assert call.kwargs["json"].get("u", call.kwargs["json"].get("email")) == SECRET
+    assert calls[2].kwargs["json"]["n"] == SECRET
     assert api._token == SECRET
     assert SECRET not in caplog.text
 
@@ -243,13 +246,14 @@ async def test_account_selected_login_host_keeps_auth_transport_guards(dc, host,
 async def test_dc0_login_remains_limited_to_one_known_auth_redirect(caplog):
     ne_login = LOGIN.replace("euapi", "neapi")
     api = client_with(
+        response(data={"status": 0, "data": {"dc": 1, "login_url": "https://euapi.hoymiles.com"}}),
         response(data={"status": 0, "data": {"v": 3, "dc": 0, "a": "0123456789abcdef", "n": SECRET}}),
         response(307, location=ne_login + "?times=1"),
         response(data={"status": 0, "data": {"token": SECRET}}),
     )
     await api.async_login()
-    assert [call.args[0] for call in api._session.post.call_args_list] == [PRE, ne_login, ne_login + "?times=1"]
-    assert api.runtime.request.call_count == 3
+    assert [call.args[0] for call in api._session.post.call_args_list] == ["https://euapi.hoymiles.com/iam/pub/0/c/region_c", PRE, ne_login, ne_login + "?times=1"]
+    assert api.runtime.request.call_count == 4
     for call in api._session.post.call_args_list:
         assert "Authorization" not in call.kwargs["headers"]
     assert SECRET not in caplog.text
