@@ -161,8 +161,9 @@ Startfehler kann das Nachladen der Einstellungen einige Minuten dauern.
 Bei Loginmeldungen die genaue getestete App nennen: **S-Miles Home** und
 **S-Miles Installer** sind unterschiedliche Clients. Ein erfolgreicher
 Installer-/Weblogin bestätigt keinen Zugriff über die Home-API. Die Beta
-v0.6.1b1 prüft die anfängliche Kontoroute; siehe
-[Testanleitung](docs/release-0.6.1b1.md) und
+v0.6.1b2 enthält die anfängliche Kontoroute, verbesserte TOU-Modusanzeige und
+das Aktivieren unterstützter vorhandener Basispläne; siehe
+[Testanleitung](docs/release-0.6.1b2.md) und
 [Befunde und offene Grenzen](docs/login-routing-0.6.1.md).
 
 Die Diagnose der betroffenen Integration unter **Geräte & Dienste** herunterladen.

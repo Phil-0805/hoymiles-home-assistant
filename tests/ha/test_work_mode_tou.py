@@ -55,8 +55,10 @@ def test_incomplete_or_unverified_tou_is_not_offered(tou):
     raw["data"]["k_3"] = tou
     assert parse_work_mode_settings(raw)["available_modes"] == [1]
     raw["data"]["mode"] = 3
-    with pytest.raises(BatterySettingsError):
-        parse_work_mode_settings(raw)
+    parsed = parse_work_mode_settings(raw)
+    assert parsed["mode"] == 8
+    assert 8 not in parsed["writable_modes"]
+    assert parsed["active_settings"] == {}
 
 
 async def test_api_uses_station_83_payload_without_schedule_mutation():

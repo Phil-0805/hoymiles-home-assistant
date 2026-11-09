@@ -14,8 +14,8 @@ SECRET = "PRIVATE_ACCOUNT_PLAN_ID_SCHEDULE_TOKEN"
 
 @pytest.mark.parametrize("tou", [None, {}, {"mode": 2}, {"mode": 3}, {"mode": 4}, {"mode": 5},
     {"mode": SECRET}, {"mode": True}, {"mode": 2, "k_2": {"id": SECRET, "week": [SECRET]}}])
-async def test_invalid_active_tou_logs_shape_without_schedule_and_keeps_rejection(tou, caplog):
-    raw = {"code": 0, "data": {"mode": 3, "k_3": tou, SECRET: SECRET}}
+async def test_invalid_top_level_mode_logs_shape_without_schedule_and_keeps_rejection(tou, caplog):
+    raw = {"code": 0, "data": {"mode": SECRET, "k_3": tou, SECRET: SECRET}}
     before = deepcopy(raw)
     api = HoymilesHomeClient(MagicMock(), SECRET, SECRET)
     api._json = AsyncMock(return_value={"status": 0, "data": "synthetic-job"})
@@ -26,7 +26,7 @@ async def test_invalid_active_tou_logs_shape_without_schedule_and_keeps_rejectio
     assert raw == before
     assert caplog.text.count("reason=invalid_work_mode_settings") == 1
     assert "stage=work_mode_read" in caplog.text
-    assert "app_mode=3" in caplog.text
+    assert "app_mode=unavailable" in caplog.text
     assert "command_code=0" in caplog.text
     assert "cloud_status=" not in caplog.text and "uri=" not in caplog.text
     assert SECRET not in caplog.text and "synthetic-job" not in caplog.text

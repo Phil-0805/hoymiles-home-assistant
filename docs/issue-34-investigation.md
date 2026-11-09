@@ -78,3 +78,33 @@ Validation after this addition: 874 HA tests and 134 subtests passed on each
 of HA 2026.10.4 and 2026.11.0; 56 unit tests passed. Syntax, local links,
 updated release ZIP and whitespace checks passed. No real account or device
 was accessed; the candidate remains local and unpublished.
+
+## New reporter evidence and local fix after b1
+
+The reporter confirmed basic TOU and identified the affected entities as the
+mode select and reserve number. His new warning contains `command_code=0`,
+`app_mode=3`, `tou_submode=2`, object settings and integer top-level SOC fields.
+This establishes rejection of a completed work-mode response by our parser,
+but not whether plan completeness or conflicting SOC triggered it. He also
+explained that the different GitHub accounts are his own; do not count this as
+an independent second installation.
+
+The local follow-up keeps a known current mode readable without requiring its
+configuration to be safely writable. It avoids legacy fallback for such results
+and separates validated write targets from display. The select can switch to
+self-consumption only if its SOC settings are valid; an incomplete TOU plan
+cannot be written or recreated. Reserve control remains unavailable in TOU.
+See [the implementation and source notes](work-mode-83.md#local-follow-up-to-issue-34--2026-11-09).
+This code fix is included in v0.6.1b2; device confirmation is still pending.
+
+### Further basic-plan finding
+
+The Android activation helper explicitly sends **ID 0 for a custom basic plan**;
+the previous parser's positive-only check rejected it. The local fix now accepts
+an explicitly returned zero together with validated complete week/period data,
+uses only the fresh plan during activation and verifies full readback. Missing
+IDs or default selectors are not guessed. It is still unknown which field was
+rejected in the reporter's actual response. See the Android trace and limitations
+in [work-mode-83.md](work-mode-83.md#existing-basic-plan-activation-android-custom-selector-0).
+The fix enables reuse of an existing supported plan, not creation/editing of
+new time windows in HA. Reporter testing is required before claiming resolution.

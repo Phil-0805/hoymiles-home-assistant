@@ -243,8 +243,9 @@ async def test_queued_write_uses_settings_after_lock_is_acquired(hass):
 
 @pytest.mark.parametrize("upper", [None, "bad", False, float("inf"), 101, 5, 90.5])
 def test_invalid_work_mode_upper_soc_is_handled(upper):
-    with pytest.raises(BatterySettingsError):
-        parse_work_mode_settings({"code": 0, "data": {"mode": 2, "k_2": {"soc_l": 10, "soc_h": upper}}})
+    parsed = parse_work_mode_settings({"code": 0, "data": {"mode": 2, "k_2": {"soc_l": 10, "soc_h": upper}}})
+    assert parsed["mode"] == 1 and parsed["readable"] is True
+    assert parsed["writable"] is False and parsed["reserve_soc_verified"] is False
 
 
 def test_reserve_soc_evidence_matches_exact_mode_segment():
