@@ -149,6 +149,12 @@ If readings stop, compare with the official app. Stale values in both may indica
 a shared device/cloud issue; this alone does not establish its cause.
 A settings refresh may take several minutes after a transient startup failure.
 
+For login reports, name the exact app tested: **S-Miles Home** and **S-Miles
+Installer** are different clients. A successful Installer/website login does
+not establish access through the Home API. The v0.6.1b1 beta tests
+initial account routing; see [its test instructions](docs/release-0.6.1b1.md)
+and [the evidence and remaining limits](docs/login-routing-0.6.1.md).
+
 Download diagnostics for the affected integration under **Devices & services**.
 Report the version, affected setting and matching app observation in an
 [issue](https://github.com/Phil-0805/hoymiles-home-assistant/issues).

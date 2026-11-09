@@ -37,6 +37,7 @@ class AccountRuntime:
 
     def __init__(self):
         self.token = None
+        self.auth_dc = None
         self.token_expires = datetime.min.replace(tzinfo=UTC)
         self.login_retry_at = datetime.min.replace(tzinfo=UTC)
         self.login_lock = asyncio.Lock()

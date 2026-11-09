@@ -9,6 +9,7 @@ on:
       - beta/battery-settings-fallback
       - beta/v0.5.2
       - beta/v0.6.0
+      - beta/v0.6.1
   workflow_dispatch:
 
 permissions:
@@ -44,7 +45,7 @@ jobs:
       - run: python scripts/run_ha_tests.py
 
   release:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/beta/station-selection' || github.ref == 'refs/heads/beta/inverter-model-discovery' || github.ref == 'refs/heads/beta/battery-settings-fallback' || github.ref == 'refs/heads/beta/v0.5.2' || github.ref == 'refs/heads/beta/v0.6.0'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/beta/station-selection' || github.ref == 'refs/heads/beta/inverter-model-discovery' || github.ref == 'refs/heads/beta/battery-settings-fallback' || github.ref == 'refs/heads/beta/v0.5.2' || github.ref == 'refs/heads/beta/v0.6.0' || github.ref == 'refs/heads/beta/v0.6.1'
     needs: [validate, test]
     concurrency:
       group: hoymiles-release
