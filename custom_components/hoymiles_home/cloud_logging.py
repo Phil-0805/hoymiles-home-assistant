@@ -29,6 +29,9 @@ _KNOWN_STAGES.update({
     f"{base}/iam/pub/0/c/region_c": "login_region" for base in AUTH_BASE_URLS.values()
 })
 _KNOWN_STAGES.update({
+    f"{DATA_BASE_URL}/pvm/api/0/station/select_by_page": "station_discovery",
+    f"{DATA_BASE_URL}/pvm/api/0/station/select_device_of_tree": "station_validation",
+    f"{DATA_BASE_URL}/pvm-data/api/0/station/data/count_station_real_data": "station_realtime",
     f"{DATA_BASE_URL}/pvmc/api/0/station/select_by_page_c": "station_discovery",
     f"{DATA_BASE_URL}/pvmc/api/0/station/select_device_c": "station_validation",
     f"{DATA_BASE_URL}/pvmc/api/0/station/get_sd_uri_c": "live_uri_mobile",
@@ -50,7 +53,7 @@ REASONS = frozenset({"http_error", "timeout", "transport_error", "redirect_rejec
                      "unexpected_response", "authentication", "rate_limited", "connection", "unexpected_error",
                      "unsupported_auth_version", "unsupported_auth_region", "invalid_auth_routing",
                      "session_expired", "client_update_required", "home_app_required",
-                     "invalid_work_mode_settings"})
+                     "invalid_work_mode_settings", "unsupported_profile_operation", "account_action_required"})
 
 
 def cloud_failure_reason(response):

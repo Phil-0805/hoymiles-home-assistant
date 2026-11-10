@@ -6,15 +6,17 @@
         "title": "S-Miles Home erneut anmelden",
         "description": "Das Passwort für das bestehende Konto erneut eingeben. Anlage, Entitäten und Verlauf bleiben erhalten.",
         "data": {
-          "password": "Passwort"
+          "password": "Passwort",
+          "client_profile": "Kontotyp"
         }
       },
       "user": {
         "title": "Mit S-Miles Home verbinden",
-        "description": "Melde dich mit deinem S-Miles-Home-Konto an. Anschließend kannst du eine Anlage auswählen.",
+        "description": "Mit dem Kontotyp deiner offiziellen App anmelden. Installer ist experimentell und unterstützt nur Messwerte/Energiewerte; keine Steuerungen oder zusätzlichen Gerätedaten.",
         "data": {
           "username": "E-Mail",
-          "password": "Passwort"
+          "password": "Passwort",
+          "client_profile": "Kontotyp"
         }
       },
       "select_station": {
@@ -34,7 +36,7 @@
     },
     "error": {
       "cannot_connect": "Verbindung zu Hoymiles fehlgeschlagen",
-      "invalid_auth": "S-Miles Home hat die Anmeldung abgelehnt",
+      "invalid_auth": "Hoymiles hat die Anmeldung abgelehnt",
       "invalid_station": "Für diese Anlagen-ID wurden keine Geräte gefunden. Prüfe die Nummer und den Kontozugriff.",
       "unknown": "Unerwarteter Fehler",
       "discovery_failed": "Die Anlagenliste konnte nicht geladen werden. Du kannst die Station-ID manuell eingeben.",
@@ -122,6 +124,7 @@
     }
   },
   "selector": {
+    "client_profile": {"options": {"home": "S-Miles Home", "installer": "S-Miles Installer (experimentell, nur Lesen)"}},
     "pv_power_source": {
       "options": {
         "auto": "Automatisch (bisheriges Verhalten)",

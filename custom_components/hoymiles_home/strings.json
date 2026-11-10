@@ -6,15 +6,17 @@
         "title": "Reconnect to S-Miles Home",
         "description": "Enter the password for the existing account. Your plant, entities and history are retained.",
         "data": {
-          "password": "Password"
+          "password": "Password",
+          "client_profile": "Account type"
         }
       },
       "user": {
         "title": "Connect to S-Miles Home",
-        "description": "Sign in with your S-Miles Home account, then choose a plant.",
+        "description": "Choose the account type matching your official app. Installer is experimental: live readings and energy totals only; no controls or additional device telemetry.",
         "data": {
           "username": "Email",
-          "password": "Password"
+          "password": "Password",
+          "client_profile": "Account type"
         }
       },
       "select_station": {
@@ -34,7 +36,7 @@
     },
     "error": {
       "cannot_connect": "Could not connect to Hoymiles",
-      "invalid_auth": "S-Miles Home rejected authentication",
+      "invalid_auth": "Hoymiles rejected authentication",
       "invalid_station": "No devices were found for this station ID. Check the number and account access.",
       "unknown": "Unexpected error",
       "discovery_failed": "Could not load the plant list. You can enter the station ID manually.",
@@ -122,6 +124,7 @@
     }
   },
   "selector": {
+    "client_profile": {"options": {"home": "S-Miles Home", "installer": "S-Miles Installer (experimental, read only)"}},
     "pv_power_source": {
       "options": {
         "auto": "Automatic (existing behavior)",

@@ -18,6 +18,7 @@ from .device_migration import (
     async_remove_obsolete_max_power_sensor,
 )
 from .telemetry import PV_POWER_SOURCE
+from .const import CONF_CLIENT_PROFILE
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -31,6 +32,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             async_get_clientsession(hass, verify_ssl=True),
             entry.data[CONF_USERNAME],
             entry.data[CONF_PASSWORD], runtime=runtime,
+            **({"profile": entry.data[CONF_CLIENT_PROFILE]} if entry.data.get(CONF_CLIENT_PROFILE, "home") != "home" else {}),
         )
         station_timezone = await dt_util.async_get_time_zone(
             entry.options.get(CONF_STATION_TIMEZONE) or hass.config.time_zone

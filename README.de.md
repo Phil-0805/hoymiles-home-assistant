@@ -161,9 +161,9 @@ Startfehler kann das Nachladen der Einstellungen einige Minuten dauern.
 Bei Loginmeldungen die genaue getestete App nennen: **S-Miles Home** und
 **S-Miles Installer** sind unterschiedliche Clients. Ein erfolgreicher
 Installer-/Weblogin bestätigt keinen Zugriff über die Home-API. Die Beta
-v0.6.1b2 enthält die anfängliche Kontoroute, verbesserte TOU-Modusanzeige und
+v0.6.1b3 enthält die anfängliche Kontoroute, verbesserte TOU-Modusanzeige und
 das Aktivieren unterstützter vorhandener Basispläne; siehe
-[Testanleitung](docs/release-0.6.1b2.md) und
+[Testanleitung](docs/release-0.6.1b3.md) und
 [Befunde und offene Grenzen](docs/login-routing-0.6.1.md).
 
 Die Diagnose der betroffenen Integration unter **Geräte & Dienste** herunterladen.
@@ -230,3 +230,11 @@ unabhängig geprüft.
 
 [MIT-Lizenz](LICENSE) · [Release-Hinweise](https://github.com/Phil-0805/hoymiles-home-assistant/releases) ·
 [Gerätetestplan](docs/testing-0.5.0.de.md) · [MQTT-Prüfung für v0.7.0](docs/roadmap-0.7.md)
+
+### Installer-Kontoprofil (experimentell)
+
+Beta **v0.6.1b3** ergänzt den ausdrücklich wählbaren Kontotyp **S-Miles Installer**
+bei Einrichtung und Wiederanmeldung. Er umfasst Live-Messwerte,
+Energiewerte und Geräteidentität/Modell. Home-Steuerungen, Temperaturen,
+Moduldiagramme und zusätzliche Telemetrie werden dafür nicht freigegeben.
+Siehe [Protokollbefunde und Testumfang](docs/installer-app-protocol.md).

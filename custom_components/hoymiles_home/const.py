@@ -11,6 +11,9 @@ CONF_DEVICE_CONTROLS = "device_controls"
 CONF_BATTERY_TEMPERATURES = "battery_temperatures"
 CONF_INVERTER_DETAILS = "inverter_details"
 CONF_STATION_TIMEZONE = "station_timezone"
+CONF_CLIENT_PROFILE = "client_profile"
+CLIENT_PROFILES = ("home", "installer")
+INSTALLER_USER_AGENT = "smc/ad/3.14.0/159/0"
 
 AUTH_BASE_URL = "https://euapi.hoymiles.com"
 # Account DC routing from the official web client and Android configuration.
