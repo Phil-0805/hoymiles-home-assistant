@@ -164,3 +164,17 @@ tests retain the missing-URI-only fallback and setup/reauthentication behavior.
 recurring live-sample failures after a TOU change, rather than a demonstrated
 login failure. It is tracked separately. The local beta adds a structural
 parser-failure warning without changing accepted TOU data, fallback or writes.
+
+## Installer follow-up — 2026-11-10
+
+The reporter's new warning includes `auth_dc=0` and still rejects pre-inspection.
+Thus Home-style region discovery completed, but changing its initial route did
+not resolve this report. There is still no successful challenge or auth-version
+evidence for this account. Static analysis of the actual Installer V3.14.0 APK
+establishes a different `smc/ad/...` identity, a direct pre-inspection start,
+app_type 2 routing and a different v1 calculation. This does not prove which
+server condition caused the rejection. See
+[the Installer protocol and local monitoring implementation](installer-app-protocol.md).
+A separately selected experimental Installer profile is included in v0.6.1b3;
+there is no automatic alternate-profile retry after rejection and no confirmed
+fix at the reporter's account. Existing Home behavior remains the default.

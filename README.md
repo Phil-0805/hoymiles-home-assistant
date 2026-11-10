@@ -151,8 +151,8 @@ A settings refresh may take several minutes after a transient startup failure.
 
 For login reports, name the exact app tested: **S-Miles Home** and **S-Miles
 Installer** are different clients. A successful Installer/website login does
-not establish access through the Home API. The v0.6.1b2 beta includes initial account routing, improved TOU mode readback
-and activation of supported existing basic plans; see [its test instructions](docs/release-0.6.1b2.md)
+not establish access through the Home API. The v0.6.1b3 beta includes initial account routing, improved TOU mode readback
+and activation of supported existing basic plans; see [its test instructions](docs/release-0.6.1b3.md)
 and [the evidence and remaining limits](docs/login-routing-0.6.1.md).
 
 Download diagnostics for the affected integration under **Devices & services**.
@@ -210,3 +210,11 @@ audited.
 
 [MIT license](LICENSE) · [Release notes](https://github.com/Phil-0805/hoymiles-home-assistant/releases) ·
 [Device test plan](docs/testing-0.5.0.de.md) · [MQTT investigation for v0.7.0](docs/roadmap-0.7.md)
+
+### Installer account profile (experimental)
+
+Beta **v0.6.1b3** adds an explicitly selected experimental **S-Miles Installer**
+account type at setup and reauthentication. It covers live readings, energy
+totals and basic device identity/model only. Home controls, temperatures, charts
+and additional telemetry are not enabled for this profile. See
+[the protocol findings and test scope](docs/installer-app-protocol.md).

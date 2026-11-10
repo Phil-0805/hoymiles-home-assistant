@@ -61,19 +61,20 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             name=DOMAIN,
             update_interval=LIVE_MIN_INTERVAL,
         )
-        self.battery_controls = battery_controls is True
+        self.home_features = getattr(client, "supports_home_features", True) is not False
+        self.battery_controls = battery_controls is True and self.home_features
         self.client = client
         self.station_id = station_id
         self.pv_power_source = pv_power_source
         self.device_tree: list[dict[str, Any]] = []
         self.inverters: list[dict[str, Any]] = []
         self.station_timezone = station_timezone or dt_util.get_default_time_zone()
-        self.inverter_details = inverter_details
+        self.inverter_details = inverter_details and self.home_features
         self.battery_telemetry = BatteryTelemetryPoller(
-            hass, client, station_id, battery_temperatures, self._publish_modules
+            hass, client, station_id, battery_temperatures and self.home_features, self._publish_modules
         )
         self.module_polling = ModulePoller(
-            hass, client, station_id, self.station_timezone, inverter_details,
+            hass, client, station_id, self.station_timezone, self.inverter_details,
             self._publish_modules,
         )
         self.station: dict[str, Any] = {}
@@ -106,7 +107,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._battery_settings_lock = asyncio.Lock()
         self._battery_settings_task: asyncio.Task | None = None
         self._stopped = False
-        self.device_controls = device_controls is True
+        self.device_controls = device_controls is True and self.home_features
         self.device_settings = DeviceSettings(
             hass, client, station_id, self.device_controls,
             lambda: self.device_tree,
@@ -167,6 +168,8 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 pass
 
     def _start_battery_settings_refresh(self, *, retry=False) -> asyncio.Task | None:
+        if not self.home_features:
+            return None
         if self._stopped or datetime.now(UTC) < self._battery_settings_paused_until:
             return None
         if self._battery_settings_task is None or self._battery_settings_task.done():
@@ -458,7 +461,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             if not self.device_tree:
                 self.device_tree = await self.client.async_device_tree(self.station_id)
-                self.inverters = microinverters(self.device_tree)
+                self.inverters = microinverters(self.device_tree, children_only=not self.home_features)
                 self.inverters = await self.client.async_enrich_inverters(
                     self.station_id, self.inverters
                 )
@@ -493,7 +496,8 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.output_settings.start()
             if now - self._modules_updated >= MODULE_INTERVAL:
                 self._modules_updated = now
-                self.module_polling.start(self.inverters)
+                if self.home_features:
+                    self.module_polling.start(self.inverters)
 
             return {
                 PV_POWER_SOURCE: self.pv_power_source,

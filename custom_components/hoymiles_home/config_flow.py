@@ -26,7 +26,15 @@ from homeassistant.helpers.selector import (
 from .api import HoymilesAuthError, HoymilesConnectionError, HoymilesHomeClient
 from .const import CONF_BATTERY_CONTROLS, CONF_DEVICE_CONTROLS, CONF_BATTERY_TEMPERATURES, CONF_INVERTER_DETAILS, CONF_STATION_ID, CONF_STATION_TIMEZONE, DOMAIN
 from .telemetry import PV_POWER_SOURCE, PV_POWER_SOURCES
+from .const import CONF_CLIENT_PROFILE, CLIENT_PROFILES
 from .cloud_logging import log_failure
+
+
+def _profile_selector(default="home"):
+    return {vol.Optional(CONF_CLIENT_PROFILE, default=default): SelectSelector(SelectSelectorConfig(
+        options=list(CLIENT_PROFILES), translation_key=CONF_CLIENT_PROFILE,
+        mode=SelectSelectorMode.DROPDOWN,
+    ))}
 
 
 @lru_cache(maxsize=1)
@@ -58,9 +66,11 @@ class HoymilesHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         entry = self._get_reauth_entry()
         errors = {}
         if user_input is not None:
+            profile = user_input.get(CONF_CLIENT_PROFILE, entry.data.get(CONF_CLIENT_PROFILE, "home"))
             client = HoymilesHomeClient(
                 async_get_clientsession(self.hass, verify_ssl=True),
                 entry.data[CONF_USERNAME], user_input[CONF_PASSWORD],
+                **({"profile": profile} if profile != "home" else {}),
             )
             try:
                 await client.async_login()
@@ -73,14 +83,17 @@ class HoymilesHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 log_failure("reauthentication", err)
                 errors["base"] = "cannot_connect"
             if not errors:
+                updates = {CONF_PASSWORD: user_input[CONF_PASSWORD]}
+                if profile != "home" or CONF_CLIENT_PROFILE in entry.data:
+                    updates[CONF_CLIENT_PROFILE] = profile
                 return self.async_update_reload_and_abort(
-                    entry, data_updates={CONF_PASSWORD: user_input[CONF_PASSWORD]},
+                    entry, data_updates=updates,
                 )
         return self.async_show_form(
             step_id="reauth_confirm",
             data_schema=vol.Schema({vol.Required(CONF_PASSWORD): TextSelector(
                 TextSelectorConfig(type=TextSelectorType.PASSWORD)
-            )}), errors=errors,
+            ), **_profile_selector(entry.data.get(CONF_CLIENT_PROFILE, "home"))}), errors=errors,
         )
 
     async def async_step_user(
@@ -92,10 +105,14 @@ class HoymilesHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_USERNAME: user_input[CONF_USERNAME].strip(),
                 CONF_PASSWORD: user_input[CONF_PASSWORD],
             }
+            profile = user_input.get(CONF_CLIENT_PROFILE, "home")
+            if profile != "home":
+                self._credentials[CONF_CLIENT_PROFILE] = profile
             self._client = HoymilesHomeClient(
                 async_get_clientsession(self.hass, verify_ssl=True),
                 self._credentials[CONF_USERNAME],
                 self._credentials[CONF_PASSWORD],
+                **({"profile": profile} if profile != "home" else {}),
             )
             self._stations = []
             try:
@@ -132,6 +149,7 @@ class HoymilesHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_PASSWORD): TextSelector(
                         TextSelectorConfig(type=TextSelectorType.PASSWORD)
                     ),
+                    **_profile_selector(),
                 }
             ),
             errors=errors,
@@ -258,34 +276,35 @@ class HoymilesHomeOptionsFlow(config_entries.OptionsFlow):
                 title="", data=options
             )
         timezones = await self.hass.async_add_executor_job(_time_zone_options)
-        return self.async_show_form(
-            step_id="init",
-            data_schema=vol.Schema({
-                vol.Required(
-                    PV_POWER_SOURCE,
-                    default=self.config_entry.options.get(PV_POWER_SOURCE, "auto"),
-                ): SelectSelector(SelectSelectorConfig(
-                    options=list(PV_POWER_SOURCES),
-                    translation_key=PV_POWER_SOURCE,
-                    mode=SelectSelectorMode.DROPDOWN,
-                )),
-                vol.Optional(
-                    CONF_BATTERY_CONTROLS,
-                    default=self.config_entry.options.get(CONF_BATTERY_CONTROLS, False),
-                ): BooleanSelector(),
-                vol.Optional(
-                    CONF_DEVICE_CONTROLS,
-                    default=self.config_entry.options.get(CONF_DEVICE_CONTROLS, False),
-                ): BooleanSelector(),
-                vol.Optional(
-                    CONF_INVERTER_DETAILS,
-                    default=self.config_entry.options.get(CONF_INVERTER_DETAILS, False),
-                ): BooleanSelector(),
-                vol.Optional(
-                    CONF_STATION_TIMEZONE,
-                    default=self.config_entry.options.get(CONF_STATION_TIMEZONE, self.hass.config.time_zone),
-                ): SelectSelector(SelectSelectorConfig(
-                    options=timezones, mode=SelectSelectorMode.DROPDOWN,
-                )),
-            }),
-        )
+        schema = {
+            vol.Required(
+                PV_POWER_SOURCE,
+                default=self.config_entry.options.get(PV_POWER_SOURCE, "auto"),
+            ): SelectSelector(SelectSelectorConfig(
+                options=list(PV_POWER_SOURCES),
+                translation_key=PV_POWER_SOURCE,
+                mode=SelectSelectorMode.DROPDOWN,
+            )),
+            vol.Optional(
+                CONF_BATTERY_CONTROLS,
+                default=self.config_entry.options.get(CONF_BATTERY_CONTROLS, False),
+            ): BooleanSelector(),
+            vol.Optional(
+                CONF_DEVICE_CONTROLS,
+                default=self.config_entry.options.get(CONF_DEVICE_CONTROLS, False),
+            ): BooleanSelector(),
+            vol.Optional(
+                CONF_INVERTER_DETAILS,
+                default=self.config_entry.options.get(CONF_INVERTER_DETAILS, False),
+            ): BooleanSelector(),
+            vol.Optional(
+                CONF_STATION_TIMEZONE,
+                default=self.config_entry.options.get(CONF_STATION_TIMEZONE, self.hass.config.time_zone),
+            ): SelectSelector(SelectSelectorConfig(
+                options=timezones, mode=SelectSelectorMode.DROPDOWN,
+            )),
+        }
+        if self.config_entry.data.get(CONF_CLIENT_PROFILE) == "installer":
+            unsupported = {CONF_BATTERY_CONTROLS, CONF_DEVICE_CONTROLS, CONF_INVERTER_DETAILS}
+            schema = {key: value for key, value in schema.items() if key.schema not in unsupported}
+        return self.async_show_form(step_id="init", data_schema=vol.Schema(schema))

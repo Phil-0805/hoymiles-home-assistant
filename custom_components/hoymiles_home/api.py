@@ -41,6 +41,7 @@ from .const import (
     STATION_SETTING_WRITE_URL,
     TOKEN_LIFETIME,
     USER_AGENT,
+    INSTALLER_USER_AGENT, CLIENT_PROFILES,
     WORK_MODE_SETTINGS_ACTION,
 )
 from .protobuf import latest_values
@@ -99,11 +100,16 @@ class HoymilesHomeClient:
     """Client for the consumer S-Miles Home API."""
 
     def __init__(self, session: ClientSession, email: str, password: str,
-                 runtime: AccountRuntime | None = None) -> None:
+                 runtime: AccountRuntime | None = None, *, profile: str = "home") -> None:
+        if profile not in CLIENT_PROFILES:
+            raise ValueError("Unsupported Hoymiles client profile")
         self._session = session
         self._email = email
         self._password = password
         self.runtime = runtime or AccountRuntime()
+        self.profile = profile
+        self.supports_home_features = profile == "home"
+        self._auth_state = self.runtime if self.supports_home_features else self.runtime.installer_session
         self._live_uri: str | None = None
         self._cloud_log_states = {}
         self._auth_version = None
@@ -111,19 +117,19 @@ class HoymilesHomeClient:
 
     @property
     def _token(self):
-        return self.runtime.token
+        return self._auth_state.token
 
     @_token.setter
     def _token(self, value):
-        self.runtime.token = value
+        self._auth_state.token = value
 
     @property
     def _token_expires(self):
-        return self.runtime.token_expires
+        return self._auth_state.token_expires
 
     @_token_expires.setter
     def _token_expires(self, value):
-        self.runtime.token_expires = value
+        self._auth_state.token_expires = value
 
     @property
     def _login_retry_at(self):
@@ -139,13 +145,14 @@ class HoymilesHomeClient:
 
     @property
     def headers(self) -> dict[str, str]:
+        agent = USER_AGENT if self.supports_home_features else INSTALLER_USER_AGENT
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
             "Charset": "UTF-8",
             "language": "en_us",
-            "User-Agent": (USER_AGENT.rsplit("/", 1)[0] + f"/{self.runtime.auth_dc}"
-                           if self.runtime.auth_dc in AUTH_BASE_URLS else USER_AGENT),
+            "User-Agent": (agent.rsplit("/", 1)[0] + f"/{self._auth_state.auth_dc}"
+                           if self._auth_state.auth_dc in AUTH_BASE_URLS else agent),
         }
         if self._token:
             headers["Authorization"] = self._token
@@ -165,9 +172,11 @@ class HoymilesHomeClient:
             summary = f"redirect_policy={redirect_policy} {summary}"
         if stage == "login" and type(self._auth_version) is int and self._auth_version in (1, 2, 3):
             summary = f"{summary} auth_version={self._auth_version}"
-        auth_dc = self._auth_dc if self._auth_dc is not None else self.runtime.auth_dc
+        auth_dc = self._auth_dc if self._auth_dc is not None else self._auth_state.auth_dc
         if stage in {"login_region", "login_challenge", "login"} and type(auth_dc) is int and auth_dc in AUTH_BASE_URLS:
             summary = f"{summary} auth_dc={auth_dc}"
+        if not self.supports_home_features:
+            summary = f"{summary} client_profile=installer"
         key = (stage, reason)
         if self._cloud_log_states.get(key) != summary:
             self._cloud_log_states[key] = summary
@@ -177,6 +186,17 @@ class HoymilesHomeClient:
         return request_stage(url, payload, self._live_uri)
 
     async def _json(self, url: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if not self.supports_home_features:
+            # Verified read-only subset; never reuse Home commands with this token.
+            allowed = {
+                f"{base}/iam/pub/3/auth/{op}" for base in AUTH_BASE_URLS.values()
+                for op in ("pre-insp", "login")
+            } | {f"{DATA_BASE_URL}{path}" for path in (
+                "/pvm/api/0/station/select_by_page", "/pvm/api/0/station/select_device_of_tree",
+                "/pvm/api/0/station/get_sd_uri", "/pvm-data/api/0/station/data/count_station_real_data",
+            )}
+            if url not in allowed and url != self._live_uri:
+                raise CloudDiagnosticError("unsupported_profile_operation", "Operation is unavailable for the Installer profile")
         if not trusted_hoymiles_url(url):
             raise HoymilesConnectionError("Untrusted Hoymiles API URL")
         stage = self._cloud_stage(url, payload)
@@ -293,20 +313,25 @@ class HoymilesHomeClient:
         """Follow the server-selected app protocol; never retry another algorithm."""
         self._auth_version = None
         self._auth_dc = None
-        self.runtime.auth_dc = None
+        self._auth_state.auth_dc = None
         self._token = None
         self._token_expires = datetime.min.replace(tzinfo=UTC)
         self._live_uri = None
-        region = await self._json(f"{AUTH_BASE_URL}/iam/pub/0/c/region_c", {"email": self._email})
-        routing = self._unwrap(region)
-        dc = setting_integer(routing.get("dc"), 4) if isinstance(routing, dict) else None
-        base = routing.get("login_url") if isinstance(routing, dict) else None
-        if dc not in AUTH_BASE_URLS or not trusted_auth_base(base) or base.rstrip("/") != AUTH_BASE_URLS[dc]:
-            self._cloud_report("login_region", "invalid_auth_routing", region)
-            raise CloudDiagnosticError("invalid_auth_routing", "Invalid Hoymiles authentication routing")
-        self.runtime.auth_dc = dc
+        if self.supports_home_features:
+            region = await self._json(f"{AUTH_BASE_URL}/iam/pub/0/c/region_c", {"email": self._email})
+            routing = self._unwrap(region)
+            dc = setting_integer(routing.get("dc"), 4) if isinstance(routing, dict) else None
+            base = routing.get("login_url") if isinstance(routing, dict) else None
+            if dc not in AUTH_BASE_URLS or not trusted_auth_base(base) or base.rstrip("/") != AUTH_BASE_URLS[dc]:
+                self._cloud_report("login_region", "invalid_auth_routing", region)
+                raise CloudDiagnosticError("invalid_auth_routing", "Invalid Hoymiles authentication routing")
+            self._auth_state.auth_dc = dc
+            base = AUTH_BASE_URLS[dc]
+        else:
+            # Installer LoginActivity clears stored DC before pre-inspection.
+            base = DATA_BASE_URL
         pre = await self._json(
-            f"{AUTH_BASE_URLS[dc]}/iam/pub/3/auth/pre-insp", {"u": self._email}
+            f"{base}/iam/pub/3/auth/pre-insp", {"u": self._email}
         )
         data = self._unwrap(pre)
         if not isinstance(data, dict):
@@ -318,11 +343,14 @@ class HoymilesHomeClient:
             raise CloudDiagnosticError("unsupported_auth_version", "Unsupported S-Miles Home login protocol")
         self._auth_version = version
         dc = setting_integer(data.get("dc"), 4)
-        if dc not in AUTH_BASE_URLS:
+        if dc not in (AUTH_BASE_URLS if self.supports_home_features else (0, 1)):
             self._cloud_report("login_challenge", "unsupported_auth_region", pre)
             raise CloudDiagnosticError("unsupported_auth_region", "Unsupported S-Miles Home authentication region")
         self._auth_dc = dc
-        self.runtime.auth_dc = dc
+        self._auth_state.auth_dc = dc
+        if not self.supports_home_features and setting_integer(data.get("f", 0), 2**31 - 1) != 0:
+            self._cloud_report("login_challenge", "account_action_required", pre)
+            raise CloudDiagnosticError("account_action_required", "Complete the required account action in the official app")
         try:
             nonce = data.get("n")
             if nonce is not None and (not isinstance(nonce, str) or not 1 <= len(nonce) <= 1024):
@@ -339,6 +367,8 @@ class HoymilesHomeClient:
                 hash_secret_raw,
                 self._password.encode(), salt, 3, 32768, 1, 32, Type.ID
             )).hex()
+        elif version == 1 and not self.supports_home_features:
+            challenge = hashlib.md5(self._password.encode()).hexdigest()
         else:
             # ToolsUtil.e / web encryptPwd: MD5 hex + '.' + SHA-256 Base64.
             # Selected only by an explicit v=1/2 challenge over trusted HTTPS.
@@ -346,7 +376,7 @@ class HoymilesHomeClient:
             challenge = (hashlib.md5(password_bytes).hexdigest() + "."
                          + base64.b64encode(hashlib.sha256(password_bytes).digest()).decode("ascii"))
         login = await self._json(
-            f"{AUTH_BASE_URLS[dc]}/iam/pub/3/auth/login",
+            f"{AUTH_BASE_URLS[dc] if self.supports_home_features else DATA_BASE_URL}/iam/pub/3/auth/login",
             {"u": self._email, "ch": challenge, **({"n": nonce} if nonce is not None else {})},
         )
         login_data = self._unwrap(login)
@@ -381,9 +411,46 @@ class HoymilesHomeClient:
     async def async_device_tree(self, station_id: int) -> list[dict[str, Any]]:
         await self.async_ensure_login()
         response = await self._json(
-            f"{DATA_BASE_URL}/pvmc/api/0/station/select_device_c", {"sid": station_id}
+            f"{DATA_BASE_URL}/pvmc/api/0/station/select_device_c" if self.supports_home_features
+            else f"{DATA_BASE_URL}/pvm/api/0/station/select_device_of_tree",
+            {"sid": station_id} if self.supports_home_features else {"id": station_id},
         )
-        return self._unwrap(response) or []
+        tree = self._unwrap(response)
+        if tree is None or self.supports_home_features and not tree:
+            tree = []
+        if not self.supports_home_features:
+            self._validate_installer_tree(tree, station_id)
+        return tree
+
+    @staticmethod
+    def _validate_installer_tree(tree, station_id):
+        if not isinstance(tree, list):
+            raise CloudDiagnosticError("unexpected_response", "Invalid Installer device tree")
+        pending = list(tree)
+        seen = {}
+        visited = 0
+        while pending:
+            visited += 1
+            if visited > 4096:
+                raise CloudDiagnosticError("unexpected_response", "Installer tree exceeds size limit")
+            node = pending.pop()
+            if (not isinstance(node, dict) or type(node.get("id")) is not int or node["id"] <= 0
+                    or type(node.get("type")) is not int
+                    or ("station_id" in node and (type(node["station_id"]) is not int
+                                                 or node["station_id"] != station_id))):
+                raise CloudDiagnosticError("unexpected_response", "Invalid Installer device identity")
+            identity = (node["type"], node["id"])
+            if identity in seen and seen[identity] != node:
+                raise CloudDiagnosticError("unexpected_response", "Ambiguous Installer device identity")
+            seen[identity] = node
+            children = node.get("children", [])
+            if children is None:
+                children = []
+            if not isinstance(children, list):
+                raise CloudDiagnosticError("unexpected_response", "Invalid Installer device children")
+            pending.extend(children)
+            if len(seen) > 4096:
+                raise CloudDiagnosticError("unexpected_response", "Installer tree exceeds size limit")
 
     async def async_enrich_inverters(
         self, station_id: int, inverters: list[dict[str, Any]]
@@ -396,6 +463,8 @@ class HoymilesHomeClient:
         Never replace identity fields from a supplemental response.
         """
         enriched = [dict(inverter) for inverter in inverters]
+        if not self.supports_home_features:
+            return enriched
         pending = []
         for inverter in enriched:
             if inverter_model(inverter) != "Hoymiles microinverter":
@@ -464,7 +533,8 @@ class HoymilesHomeClient:
         # Bound discovery even if the undocumented endpoint repeats a full page.
         for page in range(1, 21):
             response = await self._json(
-                f"{DATA_BASE_URL}/pvmc/api/0/station/select_by_page_c",
+                f"{DATA_BASE_URL}/pvmc/api/0/station/select_by_page_c" if self.supports_home_features
+                else f"{DATA_BASE_URL}/pvm/api/0/station/select_by_page",
                 {"page": page, "page_size": page_size},
             )
             data = self._unwrap(response)
@@ -480,7 +550,7 @@ class HoymilesHomeClient:
                     continue
                 # This is a station-list endpoint: id is a station ID here only.
                 # Prefer the Home API's sid; never fall back from an invalid sid.
-                raw_id = row.get("sid", row.get("id"))
+                raw_id = row.get("sid", row.get("id")) if self.supports_home_features else row.get("id")
                 if isinstance(raw_id, bool) or not isinstance(raw_id, (int, str)):
                     continue
                 if isinstance(raw_id, str):
@@ -507,7 +577,8 @@ class HoymilesHomeClient:
     async def async_station_realtime(self, station_id: int) -> dict[str, Any]:
         await self.async_ensure_login()
         response = await self._json(
-            f"{DATA_BASE_URL}/pvmc/api/0/station_data/count_station_real_data_c",
+            f"{DATA_BASE_URL}/pvmc/api/0/station_data/count_station_real_data_c" if self.supports_home_features
+            else f"{DATA_BASE_URL}/pvm-data/api/0/station/data/count_station_real_data",
             {"sid": station_id},
         )
         data = self._unwrap(response)
@@ -526,10 +597,11 @@ class HoymilesHomeClient:
     async def _get_live_uri(self, station_id: int) -> str:
         # Both routes are present in the manufacturer's clients. Use the web
         # route only when the mobile route succeeded but omitted its URI.
-        for stage, path in (
+        routes = (
             ("live_uri_mobile", "/pvmc/api/0/station/get_sd_uri_c"),
             ("live_uri_web", "/pvm/api/0/station/get_sd_uri"),
-        ):
+        ) if self.supports_home_features else (("live_uri_web", "/pvm/api/0/station/get_sd_uri"),)
+        for stage, path in routes:
             response = await self._json(f"{DATA_BASE_URL}{path}", {"sid": station_id})
             data = self._unwrap(response)
             if data is not None and not isinstance(data, dict):
@@ -545,10 +617,11 @@ class HoymilesHomeClient:
             if not trusted_hoymiles_url(uri):
                 self._cloud_report(stage, "untrusted_uri", response)
                 raise CloudDiagnosticError("untrusted_uri", "Live API returned an untrusted URI")
-            if stage == "live_uri_web":
+            if stage == "live_uri_web" and self.supports_home_features:
                 CLOUD_LOGGER.info("Live server address recovered using manufacturer web route")
             return uri
-        raise CloudDiagnosticError("missing_uri", "Live API returned no URI (mobile and web routes)")
+        raise CloudDiagnosticError("missing_uri", "Live API returned no URI (mobile and web routes)"
+                                   if self.supports_home_features else "Live API returned no URI")
 
     async def async_live(self, station_id: int) -> dict[str, Any]:
         await self.async_ensure_login()
@@ -556,7 +629,8 @@ class HoymilesHomeClient:
             try:
                 if not self._live_uri:
                     self._live_uri = await self._get_live_uri(station_id)
-                response = await self._json(self._live_uri, {"sid": station_id, "m": 0})
+                response = await self._json(self._live_uri, {"sid": station_id, "m": 0}
+                                           if self.supports_home_features else {"m": 0, "t": 1})
                 payload = self._unwrap(response) if "status" in response else response
             except HoymilesRateLimitError:
                 self._live_uri = None
@@ -594,6 +668,8 @@ class HoymilesHomeClient:
 
     async def _async_binary_data(self, url: str, payload: dict[str, Any]) -> bytes:
         """Read a bounded binary payload, rejecting redirects and JSON errors."""
+        if not self.supports_home_features:
+            raise CloudDiagnosticError("unsupported_profile_operation", "Home charts are unavailable for the Installer profile")
         if not trusted_hoymiles_url(url):
             raise HoymilesConnectionError("Untrusted Hoymiles API URL")
         try:
@@ -1077,7 +1153,7 @@ class HoymilesHomeClient:
         )
 
 
-def microinverters(tree: Any) -> list[dict[str, Any]]:
+def microinverters(tree: Any, *, children_only: bool = False) -> list[dict[str, Any]]:
     """Return type-3 devices from a nested Home device tree."""
     found: dict[int, dict[str, Any]] = {}
 
@@ -1088,7 +1164,7 @@ def microinverters(tree: Any) -> list[dict[str, Any]]:
         elif isinstance(value, dict):
             if value.get("type") == 3 and isinstance(value.get("id"), int):
                 found[value["id"]] = value
-            for child in value.values():
+            for child in ([value.get("children")] if children_only else value.values()):
                 visit(child)
 
     visit(tree)
