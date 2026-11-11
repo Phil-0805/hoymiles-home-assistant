@@ -7,6 +7,7 @@ import json
 from . import device_settings as settings_runtime
 from .device_settings import DeviceSettings, setting_integer, settings_equal
 from .errors import HoymilesAuthError, HoymilesConnectionError, HoymilesSettingsError
+from .inverter import standalone_hms_target
 
 
 def output_phases(data):
@@ -82,6 +83,13 @@ class OutputPowerSettings(DeviceSettings):
         super().__init__(*args, features=("output_power",))
         self.output = None
 
+    def _target(self, feature):
+        tree = self.get_tree()
+        standalone = standalone_hms_target(tree)
+        if standalone is not None:
+            return {"station_id": self.station_id, **standalone}
+        return super()._target(feature)
+
     async def _read(self, feature, target=None):
         return validate_output_settings(await self.client.async_output_power_settings(self.station_id))
 
@@ -100,7 +108,7 @@ class OutputPowerSettings(DeviceSettings):
                     raise HoymilesConnectionError("Output power settings are unavailable")
                 target = self._target(feature)
                 if target is None or target != self.target:
-                    raise HoymilesConnectionError("Battery controller changed or is ambiguous")
+                    raise HoymilesConnectionError("Output control target changed or is ambiguous")
                 cached = self.output
                 fresh = await self._read(feature)
                 self._store(feature, fresh)
@@ -113,7 +121,7 @@ class OutputPowerSettings(DeviceSettings):
                     return
                 self._check_controls()
                 if self._target(feature) != target:
-                    raise HoymilesConnectionError("Battery controller changed during preflight")
+                    raise HoymilesConnectionError("Output control target changed during preflight")
                 await self.client.async_write_output_power_settings(self.station_id, fresh, value)
                 for attempt in range(settings_runtime.READBACK_ATTEMPTS):
                     if self.stopped:

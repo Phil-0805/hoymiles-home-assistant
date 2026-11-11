@@ -98,11 +98,13 @@ async def test_extra_endpoint_is_never_called_by_default(hass):
 async def test_unsupported_extra_endpoint_keeps_regular_charts(hass):
     api = AsyncMock()
     api.async_module_snapshot.side_effect = HoymilesConnectionError("unavailable")
+    api.async_micro_details.side_effect = HoymilesConnectionError("unavailable")
     api.async_module_values.return_value = {"MODULE_POWER": 42}
     poller = ModulePoller(hass, api, 123, ZoneInfo("UTC"), True, MagicMock())
     await poller.start([{"id": 99, "model_no": "HMS-800-2WB"}])
     assert poller.modules[99][1]["MODULE_POWER"] == 42
     assert poller.details_status == "unavailable"
+    api.async_micro_details.assert_not_awaited()
     await poller.async_shutdown()
 
 

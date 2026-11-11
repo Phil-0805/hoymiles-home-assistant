@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 from .errors import HoymilesAuthError, HoymilesConnectionError, HoymilesRateLimitError
 from .const import MODULE_INTERVAL
-from .inverter import inverter_ports
+from .inverter import inverter_ports, inverter_model
 from .telemetry import number
 
 
@@ -83,6 +83,10 @@ class ModulePoller:
                 self.on_update()
 
     async def _async_details(self, inverters, date):
+        known = {item["id"] for item in inverters}
+        self.details = {key: dict(value) for key, value in self.details.items() if key in known}
+        self.detail_updated = {key: value for key, value in self.detail_updated.items() if key in known}
+        self.detail_field_updated = {key: value for key, value in self.detail_field_updated.items() if key[0] in known}
         try:
             snapshot = await self.client.async_module_snapshot(self.station_id, date)
         except (HoymilesAuthError, HoymilesRateLimitError):
@@ -91,30 +95,50 @@ class ModulePoller:
         except HoymilesConnectionError:
             self.details_status = "unavailable"
             return
-        known = {item["id"] for item in inverters}
-        # Missing fields must not erase still-fresh samples of another metric.
-        details = {key: dict(value) for key, value in self.details.items() if key in known}
-        updated = {key: value for key, value in self.detail_updated.items() if key in known}
-        self.detail_field_updated = {key: value for key, value in self.detail_field_updated.items() if key[0] in known}
+        self._merge_details(snapshot, known, date)
+        # Only supplement explicit HMS models, once per existing slow poll.
+        # Working/fresh metrics do not cause additional requests.
+        missing = [item["id"] for item in inverters
+                   if inverter_model(item) != "Hoymiles microinverter"
+                   and type(item.get("id")) is int and item["id"] > 0
+                   and any(not self.detail_is_fresh(item["id"], key)
+                           for key in ("frequency", "temperature", "voltage"))]
+        if missing:
+            try:
+                chart = await self.client.async_micro_details(self.station_id, missing, date)
+            except (HoymilesAuthError, HoymilesRateLimitError):
+                self.details_status = "unavailable"
+                raise
+            except HoymilesConnectionError:
+                pass
+            else:
+                self._merge_details(chart, known, date)
+        self.details_status = "readable" if any(
+            self.detail_is_fresh(identity, key)
+            for identity in known for key in ("frequency", "temperature", "voltage")
+        ) else "no_data"
+
+    def _merge_details(self, snapshot, known, date):
+        if not isinstance(snapshot, dict) or not isinstance(snapshot.get("inverters"), dict):
+            return
         for device_id, values in snapshot["inverters"].items():
             if device_id not in known:
                 continue
-            stamp = datetime.fromisoformat(f"{date}T{values['time']}:00").replace(
-                tzinfo=self.timezone
-            ).astimezone(UTC)
-            # Never present a remote future point as a fresh sample.
-            if stamp > datetime.now(UTC) + timedelta(minutes=1):
-                continue
             for key in ("frequency", "temperature", "voltage"):
                 value = number(values.get(key))
-                previous = self.detail_field_updated.get((device_id, key))
-                if value is None or (previous is not None and stamp < previous):
+                time = values.get(f"{key}_time", values.get("time"))
+                if value is None or not isinstance(time, str):
                     continue
-                details.setdefault(device_id, {})[key] = value
-                details[device_id][f"{key}_sample_time"] = stamp.isoformat()
+                stamp = datetime.fromisoformat(f"{date}T{time}:00").replace(
+                    tzinfo=self.timezone
+                ).astimezone(UTC)
+                if stamp > datetime.now(UTC) + timedelta(minutes=1):
+                    continue
+                previous = self.detail_field_updated.get((device_id, key))
+                if previous is not None and stamp < previous:
+                    continue
+                self.details.setdefault(device_id, {})[key] = value
+                self.details[device_id][f"{key}_sample_time"] = stamp.isoformat()
                 self.detail_field_updated[(device_id, key)] = stamp
-                updated[device_id] = max(stamp, updated.get(device_id, stamp))
-            if device_id in updated:
-                details[device_id]["sample_time"] = updated[device_id].isoformat()
-        self.details, self.detail_updated = details, updated
-        self.details_status = "readable" if details else "no_data"
+                self.detail_updated[device_id] = max(stamp, self.detail_updated.get(device_id, stamp))
+                self.details[device_id]["sample_time"] = self.detail_updated[device_id].isoformat()
