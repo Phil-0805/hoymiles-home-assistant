@@ -37,6 +37,7 @@ from .const import (
 )
 from .energy import integrate_battery_energy, integrate_positive_energy
 from .module_polling import ModulePoller
+from .inverter import standalone_hms_target
 from .telemetry import PV_POWER_SOURCE, live_connected, number
 
 _LOGGER = logging.getLogger(__name__)
@@ -169,6 +170,10 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def _start_battery_settings_refresh(self, *, retry=False) -> asyncio.Task | None:
         if not self.home_features:
+            return None
+        if standalone_hms_target(self.device_tree) is not None:
+            self.battery_settings = {"readable": False, "error": "not_applicable"}
+            self._battery_read_retry_at = None
             return None
         if self._stopped or datetime.now(UTC) < self._battery_settings_paused_until:
             return None
@@ -364,6 +369,8 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             raise HoymilesConnectionError(
                 "Battery controls are disabled; enable them in the integration options"
             )
+        if standalone_hms_target(self.device_tree) is not None:
+            raise HoymilesConnectionError("Battery settings are not applicable to this inverter-only station")
 
     async def _async_apply_battery_settings(
         self, mode: int | None, *, reserve_soc: int | None = None,
@@ -490,7 +497,8 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                   and now >= self._battery_read_retry_at):
                 self._start_battery_settings_refresh(retry=True)
 
-            self.battery_telemetry.start()
+            if standalone_hms_target(self.device_tree) is None:
+                self.battery_telemetry.start()
             self.device_settings.start()
             self.cutoff_settings.start()
             self.output_settings.start()

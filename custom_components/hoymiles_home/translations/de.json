@@ -115,7 +115,7 @@
         "description": "Vergleiche die Attribute pv und pv2 des Sensors PV-Leistung mit der S-Miles-Home-App. Wähle eine andere Quelle nur, wenn der Vergleich das bestätigt. Automatisch behält das bisherige Verhalten bei: pv2, falls verfügbar, sonst pv; auch 0 ist ein gültiger Wert. Die Auswahl ändert nur die Anzeige in HA. Batterietemperaturen werden automatisch höchstens alle fünf Minuten gelesen. Zusätzliche Wechselrichterwerte sind optional. Wähle die tatsächliche Zeitzone der Anlage für Tagesgrenzen und Diagramme. Batteriebefehle sind standardmäßig gesperrt, auch nach einem Update. Aktiviere die Batteriesteuerung nur, wenn Home Assistant Modus, Reserve-SOC und die separaten Lade-/Entladeschlussstufen ändern darf. Schlussstufen und Ausgangsleistung werden zusätzlich alle 30 Minuten gelesen. Die Ausgangsleistung ist auf den frisch gemeldeten Höchstwert begrenzt; die neue Steuerung benötigt noch einen Gerätetest. Gleichzeitige Änderungen in der S-Miles-Home-App vermeiden. Gerätesteuerung liest zusätzlich Heizungs- und Displayeinstellungen alle 30 Minuten. Sie ist separat standardmäßig gesperrt. Der Heizungsschalter erlaubt das automatische Heizen; er erzwingt keinen laufenden Heizbetrieb. Je nach Gerät sind nicht alle Lichtfunktionen verfügbar.",
         "data": {
           "device_controls": "Gerätesteuerung freigeben (Heizung, Licht und Display; Beta)",
-          "battery_controls": "Batteriesteuerung freigeben (Modus, SOC und Ausgangsleistung)",
+          "battery_controls": "Steuerung freigeben (Batteriemodus, SOC und Ausgangsleistung)",
           "pv_power_source": "Quelle der PV-Leistung",
           "inverter_details": "Zusätzliche Wechselrichter-Messwerte (Beta)",
           "station_timezone": "Zeitzone der Anlage"

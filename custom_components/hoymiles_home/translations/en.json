@@ -115,7 +115,7 @@
         "description": "Compare the PV power sensor attributes pv and pv2 with the S-Miles Home app. Select another source only after confirming the match. Automatic preserves the existing behavior: pv2 when available, otherwise pv; zero is a valid value. This changes only the display in HA. Battery temperatures are read automatically at most every five minutes. Additional inverter telemetry is optional. Select the actual station timezone for daily boundaries and charts. Battery commands are disabled by default, including after an upgrade. Enable battery controls only if Home Assistant should change the mode, reserve SOC and separate charge/discharge cutoffs. Cutoffs and output power add reads every 30 minutes. Output power is bounded by the freshly reported maximum; the new control still needs device testing. Avoid simultaneous changes in the S-Miles Home app. Device controls additionally read heating and display settings every 30 minutes and are separately disabled by default. The heating switch permits automatic heating; it does not force the heater to run. Available lighting functions depend on the device.",
         "data": {
           "device_controls": "Allow device controls (heating, light and display; beta)",
-          "battery_controls": "Allow battery controls (mode, SOC and output power)",
+          "battery_controls": "Allow controls (battery mode, SOC and output power)",
           "pv_power_source": "PV power source",
           "inverter_details": "Additional inverter telemetry (beta)",
           "station_timezone": "Station timezone"

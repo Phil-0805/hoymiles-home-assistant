@@ -48,6 +48,7 @@ from .protobuf import latest_values
 from .telemetry import number
 from .inverter import inverter_model
 from .module_data import MAX_MODULE_BYTES, decode_module_snapshot
+from .micro_data import MICRO_QUOTAS, decode_micro_details
 from .security import trusted_hoymiles_url, trusted_auth_redirect, trusted_auth_base
 from .cloud_logging import (
     CloudDiagnosticError, LOGGER as CLOUD_LOGGER, failure_reason, response_summary,
@@ -755,6 +756,24 @@ class HoymilesHomeClient:
             return decode_module_snapshot(raw, station_id, date)
         except (ValueError, UnicodeError) as err:
             raise HoymilesConnectionError("Invalid inverter details response") from err
+
+    async def async_micro_details(self, station_id: int, device_ids: list[int], date: str) -> dict[str, Any]:
+        """Read the Home app's inverter chart, through the existing account budget."""
+        if (type(station_id) is not int or station_id <= 0
+                or not device_ids or len(device_ids) > 128
+                or any(type(identity) is not int or identity <= 0 for identity in device_ids)
+                or len(set(device_ids)) != len(device_ids)
+                or not isinstance(date, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date)):
+            raise HoymilesConnectionError("Invalid microinverter chart target")
+        await self.async_ensure_login()
+        raw = await self._async_binary_data(
+            f"{DATA_BASE_URL}/pvmc/api/0/micro_data/count_by_day_c",
+            {"sid": station_id, "date": date, "mi_list": device_ids, "quota": list(MICRO_QUOTAS)},
+        )
+        try:
+            return decode_micro_details(raw, device_ids)
+        except (ValueError, UnicodeError) as err:
+            raise HoymilesConnectionError("Invalid microinverter chart response") from err
 
     async def _async_battery_settings_request(
         self, payload: dict[str, Any], request_method: str
