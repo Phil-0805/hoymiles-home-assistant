@@ -38,6 +38,7 @@ STATION_SETTING_STATUS_URL = (
 )
 
 LIVE_MIN_INTERVAL = timedelta(seconds=3)
+LIVE_PENDING_INLINE_WAIT = 30
 MODULE_INTERVAL = timedelta(minutes=5)
 STATION_INTERVAL = timedelta(minutes=1)
 BATTERY_SETTINGS_INTERVAL = timedelta(minutes=30)

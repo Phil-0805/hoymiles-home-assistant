@@ -28,6 +28,22 @@ and server pauses are unchanged. HTTP 429 uses Retry-After; the account runtime
 retains its complete deadline even when scheduler wake-up delays are capped.
 An arbitrary cloud rejection with status 1 is not evidence of a rate limit.
 
+## Live-wait correction in v0.6.1b5
+
+An explicit reduced live response with integer `dly` and no flow/connection/
+power fields is handled as pending data in v0.6.1b5.
+Short delays reuse the same URI after the server delay (at least three seconds),
+outside account/HTTP locks, with at most two live reads per update. More than
+30 seconds of inline waiting is deferred to the HA scheduler; repeated pending
+replies are also deferred. The full per-client monotonic deadline is preserved,
+including across in-process setup retries/reloads; a capped scheduler wake-up
+never permits an early live request. This is not an account-wide rate pause.
+
+Deferred updates remain missing data and reset energy-integration samples.
+Unknown/malformed replies retain existing bounded URI recovery and warnings.
+These changes are introduced in b5; b4 is unchanged. See the
+[evidence, implementation and limits](live-data-investigation.md).
+
 ## What the inspected Android app establishes
 
 The archived V2.13.0 package and hashes are documented in

@@ -9,6 +9,19 @@ BATTERY_ACTIVITY = {0: "idle", 1: "charging", 2: "discharging"}
 STATUS_FIELDS = ("ems", "brs", "chs", "bhs")
 
 
+def live_pending_delay(payload):
+    """Return an explicit integer wait in ms, never an incomplete measurement.
+
+    The manufacturer's live models use a signed long for dly. Reject conflicting
+    telemetry fields, booleans, fractions and oversized values rather than
+    treating malformed telemetry as a normal waiting reply.
+    """
+    if not isinstance(payload, dict) or any(key in payload for key in ("flow", "con", "power")):
+        return None
+    delay = payload.get("dly")
+    return delay if type(delay) is int and 0 <= delay <= 2**63 - 1 else None
+
+
 def live_connected(live: dict[str, Any]) -> bool:
     """Honor an explicit offline/invalid flag; tolerate legacy missing flags."""
     return "con" not in live or number(live["con"]) == 1
