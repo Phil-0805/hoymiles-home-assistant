@@ -1,0 +1,54 @@
+name: Feature request
+description: Suggest an improvement and explain the problem it would solve.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search [existing issues](https://github.com/Phil-0805/hoymiles-home-assistant/issues) before suggesting a feature.
+        For something that already exists but does not work, use **Bug report** instead.
+        You can answer in English or German.
+
+        **Everything posted here is public.** Do not share credentials, email addresses, private server addresses,
+        station/device IDs, serial numbers, HAR files or raw API responses. Redact screenshots before uploading.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe your use case and what you currently cannot do. One feature per issue, please.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed improvement
+      description: Explain the behaviour you would like and where it should appear in Home Assistant. Include units or ranges if relevant and known.
+    validations:
+      required: true
+
+  - type: textarea
+    id: devices-and-app
+    attributes:
+      label: Affected models and official app behaviour (optional)
+      description: Model names, firmware if known and whether the official app offers this feature. Redacted screenshots are welcome; no device IDs or serial numbers.
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or workarounds (optional)
+      description: Describe any existing workaround and why it does not meet your needs. Public documentation links are welcome.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I have checked my text and attachments and removed credentials, private addresses and identifying account/device information.
+          required: true

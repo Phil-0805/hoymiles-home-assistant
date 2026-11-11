@@ -1,0 +1,96 @@
+name: Bug report
+description: Report a problem with setup, readings or controls.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search [existing issues](https://github.com/Phil-0805/hoymiles-home-assistant/issues) first and report one problem per issue.
+        English or German is welcome. See [troubleshooting](https://github.com/Phil-0805/hoymiles-home-assistant#troubleshooting) for help.
+
+        **This issue and all attachments will be public.** Do not include passwords, tokens, email addresses,
+        private server addresses, station/device IDs, serial numbers or unredacted screenshots.
+        Never attach HAR files, account exports or raw API responses.
+
+  - type: input
+    id: integration-version
+    attributes:
+      label: Integration version
+      description: Installed version from HACS / Marketplace, including any beta suffix.
+      placeholder: "For example: 0.6.0"
+    validations:
+      required: true
+
+  - type: input
+    id: ha-version
+    attributes:
+      label: Home Assistant Core version
+      description: Settings → About. Enter the version number rather than "latest".
+      placeholder: "For example: 2026.11.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: devices
+    attributes:
+      label: Device models
+      description: Inverter and battery models; firmware if known. No serial numbers or IDs. Write "unknown" if setup or login has not completed.
+      placeholder: |
+        Inverter model:
+        Battery model (or no battery):
+        Firmware (if known):
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behaviour
+    attributes:
+      label: What happened, and what did you expect?
+      description: Name the affected setup step, sensor or setting. Describe the problem and expected behaviour; include a safe-to-share error message if available.
+      placeholder: Describe the problem and when it happens.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps or additional context (optional)
+      description: How did it happen? Mention recent updates, manual installation or whether a refresh helped. Redacted screenshots are welcome; no full diagnostics. Do not repeat control commands just to reproduce an issue.
+      placeholder: |
+        1. Open ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: app-comparison
+    attributes:
+      label: Official S-Miles Home app comparison (optional)
+      description: If already checked, does the app have the same problem?
+      options:
+        - The app shows the expected values or behaviour
+        - The app has the same problem
+        - The app shows a different problem
+        - I have not checked
+        - Not applicable
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log lines (optional)
+      description: Relevant hoymiles_home.cloud_logging warnings from Settings → System → Logs. Redact private data first. Debug logging and full log files are not required.
+      render: text
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I have checked my text and attachments and removed credentials, private addresses and identifying account/device information.
+          required: true
