@@ -70,6 +70,7 @@ async def test_mobile_transport_auth_or_rate_failure_never_probes_web(failure):
 
 
 async def test_both_routes_missing_remain_bounded_and_warnings_deduplicated(caplog):
+    caplog.set_level(logging.INFO)
     api = client(*[ok(None)] * 4)
     with pytest.raises(HoymilesConnectionError, match="mobile and web"):
         await api.async_live(123)

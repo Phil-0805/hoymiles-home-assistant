@@ -44,7 +44,7 @@ from .const import (
     INSTALLER_USER_AGENT, CLIENT_PROFILES,
     WORK_MODE_SETTINGS_ACTION,
 )
-from .protobuf import latest_values
+from .protobuf import latest_module_samples
 from .telemetry import number
 from .inverter import inverter_model
 from .module_data import MAX_MODULE_BYTES, decode_module_snapshot
@@ -181,7 +181,10 @@ class HoymilesHomeClient:
         key = (stage, reason)
         if self._cloud_log_states.get(key) != summary:
             self._cloud_log_states[key] = summary
-            CLOUD_LOGGER.warning("Cloud request failed: stage=%s reason=%s %s", stage, reason, summary)
+            if stage in {"live_uri_mobile", "live_uri_web"} and reason == "missing_uri":
+                CLOUD_LOGGER.info("Cloud live address unavailable: stage=%s reason=%s %s", stage, reason, summary)
+            else:
+                CLOUD_LOGGER.warning("Cloud request failed: stage=%s reason=%s %s", stage, reason, summary)
 
     def _cloud_stage(self, url, payload=None):
         return request_stage(url, payload, self._live_uri)
@@ -479,7 +482,8 @@ class HoymilesHomeClient:
         def apply(inverter: dict[str, Any], candidate: Any, source: str) -> bool:
             if not isinstance(candidate, dict):
                 return False
-            if candidate.get("id", inverter["id"]) != inverter["id"]:
+            if ("id" in candidate and (type(candidate["id"]) is not int
+                                       or candidate["id"] != inverter["id"])):
                 return False
             if inverter.get("sn") and candidate.get("sn") and inverter["sn"] != candidate["sn"]:
                 return False
@@ -501,7 +505,7 @@ class HoymilesHomeClient:
                     for inverter in pending:
                         inverter["_model_discovery"]["web_tree"] = "unavailable"
                 else:
-                    candidates = {node["id"]: node for node in microinverters(tree)}
+                    candidates = {node["id"]: node for node in microinverters(tree, reject_ambiguous=True)}
                     for inverter in pending:
                         found = apply(inverter, candidates.get(inverter["id"]), "web_tree")
                         inverter["_model_discovery"]["web_tree"] = "identified" if found else "no_model"
@@ -618,6 +622,10 @@ class HoymilesHomeClient:
             if not trusted_hoymiles_url(uri):
                 self._cloud_report(stage, "untrusted_uri", response)
                 raise CloudDiagnosticError("untrusted_uri", "Live API returned an untrusted URI")
+            pending = [self._cloud_log_states.pop((route, "missing_uri"), None)
+                       for route in ("live_uri_mobile", "live_uri_web")]
+            if any(item is not None for item in pending):
+                CLOUD_LOGGER.info("Cloud live address recovered: stage=%s", stage)
             if stage == "live_uri_web" and self.supports_home_features:
                 CLOUD_LOGGER.info("Live server address recovered using manufacturer web route")
             return uri
@@ -731,8 +739,8 @@ class HoymilesHomeClient:
         return raw
 
     async def async_module_values(
-        self, station_id: int, device_id: int, port: int, date: str
-    ) -> dict[str, float | None]:
+        self, station_id: int, device_id: int, port: int, date: str, *, latest_time=None
+    ) -> dict[str, Any]:
         await self.async_ensure_login()
         raw = await self._async_binary_data(
             f"{DATA_BASE_URL}/pvmc/api/0/module_data/count_by_day_c",
@@ -741,7 +749,7 @@ class HoymilesHomeClient:
              "quota": ["MODULE_POWER", "MODULE_V", "MODULE_I"]},
         )
         try:
-            return latest_values(raw, device_id=device_id, port=port)
+            return latest_module_samples(raw, device_id=device_id, port=port, latest_time=latest_time)
         except (ValueError, UnicodeError) as err:
             raise HoymilesConnectionError("Invalid chart response") from err
 
@@ -757,7 +765,7 @@ class HoymilesHomeClient:
         except (ValueError, UnicodeError) as err:
             raise HoymilesConnectionError("Invalid inverter details response") from err
 
-    async def async_micro_details(self, station_id: int, device_ids: list[int], date: str) -> dict[str, Any]:
+    async def async_micro_details(self, station_id: int, device_ids: list[int], date: str, *, latest_time=None) -> dict[str, Any]:
         """Read the Home app's inverter chart, through the existing account budget."""
         if (type(station_id) is not int or station_id <= 0
                 or not device_ids or len(device_ids) > 128
@@ -771,7 +779,7 @@ class HoymilesHomeClient:
             {"sid": station_id, "date": date, "mi_list": device_ids, "quota": list(MICRO_QUOTAS)},
         )
         try:
-            return decode_micro_details(raw, device_ids)
+            return decode_micro_details(raw, device_ids, latest_time=latest_time)
         except (ValueError, UnicodeError) as err:
             raise HoymilesConnectionError("Invalid microinverter chart response") from err
 
@@ -785,7 +793,7 @@ class HoymilesHomeClient:
         )
         result = self._unwrap(response)
 
-        if isinstance(result, (str, int)):
+        if type(result) in (str, int):
             result = await self._async_poll_battery_settings_job(str(result))
 
         try:
@@ -806,7 +814,7 @@ class HoymilesHomeClient:
                 {"id": job_id},
             )
             status = self._unwrap(response)
-            if isinstance(status, dict) and status.get("code") == 2:
+            if isinstance(status, dict) and type(status.get("code")) is int and status["code"] == 2:
                 continue
             if not isinstance(status, dict):
                 raise HoymilesConnectionError(
@@ -841,7 +849,7 @@ class HoymilesHomeClient:
             {"action": WORK_MODE_SETTINGS_ACTION, "data": {"sid": station_id}},
         )
         job_id = self._unwrap(response)
-        if not isinstance(job_id, (str, int)):
+        if type(job_id) not in (str, int) or not str(job_id) or len(str(job_id)) > 256:
             raise HoymilesConnectionError("Work mode read returned no command id")
         status = await self._async_poll_station_setting_job(str(job_id))
         try:
@@ -859,12 +867,12 @@ class HoymilesHomeClient:
             payload,
         )
         result = self._unwrap(response)
-        if not isinstance(result, (str, int)):
+        if type(result) not in (str, int) or not str(result) or len(str(result)) > 256:
             raise HoymilesConnectionError(
                 "Battery settings write returned no command id"
             )
         status = await self._async_poll_battery_settings_job(str(result))
-        if status.get("code") != 0:
+        if type(status.get("code")) is not int or status["code"] != 0:
             raise HoymilesConnectionError(
                 "Battery settings write failed"
             )
@@ -893,7 +901,9 @@ class HoymilesHomeClient:
             try:
                 response = await self._json(url, request_payload)
                 payload = self._unwrap(response)
-            except (HoymilesAuthError, HoymilesConnectionError) as err:
+            except (HoymilesAuthError, HoymilesRateLimitError):
+                raise
+            except HoymilesConnectionError as err:
                 probes.append(
                     {
                         "endpoint": endpoint,
@@ -965,6 +975,8 @@ class HoymilesHomeClient:
         await self.async_ensure_login()
         try:
             return await self._async_work_mode_settings(station_id)
+        except HoymilesRateLimitError:
+            raise
         except HoymilesConnectionError as err:
             # Retain the older read path for devices/firmware that do not
             # implement the consumer app's command-83 work-mode protocol.
@@ -995,6 +1007,8 @@ class HoymilesHomeClient:
             raise HoymilesConnectionError(
                 f"{errors[0]}; no compatible HiBattery target found"
             ) from station_error
+        if len(targets) != 1:
+            raise HoymilesConnectionError("Multiple compatible battery controllers; device settings are ambiguous") from station_error
 
         for target in targets:
             device_payload = {
@@ -1011,9 +1025,10 @@ class HoymilesHomeClient:
                 )
                 verified["work_mode_request_error"] = work_mode_error
                 return verified
+            except HoymilesRateLimitError:
+                raise
             except HoymilesConnectionError as device_error:
-                serial = str(target["dev_sn"])
-                errors.append(f"device …{serial[-4:]}: {device_error}")
+                errors.append(f"device settings request: {device_error}")
 
         raise HoymilesConnectionError("; ".join(errors)) from station_error
 
@@ -1192,19 +1207,25 @@ class HoymilesHomeClient:
         )
 
 
-def microinverters(tree: Any, *, children_only: bool = False) -> list[dict[str, Any]]:
+def microinverters(tree: Any, *, children_only: bool = False, reject_ambiguous: bool = False) -> list[dict[str, Any]]:
     """Return type-3 devices from a nested Home device tree."""
     found: dict[int, dict[str, Any]] = {}
+    ambiguous = set()
 
     def visit(value: Any) -> None:
         if isinstance(value, list):
             for item in value:
                 visit(item)
         elif isinstance(value, dict):
-            if value.get("type") == 3 and isinstance(value.get("id"), int):
+            if (type(value.get("type")) is int and value["type"] == 3
+                    and type(value.get("id")) is int and value["id"] > 0):
+                previous = found.get(value["id"])
+                if reject_ambiguous and previous is not None and (
+                        inverter_model(previous) != inverter_model(value) or previous.get("sn") != value.get("sn")):
+                    ambiguous.add(value["id"])
                 found[value["id"]] = value
             for child in ([value.get("children")] if children_only else value.values()):
                 visit(child)
 
     visit(tree)
-    return list(found.values())
+    return [value for identity, value in found.items() if identity not in ambiguous]

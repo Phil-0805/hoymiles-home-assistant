@@ -129,6 +129,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             lambda: self.device_tree,
             lambda: self.battery_controls and not self._stopped,
             self._publish_device_settings,
+            get_inverters=lambda: self.inverters,
         )
 
     def _publish_device_settings(self) -> None:
@@ -174,7 +175,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def _start_battery_settings_refresh(self, *, retry=False) -> asyncio.Task | None:
         if not self.home_features:
             return None
-        if standalone_hms_target(self.device_tree) is not None:
+        if standalone_hms_target(self.device_tree, self.inverters) is not None:
             self.battery_settings = {"readable": False, "error": "not_applicable"}
             self._battery_read_retry_at = None
             return None
@@ -215,8 +216,8 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def module_updated(self):
         return self.module_polling.updated
 
-    def module_is_fresh(self, inverter_id: int, port: int) -> bool:
-        return self.module_polling.is_fresh(inverter_id, port)
+    def module_is_fresh(self, inverter_id: int, port: int, quota=None) -> bool:
+        return self.module_polling.is_fresh(inverter_id, port, quota)
 
     def station_is_fresh(self, key: str) -> bool:
         """Expire cloud totals without carrying a prior local day/month/year."""
@@ -372,7 +373,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             raise HoymilesConnectionError(
                 "Battery controls are disabled; enable them in the integration options"
             )
-        if standalone_hms_target(self.device_tree) is not None:
+        if standalone_hms_target(self.device_tree, self.inverters) is not None:
             raise HoymilesConnectionError("Battery settings are not applicable to this inverter-only station")
 
     async def _async_apply_battery_settings(
@@ -428,7 +429,9 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 request_method=request_method,
             )
             for attempt in range(BATTERY_WRITE_CONFIRM_ATTEMPTS):
+                self._check_battery_controls()
                 refreshed = await self.client.async_battery_settings(self.station_id)
+                self._check_battery_controls()
                 self.battery_settings = refreshed
                 if self.data is not None:
                     self.data["battery_settings"] = refreshed
@@ -529,7 +532,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                   and now >= self._battery_read_retry_at):
                 self._start_battery_settings_refresh(retry=True)
 
-            if standalone_hms_target(self.device_tree) is None:
+            if standalone_hms_target(self.device_tree, self.inverters) is None:
                 self.battery_telemetry.start()
             self.device_settings.start()
             self.cutoff_settings.start()

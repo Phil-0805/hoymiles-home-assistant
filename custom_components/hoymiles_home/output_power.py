@@ -79,13 +79,14 @@ def output_write_data(settings, value):
 class OutputPowerSettings(DeviceSettings):
     """Reuse scheduled reads and cooldowns; preserve current phase settings."""
 
-    def __init__(self, *args):
+    def __init__(self, *args, get_inverters=None):
         super().__init__(*args, features=("output_power",))
         self.output = None
+        self.get_inverters = get_inverters or (lambda: [])
 
     def _target(self, feature):
         tree = self.get_tree()
-        standalone = standalone_hms_target(tree)
+        standalone = standalone_hms_target(tree, self.get_inverters())
         if standalone is not None:
             return {"station_id": self.station_id, **standalone}
         return super()._target(feature)

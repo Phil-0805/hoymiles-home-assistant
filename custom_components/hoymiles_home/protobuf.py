@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import struct
 from math import isfinite
 from typing import Any
@@ -107,4 +108,49 @@ def latest_values(
         result[series["type"]] = (
             round(float(value), 3) if value is not None and isfinite(value) else None
         )
+    return result
+
+
+def chart_labels(chart):
+    """Validate the Home day-chart axis before associating values with times."""
+    labels = chart["labels"]
+    if (not labels or len(labels) > 10000
+            or any(not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", label) for label in labels)
+            or labels != sorted(set(labels))):
+        raise ProtobufDecodeError("Invalid chart time axis")
+    return labels
+
+
+def latest_series_sample(series, labels, latest_time=None):
+    """Return an aligned finite sample; never assign missing tails a later time."""
+    values = series["data"]
+    if len(values) > len(labels):
+        raise ProtobufDecodeError("Misaligned chart series")
+    if latest_time is not None and (not isinstance(latest_time, str)
+            or not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", latest_time)):
+        raise ProtobufDecodeError("Invalid chart cutoff time")
+    for index in range(len(values) - 1, -1, -1):
+        if isfinite(values[index]) and (latest_time is None or labels[index] <= latest_time):
+            return float(values[index]), labels[index]
+    return None
+
+
+def latest_module_samples(data, *, device_id, port, latest_time=None):
+    """Keep per-metric sample labels for a single requested Home PV input."""
+    chart = decode_line_chart(data)
+    labels = chart_labels(chart)
+    result = {"_sample_times": {}}
+    seen = set()
+    for series in chart["series"]:
+        key = series["type"]
+        if (key not in {"MODULE_POWER", "MODULE_V", "MODULE_I"}
+                or series["device_id"] not in (0, device_id)
+                or series["port"] not in (0, port)):
+            continue
+        if key in seen:
+            raise ProtobufDecodeError("Ambiguous module chart series")
+        seen.add(key)
+        sample = latest_series_sample(series, labels, latest_time)
+        if sample is not None:
+            result[key], result["_sample_times"][key] = round(sample[0], 3), sample[1]
     return result

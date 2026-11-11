@@ -230,7 +230,7 @@ async def test_shutdown_cancels_partial_setup_background_work(hass):
     started = asyncio.Event()
     api = client()
 
-    async def slow(*args):
+    async def slow(*args, **kwargs):
         started.set()
         await asyncio.Event().wait()
 
