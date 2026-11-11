@@ -1,5 +1,13 @@
 # Issue #34 — mode and reserve unavailable after TOU change
 
+**Update 2026-11-11:** the reporter now confirms that the mode sensor displays
+TOU and the mode select offers TOU/self-consumption. A completed switch is not
+reported; the maintainer separately confirms their own TOU test. The recurring
+live warnings are investigated independently in
+[the live-data review](live-data-investigation.md), including the current Home
+APK comparison and local diagnostic changes. Historical pending statements
+below describe the earlier investigation state.
+
 Read on 2026-11-09: [report and maintainer follow-up](https://github.com/Phil-0805/hoymiles-home-assistant/issues/34).
 Reporter: integration 0.6.0, HA 2026.10.4, HiBattery 4020 X/S. Reports unavailable
 battery-mode/reserve entities and a self-consumption display after switching
