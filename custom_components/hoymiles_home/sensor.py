@@ -369,6 +369,11 @@ class HoymilesStationSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEn
 
     @property
     def available(self) -> bool:
+        data = self.coordinator.data or {}
+        if (self.entity_description.key in LIVE_SENSOR_KEYS | {
+                "load_energy_today", "battery_charge_energy_today", "battery_discharge_energy_today"}
+                and data.get("live_available", True) is not True):
+            return False
         if self.entity_description.key in {"today_energy", "month_energy", "year_energy", "total_energy"}:
             if not self.coordinator.station_is_fresh(self.entity_description.key):
                 return False

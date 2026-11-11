@@ -136,6 +136,7 @@ async def async_get_config_entry_diagnostics(
     return {
         "inverters": inverters,
         "polling": {
+            "live_available": data.get("live_available", bool(live)) is True,
             "station_timezone": str(getattr(coordinator, "station_timezone", "unknown")),
             "details_enabled": getattr(coordinator, "inverter_details", False) is True,
             "details_status": getattr(getattr(coordinator, "module_polling", None), "details_status", "disabled"),

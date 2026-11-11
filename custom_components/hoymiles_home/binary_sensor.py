@@ -38,5 +38,11 @@ class HoymilesConnectedSensor(CoordinatorEntity[HoymilesHomeCoordinator], Binary
         )
 
     @property
-    def is_on(self) -> bool:
+    def available(self) -> bool:
+        return super().available and (self.coordinator.data or {}).get("live_available", True) is True
+
+    @property
+    def is_on(self) -> bool | None:
+        if (self.coordinator.data or {}).get("live_available", True) is not True:
+            return None
         return (self.coordinator.data or {}).get("live", {}).get("con") == 1
