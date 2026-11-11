@@ -624,6 +624,10 @@ class HoymilesHomeClient:
                                    if self.supports_home_features else "Live API returned no URI")
 
     async def async_live(self, station_id: int) -> dict[str, Any]:
+        # A warning/recovery pair can belong to this same refresh: the first
+        # sample was unusable, but HA still receives the valid retry. Preserve
+        # the existing requests and acceptance; distinguish that case in logs.
+        previous_invalid_refresh = ("live_data", "invalid_live_data") in self._cloud_log_states
         await self.async_ensure_login()
         for _attempt in range(2):
             try:
@@ -659,12 +663,13 @@ class HoymilesHomeClient:
                 # so a separate future outage is not hidden forever.
                 if self._cloud_log_states.pop(("live_data", "invalid_live_data"), None) is not None:
                     CLOUD_LOGGER.warning(
-                        "Cloud request recovered: stage=live_data previous_reason=invalid_live_data"
+                        "Cloud request recovered: stage=live_data previous_reason=invalid_live_data recovery_scope=%s",
+                        "later_refresh" if previous_invalid_refresh else "same_refresh",
                     )
                 return payload
             self._cloud_report("live_data", "invalid_live_data", {"data": payload})
             self._live_uri = None
-        raise CloudDiagnosticError("invalid_live_data", "Live URI expired")
+        raise CloudDiagnosticError("invalid_live_data", "Live response contains no usable telemetry after retry")
 
     async def _async_binary_data(self, url: str, payload: dict[str, Any]) -> bytes:
         """Read a bounded binary payload, rejecting redirects and JSON errors."""

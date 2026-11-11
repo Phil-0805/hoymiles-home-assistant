@@ -125,11 +125,24 @@ def live_response_summary(payload):
     def field_kind(key):
         return value_kind(payload[key]) if isinstance(payload, dict) and key in payload else "missing"
 
+    object_state = "not_object"
     con_state = "missing"
-    if isinstance(payload, dict) and "con" in payload:
-        con_state = "valid" if number(payload["con"]) in (0, 1) else "invalid"
+    delay_state = "missing"
+    if isinstance(payload, dict):
+        object_state = "nonempty" if payload else "empty"
+        if "con" in payload:
+            con_state = "valid" if number(payload["con"]) in (0, 1) else "invalid"
+        if "dly" in payload:
+            delay = number(payload["dly"])
+            if delay is None:
+                delay_state = "invalid"
+            elif delay < 0:
+                delay_state = "negative"
+            else:
+                delay_state = "nonnegative"
     return (f"data_type={value_kind(payload)} flow_type={field_kind('flow')} "
-            f"con_type={field_kind('con')} con_state={con_state} power_type={field_kind('power')}")
+            f"con_type={field_kind('con')} con_state={con_state} power_type={field_kind('power')} "
+            f"object_state={object_state} dly_type={field_kind('dly')} dly_state={delay_state}")
 
 
 def response_summary(response):

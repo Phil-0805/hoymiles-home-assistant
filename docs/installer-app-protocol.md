@@ -162,3 +162,18 @@ rupacheco's account is fixed.
 This implementation is included in the authorized **v0.6.1b3** experimental
 prerelease. No issue comment, authenticated request, device command or app
 execution was performed by the agent.
+
+## Follow-up — 2026-11-11
+
+The account confirmation requested above has since arrived in issue #16:
+rupacheco reports successful access with v0.6.1b3 after selecting Installer.
+The maintainer requested an app comparison of readings and energy totals;
+that further confirmation is still outstanding. Earlier statements about a
+pending account fix describe the evidence at the time of b3 preparation.
+
+A renewed static review of the identical APK and the current public web entry
+found concrete extra monitoring routes, a float64 chart schema incompatible
+with the existing Home float32 decoder, and a distinct action-1013 storage
+settings path. See [capabilities, call chains and proposed b4 scope](installer-capability-review.md).
+These are research findings; the existing runtime restrictions and version
+remain unchanged.
