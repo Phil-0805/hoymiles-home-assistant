@@ -6,7 +6,7 @@ from .const import (
     AUTH_BASE_URLS, DATA_BASE_URL, STATION_SETTING_READ_URL,
     STATION_SETTING_STATUS_URL, STATION_SETTING_WRITE_URL,
 )
-from .errors import HoymilesAuthError, HoymilesConnectionError, HoymilesRateLimitError, HoymilesLivePending
+from .errors import HoymilesAuthError, HoymilesConnectionError, HoymilesRateLimitError
 from .telemetry import number
 
 LOGGER = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ STAGES = frozenset(set(_KNOWN_STAGES.values()) | _SETTING_STAGES
 REASONS = frozenset({"http_error", "timeout", "transport_error", "redirect_rejected",
                      "invalid_json", "cloud_rejected", "invalid_challenge", "missing_token",
                      "missing_uri", "invalid_uri_type", "untrusted_uri", "invalid_live_data",
-                     "unexpected_response", "authentication", "rate_limited", "live_data_pending", "connection", "unexpected_error",
+                     "unexpected_response", "authentication", "rate_limited", "connection", "unexpected_error",
                      "unsupported_auth_version", "unsupported_auth_region", "invalid_auth_routing",
                      "session_expired", "client_update_required", "home_app_required",
                      "invalid_work_mode_settings", "unsupported_profile_operation", "account_action_required"})
@@ -166,8 +166,6 @@ class CloudDiagnosticError(HoymilesConnectionError):
 
 
 def failure_reason(error):
-    if isinstance(error, HoymilesLivePending):
-        return "live_data_pending"
     if isinstance(error, CloudDiagnosticError):
         return error.reason
     if isinstance(error, HoymilesAuthError):

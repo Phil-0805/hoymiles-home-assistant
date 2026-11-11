@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-from time import monotonic
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import device_registry as dr
 from homeassistant.util import dt as dt_util
@@ -16,7 +13,6 @@ from .api import HoymilesHomeClient
 from .cloud_runtime import AccountPool
 from .const import CONF_BATTERY_CONTROLS, CONF_DEVICE_CONTROLS, CONF_INVERTER_DETAILS, CONF_STATION_ID, CONF_STATION_TIMEZONE, DOMAIN, PLATFORMS
 from .coordinator import HoymilesHomeCoordinator
-from .errors import HoymilesLivePending
 from .device_migration import (
     async_migrate_battery_temperatures, async_remove_obsolete_charge_limit_entities,
     async_remove_obsolete_max_power_sensor,
@@ -30,16 +26,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     domain_data = hass.data.setdefault(DOMAIN, {})
     pool = domain_data.setdefault("_accounts", AccountPool())
     account_key, runtime = pool.acquire(entry.data[CONF_USERNAME], entry.data[CONF_PASSWORD])
-    setup_waits = domain_data.setdefault("_live_setup_waits", {})
-    wait_target = (account_key, entry.data.get(CONF_CLIENT_PROFILE, "home"), entry.data[CONF_STATION_ID])
     coordinator = None
     try:
-        # HA ignores UpdateFailed.retry_after during first setup. Preserve its
-        # deadline across setup retries without retaining credentials or a URI.
-        pending = setup_waits.get(entry.entry_id)
-        if pending is not None and pending[0] == wait_target and pending[1] > monotonic():
-            raise ConfigEntryNotReady("Live data is not ready; waiting before setup retries")
-        setup_waits.pop(entry.entry_id, None)
         client = HoymilesHomeClient(
             async_get_clientsession(hass, verify_ssl=True),
             entry.data[CONF_USERNAME],
@@ -72,22 +60,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_remove_obsolete_max_power_sensor(hass, entry)
         async_migrate_battery_temperatures(hass, entry)
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    except BaseException as err:
-        cause = getattr(getattr(coordinator, "last_exception", None), "__cause__", None)
-        if isinstance(err, ConfigEntryNotReady) and isinstance(cause, HoymilesLivePending):
-            setup_waits[entry.entry_id] = (wait_target, monotonic() + cause.wait_seconds)
+    except BaseException:
         domain_data.pop(entry.entry_id, None)
         pool.release(account_key)
         if coordinator is not None:
             await coordinator.async_shutdown()
         raise
-
-    def preserve_live_wait():
-        remaining = client.live_pending_seconds(entry.data[CONF_STATION_ID])
-        if type(remaining) in (int, float) and remaining > 0:
-            setup_waits[entry.entry_id] = (wait_target, monotonic() + remaining)
-
-    entry.async_on_unload(preserve_live_wait)
     entry.async_on_unload(lambda: pool.release(account_key))
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
     return True
@@ -106,8 +84,3 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN].pop(entry.entry_id)
         return True
     return False
-
-
-async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Discard any in-memory setup delay when an entry is removed."""
-    hass.data.get(DOMAIN, {}).get("_live_setup_waits", {}).pop(entry.entry_id, None)
