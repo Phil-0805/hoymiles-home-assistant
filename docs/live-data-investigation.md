@@ -1,5 +1,11 @@
 # Live sample interruptions: issue #34 — 2026-11-11
 
+**Latest status:** the maintainer reports a regression in b5: the scheduled-wait
+error is followed by persistent unavailable live entities, unlike b4. B6 restores
+b4's bounded URI recovery and narrows successful-retry logging to info level.
+See [the b6 test instructions](release-0.6.1b6.md); b4 remains a rollback option.
+The historical b5 release/tag are not rewritten.
+
 ## Current evidence
 
 The latest [reporter comment](https://github.com/Phil-0805/hoymiles-home-assistant/issues/34#issuecomment-6792550840)
@@ -294,3 +300,87 @@ HA 2026.10.4 and 2026.11.0**, **56 unit tests**, syntax, unchanged translation-k
 parity, local documentation links, whitespace and a 37-file release ZIP
 matching the working Python sources. No device-level success is claimed from
 these synthetic tests.
+
+## B5 availability regression and local rollback
+
+After installing b5, the maintainer reports the new error **Live data is not
+ready; a later read is scheduled** and persistent unavailable solar, house,
+grid and battery entities. This is a new regression relative to their reported
+b4 behavior; do not present it as merely harmless log noise or ask them to keep
+waiting indefinitely.
+
+The error is emitted when b5 defers through `HoymilesLivePending`, either for an
+inline wait above 30 seconds or for another pending reply at the read-attempt
+cap. The coordinator converts it to `UpdateFailed`, which marks the live
+entities unavailable. The screenshot does not identify which of these two
+branches occurred or expose the actual delay. No root cause in the cloud or
+account permissions is established.
+
+B4's URI lookup after the reduced reply had returned a usable sample on the
+maintainer's setup. The current web client's independent same-URI timer was
+insufficient evidence that the Home mobile path could omit this recovery step
+without degrading availability. B5's synthetic tests explicitly accepted
+unavailable entities during deferred reads; that acceptance criterion failed
+to preserve the maintainer's previously working behavior.
+
+The local repair therefore restores **b4's complete live-recovery/runtime
+path**, retaining b4's structural diagnostics and neutral error text. Reduced
+replies again cause at most one URI lookup/retry under the existing account
+budget. There is no new pending deadline, setup/reload wait cache or special
+scheduled-wait error. No old measurements are marked fresh to conceal a failure.
+If both bounded attempts still contain no usable telemetry, the update correctly
+fails rather than inventing data.
+
+The b5-only waiting implementation and its tests asserting that new behavior
+are removed from the local repair. New tests use the real HA coordinator and
+assert that short/zero/long/multiday reduced replies followed by URI recovery
+return a new genuine sample and keep the update successful. Recurring reduced
+replies must not accumulate a stuck deadline; genuinely missing data after both
+attempts remains unavailable. Home and Installer request bodies remain distinct.
+
+This rollback restores the known working policy; it is not a new claim to
+respect a server Retry-After or to fix every invalid cloud response. Further
+changes to reduced replies require evidence specific to the Home path and a
+comparison against the successful b4 recovery. No real account/device access
+or additional publication is performed as part of this local repair.
+
+Initial rollback validation: the seven affected runtime modules were byte-identical to the
+published b4 sources. **948 HA tests on each of HA 2026.10.4 and 2026.11.0**
+and **56 unit tests** pass, including 12 new real-coordinator regression cases.
+Syntax, translation-key parity, local links and whitespace are checked.
+The manifest remains at the published b5 version; no repair release or commit
+has been made. Maintainer confirmation after rolling back is still needed.
+
+## Logging refinement for v0.6.1b6
+
+At the maintainer's request to keep the working recovery and handle the hint
+internally, b6 changes only the logging decision on top of
+b4's live request flow. A first reduced reply with an explicit signed-long
+nonnegative integer `dly` and no `flow`, `con` or `power` does not immediately
+emit `invalid_live_data`. The existing URI lookup/retry still runs under the
+account budget with unchanged bodies and the two-live-attempt cap.
+
+If that retry returns real telemetry, a fixed **info-level** message records
+`Cloud live retry recovered: stage=live_data first_sample=delay_without_telemetry`.
+The coordinator returns the actual sample and stays available; no cached
+measurement is substituted. The raw delay is not interpreted as Retry-After,
+not enforced as a sleep and not logged. Unknown extra response fields are not
+copied into logs.
+
+If the retry is still invalid, the normal warning/failure path runs and HA
+correctly marks the data unavailable. URI, auth, HTTP and transport failures
+retain their own existing handling. Other malformed samples still warn through
+the b4 path. An actual earlier failed-refresh episode still emits its normal
+warning-level recovery when valid data returns, even if this call also first
+receives a delay hint. This is a narrow logging distinction, not global error
+suppression or a claimed repair of the cloud service.
+
+The new tests also check absence of warning/recovery pairs for successfully
+handled reduced replies, retained warnings for other malformed replies and
+recovery after a genuine earlier failure. The maintainer subsequently authorized
+publication of this repair as v0.6.1b6. Earlier local-only/pending statements in
+this investigation record the state before that release preparation.
+
+Refinement validation: **956 HA tests on each of HA 2026.10.4 and 2026.11.0**,
+**56 unit tests**, syntax, translation-key parity, local links and whitespace
+passed. Real-device confirmation of b6 remains pending.

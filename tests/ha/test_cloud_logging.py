@@ -266,8 +266,8 @@ def test_live_summary_distinguishes_empty_and_delay_shapes_without_values(
     assert "uri=" not in caplog.text and "cloud_status=" not in caplog.text
 
 
-async def test_invalid_delay_payload_never_becomes_telemetry_or_guessed_uri_expiry(caplog):
-    api = client(ok({"dly": -1}), ok({"uri": LIVE}), ok({"dly": -1}))
+async def test_delay_only_payload_still_never_becomes_telemetry_or_guessed_uri_expiry(caplog):
+    api = client(ok({"dly": 3000}), ok({"uri": LIVE}), ok({"dly": 3000}))
     api._live_uri = LIVE
     with pytest.raises(HoymilesConnectionError, match="no usable telemetry after retry"):
         await api.async_live(123)
@@ -276,7 +276,7 @@ async def test_invalid_delay_payload_never_becomes_telemetry_or_guessed_uri_expi
     assert api._json.call_args_list[1].args == (MOBILE, {"sid": 123})
     assert api._json.call_args_list[2].args == (LIVE, {"sid": 123, "m": 0})
     assert api._live_uri is None
-    assert "dly_type=integer dly_state=negative" in caplog.text
+    assert "dly_type=integer dly_state=nonnegative" in caplog.text
     assert caplog.text.count("reason=invalid_live_data") == 1
     assert "Cloud request recovered" not in caplog.text
     assert SECRET not in caplog.text

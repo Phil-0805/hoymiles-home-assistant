@@ -30,6 +30,11 @@ An arbitrary cloud rejection with status 1 is not evidence of a rate limit.
 
 ## Live-wait correction in v0.6.1b5
 
+**Regression update:** the maintainer reports persistent unavailable entities
+with b5. B6 removes this waiting policy and restores b4's bounded URI lookup/retry.
+See [the b6 instructions](release-0.6.1b6.md); b4 remains a rollback option.
+The description below records b5's historical behavior, not the repaired code.
+
 An explicit reduced live response with integer `dly` and no flow/connection/
 power fields is handled as pending data in v0.6.1b5.
 Short delays reuse the same URI after the server delay (at least three seconds),
