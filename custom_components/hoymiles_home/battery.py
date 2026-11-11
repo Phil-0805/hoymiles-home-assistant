@@ -139,7 +139,7 @@ def battery_setting_targets(tree: Any) -> list[dict[str, Any]]:
         dtu_serial = value.get("dtu_sn")
         device_type = value.get("type")
         if (
-            device_type == 12
+            type(device_type) is int and device_type == 12
             and isinstance(serial, str)
             and serial
             and isinstance(dtu_serial, str)
@@ -164,7 +164,7 @@ def parse_battery_settings(result: Any) -> dict[str, Any]:
         raise BatterySettingsError("Missing battery settings result")
 
     code = result.get("code")
-    if code not in (None, 0):
+    if code is not None and (type(code) is not int or code != 0):
         raise BatterySettingsError(
             "Battery settings device list is empty"
             if "device list is empty" in str(result.get("message", "")).lower()

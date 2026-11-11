@@ -160,10 +160,12 @@ async def test_offline_live_sensors_and_stale_module_are_unavailable(hass):
     key, quota, unit, device_class = MODULE_SENSORS[0]
     module = HoymilesModuleSensor(coordinator, entry, {"id": 99}, 1, key, quota, unit, device_class)
     coordinator.module_updated[(99, 1)] = datetime.now(UTC)
+    coordinator.module_polling.module_field_updated[(99, 1, quota)] = datetime.now(UTC)
     assert not module.available
     coordinator.data["live"]["con"] = 1
     assert module.available
     coordinator.module_updated[(99, 1)] -= timedelta(minutes=11)
+    coordinator.module_polling.module_field_updated[(99, 1, quota)] -= timedelta(minutes=11)
     assert not module.available
 
 

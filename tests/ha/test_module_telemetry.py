@@ -16,7 +16,7 @@ from custom_components.hoymiles_home.api import HoymilesHomeClient, HoymilesConn
 from custom_components.hoymiles_home.coordinator import HoymilesHomeCoordinator
 from custom_components.hoymiles_home.module_data import decode_module_snapshot
 from custom_components.hoymiles_home.module_polling import ModulePoller
-from custom_components.hoymiles_home.sensor import HoymilesInverterDetailSensor, async_setup_entry
+from custom_components.hoymiles_home.sensor import HoymilesInverterDetailSensor, HoymilesLastInverterTemperatureSensor, async_setup_entry
 from custom_components.hoymiles_home.const import DOMAIN
 from custom_components.hoymiles_home.protobuf import ProtobufDecodeError
 from zoneinfo import ZoneInfo
@@ -66,12 +66,12 @@ async def test_slow_module_read_does_not_delay_live_refresh(hass):
     api = AsyncMock()
     api.async_live.return_value = {"con": 1, "power": {"pv": 123}}
     api.async_station_realtime.return_value = {}
-    async def slow(*args):
+    async def slow(*args, **kwargs):
         started.set()
         await release.wait()
-        return {"MODULE_POWER": 42}
+        return {"MODULE_POWER": 42, "_sample_times": {"MODULE_POWER": datetime.now(UTC).strftime("%H:%M")}}
     api.async_module_values.side_effect = slow
-    coordinator = HoymilesHomeCoordinator(hass, api, 123)
+    coordinator = HoymilesHomeCoordinator(hass, api, 123, station_timezone=ZoneInfo("UTC"))
     coordinator.device_tree = [{"id": 99}]
     coordinator.inverters = [{"id": 99, "model_no": "HMS-800-2WB"}]
     with patch.object(coordinator, "_async_refresh_battery_settings", new=AsyncMock()):
@@ -99,7 +99,8 @@ async def test_unsupported_extra_endpoint_keeps_regular_charts(hass):
     api = AsyncMock()
     api.async_module_snapshot.side_effect = HoymilesConnectionError("unavailable")
     api.async_micro_details.side_effect = HoymilesConnectionError("unavailable")
-    api.async_module_values.return_value = {"MODULE_POWER": 42}
+    api.async_module_values.return_value = {"MODULE_POWER": 42,
+                                          "_sample_times": {"MODULE_POWER": datetime.now(UTC).strftime("%H:%M")}}
     poller = ModulePoller(hass, api, 123, ZoneInfo("UTC"), True, MagicMock())
     await poller.start([{"id": 99, "model_no": "HMS-800-2WB"}])
     assert poller.modules[99][1]["MODULE_POWER"] == 42
@@ -122,12 +123,17 @@ async def test_details_are_routed_only_to_known_inverter_and_expire(hass, freeze
     hass.data.setdefault(DOMAIN, {})["test"] = coordinator
     entities = []
     await async_setup_entry(hass, SimpleNamespace(entry_id="test", data={"station_id": 123}), entities.extend)
-    extras = [entity for entity in entities if isinstance(entity, HoymilesInverterDetailSensor)]
+    extras = [entity for entity in entities if type(entity) is HoymilesInverterDetailSensor]
+    last = [entity for entity in entities if isinstance(entity, HoymilesLastInverterTemperatureSensor)]
+    assert len(last) == 1
     assert len(extras) == 3
     assert next(e for e in extras if e.unique_id.endswith("temperature")).native_value == 21
     assert all(e.available for e in extras)
     freezer.move_to("2026-10-29 10:11:00+00:00")
     assert all(not e.available for e in extras)
+    assert last[0].available
+    assert last[0].native_value == 21
+    assert last[0].state_class is None
     await coordinator.async_shutdown()
 
 

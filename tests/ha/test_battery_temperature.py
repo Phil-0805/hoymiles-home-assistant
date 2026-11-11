@@ -143,7 +143,7 @@ async def test_dynamic_entities_share_station_device_and_keep_private_diagnostic
     assert pack.extra_state_attributes["battery_serial"] == PACK
     assert pack.extra_state_attributes["freshness_basis"] == "cloud_response"
     result = await async_get_config_entry_diagnostics(hass, entry)
-    assert result["battery_telemetry"] == {"enabled": True, "status": "readable", "device_count": 2}
+    assert result["battery_telemetry"] == {"enabled": True, "applicable": True, "status": "readable", "device_count": 2}
     assert SN not in str(result) and PACK not in str(result)
     for callback in unload:
         callback()

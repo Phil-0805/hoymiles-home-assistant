@@ -4,7 +4,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
-from .inverter import inverter_model, inverter_ports
+from .inverter import inverter_model, inverter_ports, standalone_hms_target
 from .battery import work_mode_upper_soc, writable_modes
 from .telemetry import battery_activity, live_power, number, pv_power_details, status_codes
 from .errors import SETTINGS_ERROR_REASONS, SETTINGS_DIAGNOSTIC_FIELDS
@@ -133,9 +133,11 @@ async def async_get_config_entry_diagnostics(
         })
     data = getattr(coordinator, "data", None) or {}
     live = data.get("live", {})
+    standalone = standalone_hms_target(getattr(coordinator, "device_tree", []), coordinator.inverters) is not None
     return {
         "inverters": inverters,
         "polling": {
+            "standalone_hms_recognized": standalone,
             "live_available": data.get("live_available", bool(live)) is True,
             "station_timezone": str(getattr(coordinator, "station_timezone", "unknown")),
             "details_enabled": getattr(coordinator, "inverter_details", False) is True,
@@ -144,6 +146,7 @@ async def async_get_config_entry_diagnostics(
             "maximum_concurrent_http_requests": 2,
         },
         "battery_telemetry": {
+            "applicable": getattr(coordinator, "home_features", True) is True and not standalone,
             "enabled": getattr(getattr(coordinator, "battery_telemetry", None), "enabled", False),
             "status": getattr(getattr(coordinator, "battery_telemetry", None), "status", "disabled"),
             "device_count": len(getattr(getattr(coordinator, "battery_telemetry", None), "values", {})),

@@ -28,7 +28,7 @@ def inverter_ports(inverter: dict[str, Any]) -> range:
     return range(1, count + 1)
 
 
-def standalone_hms_target(tree: Any) -> dict[str, Any] | None:
+def standalone_hms_target(tree: Any, enriched: Any = None) -> dict[str, Any] | None:
     """Recognize only an explicit single HMS inverter with optional DTU nodes.
 
     Unknown, empty, malformed and mixed trees retain the existing battery path.
@@ -36,6 +36,28 @@ def standalone_hms_target(tree: Any) -> dict[str, Any] | None:
     """
     inverters = []
     identities = set()
+
+    def model_for(node):
+        model = inverter_model(node)
+        if _HMS_MODEL.fullmatch(model):
+            return model
+        # Supplemental metadata may supply a model, never a device identity or
+        # topology. It must still describe this exact original Home-tree node.
+        if not isinstance(enriched, list):
+            return None
+        candidates = [item for item in enriched if isinstance(item, dict)
+                      and type(item.get("id")) is int and item["id"] == node["id"]]
+        if len(candidates) != 1:
+            return None
+        candidate = candidates[0]
+        discovery = candidate.get("_model_discovery")
+        if (type(candidate.get("type")) is not int or candidate["type"] != 3
+                or candidate.get("sn") != node.get("sn")
+                or not isinstance(discovery, dict) or discovery.get("result") != "identified"
+                or discovery.get("source") not in {"web_tree", "micro_detail"}):
+            return None
+        model = inverter_model(candidate)
+        return model if _HMS_MODEL.fullmatch(model) else None
 
     def has_storage(value):
         if isinstance(value, dict):
@@ -55,8 +77,8 @@ def standalone_hms_target(tree: Any) -> dict[str, Any] | None:
                 return False
             identities.add((kind, identity))
             if kind == 3:
-                model = inverter_model(node)
-                if not _HMS_MODEL.fullmatch(model):
+                model = model_for(node)
+                if model is None:
                     return False
                 inverters.append({"id": identity, "model": model})
             children = node.get("children")

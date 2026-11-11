@@ -93,8 +93,10 @@ class HoymilesBatteryReserveSocNumber(
         return None
 
     async def async_set_native_value(self, value: float) -> None:
+        if (type(value) not in (int, float) or not 10 <= value <= 100 or int(value) != value):
+            raise HomeAssistantError("Reserve SOC must be a whole percentage from 10 to 100")
         try:
-            await self.coordinator.async_set_battery_reserve_soc(round(value))
+            await self.coordinator.async_set_battery_reserve_soc(int(value))
         except HoymilesError as err:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
