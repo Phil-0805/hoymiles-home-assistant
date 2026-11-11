@@ -39,6 +39,7 @@ from .energy import integrate_battery_energy, integrate_positive_energy
 from .module_polling import ModulePoller
 from .inverter import standalone_hms_target
 from .telemetry import PV_POWER_SOURCE, live_connected, number
+from .cloud_logging import CloudDiagnosticError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -86,6 +87,8 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._modules_updated = datetime.min.replace(tzinfo=UTC)
         self._station_updated = datetime.min.replace(tzinfo=UTC)
         self._station_attempted = datetime.min.replace(tzinfo=UTC)
+        self._station_access_validated = False
+        self._live_uri_retry_at = datetime.min.replace(tzinfo=UTC)
         self._battery_settings_updated = datetime.min.replace(tzinfo=UTC)
         self._battery_read_retry_at = None
         self._battery_read_retry_count = 0
@@ -455,7 +458,31 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
-            live = await self.client.async_live(self.station_id)
+            now = datetime.now(UTC)
+            live = {}
+            live_available = False
+            if now >= self._live_uri_retry_at:
+                try:
+                    live = await self.client.async_live(self.station_id)
+                except CloudDiagnosticError as err:
+                    # An absent server address is not usable offline telemetry.
+                    # Validate the station independently before accepting partial setup.
+                    if err.reason != "missing_uri":
+                        raise
+                    self._live_uri_retry_at = datetime.now(UTC) + STATION_INTERVAL
+                else:
+                    live_available = True
+                    self._live_uri_retry_at = datetime.min.replace(tzinfo=UTC)
+            if not live_available:
+                self._reset_energy_samples()
+                if not self._station_access_validated:
+                    stations = await self.client.async_list_stations()
+                    if (type(self.station_id) is not int or self.station_id <= 0 or not isinstance(stations, list)
+                            or not any(isinstance(station, dict)
+                                       and type(station.get("sid")) is int
+                                       and station["sid"] == self.station_id for station in stations)):
+                        raise HoymilesConnectionError("Selected station is not accessible to this account")
+                    self._station_access_validated = True
             now = datetime.now(UTC)
             battery_energy = self._update_battery_energy(live, now)
             delay_ms = number(live.get("dly"))
@@ -465,9 +492,14 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 )
             except OverflowError:
                 self.update_interval = LIVE_MIN_INTERVAL
+            if not live_available:
+                self.update_interval = STATION_INTERVAL
 
             if not self.device_tree:
-                self.device_tree = await self.client.async_device_tree(self.station_id)
+                tree = await self.client.async_device_tree(self.station_id)
+                if not isinstance(tree, (list, dict)):
+                    raise HoymilesConnectionError("Invalid station device tree")
+                self.device_tree = tree
                 self.inverters = microinverters(self.device_tree, children_only=not self.home_features)
                 self.inverters = await self.client.async_enrich_inverters(
                     self.station_id, self.inverters
@@ -510,6 +542,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return {
                 PV_POWER_SOURCE: self.pv_power_source,
                 "live": live,
+                "live_available": live_available,
                 "station": self.station,
                 "device_tree": self.device_tree,
                 "inverters": self.inverters,
