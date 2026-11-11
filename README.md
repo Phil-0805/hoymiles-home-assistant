@@ -151,8 +151,8 @@ A settings refresh may take several minutes after a transient startup failure.
 
 For login reports, name the exact app tested: **S-Miles Home** and **S-Miles
 Installer** are different clients. A successful Installer/website login does
-not establish access through the Home API. The v0.6.1b4 beta includes initial account routing, improved TOU mode readback,
-activation of supported existing basic plans and more precise live-response diagnostics; see [its test instructions](docs/release-0.6.1b4.md)
+not establish access through the Home API. The v0.6.1b5 beta includes initial account routing, improved TOU mode readback,
+activation of supported existing basic plans and live-server wait handling; see [its test instructions](docs/release-0.6.1b5.md)
 and [the evidence and remaining limits](docs/login-routing-0.6.1.md).
 
 Download diagnostics for the affected integration under **Devices & services**.

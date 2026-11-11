@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+from asyncio import sleep as live_sleep
 import base64
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 import hashlib
 import json
 import re
+from time import monotonic
 from typing import Any
 
 from aiohttp import ClientError, ClientResponseError, ClientSession, ClientTimeout
@@ -42,10 +44,11 @@ from .const import (
     TOKEN_LIFETIME,
     USER_AGENT,
     INSTALLER_USER_AGENT, CLIENT_PROFILES,
+    LIVE_MIN_INTERVAL, LIVE_PENDING_INLINE_WAIT,
     WORK_MODE_SETTINGS_ACTION,
 )
 from .protobuf import latest_values
-from .telemetry import number
+from .telemetry import number, live_pending_delay
 from .inverter import inverter_model
 from .module_data import MAX_MODULE_BYTES, decode_module_snapshot
 from .security import trusted_hoymiles_url, trusted_auth_redirect, trusted_auth_base
@@ -56,6 +59,7 @@ from .cloud_logging import (
 from .cloud_runtime import AccountRuntime, retry_delay
 from .errors import (
     HoymilesError, HoymilesAuthError, HoymilesConnectionError, HoymilesRateLimitError, HoymilesSettingsError,
+    HoymilesLivePending,
 )
 
 MAX_JSON_BYTES = 8 * 1024 * 1024
@@ -111,6 +115,11 @@ class HoymilesHomeClient:
         self.supports_home_features = profile == "home"
         self._auth_state = self.runtime if self.supports_home_features else self.runtime.installer_session
         self._live_uri: str | None = None
+        self._live_pending_target = None
+        self._live_pending_until = 0.0
+        self._live_lock = asyncio.Lock()
+        self._live_tasks = set()
+        self._live_stopped = False
         self._cloud_log_states = {}
         self._auth_version = None
         self._auth_dc = None
@@ -623,16 +632,65 @@ class HoymilesHomeClient:
         raise CloudDiagnosticError("missing_uri", "Live API returned no URI (mobile and web routes)"
                                    if self.supports_home_features else "Live API returned no URI")
 
+    async def async_stop_live(self):
+        """Stop active/queued live reads, including waits, before unloading."""
+        self._live_stopped = True
+        tasks = self._live_tasks - {asyncio.current_task()}
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    def live_pending_seconds(self, station_id):
+        """Allow reload to preserve a wait without exporting its private URI."""
+        if self._live_pending_target != (station_id, self.profile, self._live_uri):
+            return 0
+        return max(0, self._live_pending_until - monotonic())
+
     async def async_live(self, station_id: int) -> dict[str, Any]:
+        task = asyncio.current_task()
+        self._live_tasks.add(task)
+        try:
+            async with self._live_lock:
+                if self._live_stopped:
+                    raise HoymilesConnectionError("Live client is stopped")
+                return await self._async_live(station_id)
+        finally:
+            self._live_tasks.discard(task)
+
+    async def _async_wait_live_pending(self, station_id):
+        target = self._live_pending_target
+        if target is None:
+            return
+        if target != (station_id, self.profile, self._live_uri):
+            self._live_pending_target = None
+            self._live_pending_until = 0.0
+            self._live_uri = None
+            return
+        while (remaining := self._live_pending_until - monotonic()) > 0:
+            # This inline-wait cap is our policy, not a manufacturer quota.
+            # Longer delays defer through HA without an early HTTP request.
+            if remaining > LIVE_PENDING_INLINE_WAIT:
+                raise HoymilesLivePending(remaining)
+            await live_sleep(remaining)
+            if (self._live_stopped or self._live_pending_target != target
+                    or target != (station_id, self.profile, self._live_uri)):
+                raise HoymilesConnectionError("Live target changed while waiting")
+        self._live_pending_target = None
+        self._live_pending_until = 0.0
+
+    async def _async_live(self, station_id: int) -> dict[str, Any]:
         # A warning/recovery pair can belong to this same refresh: the first
-        # sample was unusable, but HA still receives the valid retry. Preserve
-        # the existing requests and acceptance; distinguish that case in logs.
+        # sample was unusable, but HA still receives the valid retry. Keep
+        # malformed samples distinct from explicit pending-live replies.
         previous_invalid_refresh = ("live_data", "invalid_live_data") in self._cloud_log_states
+        await self._async_wait_live_pending(station_id)
         await self.async_ensure_login()
         for _attempt in range(2):
             try:
                 if not self._live_uri:
                     self._live_uri = await self._get_live_uri(station_id)
+                live_target = (station_id, self.profile, self._live_uri)
                 response = await self._json(self._live_uri, {"sid": station_id, "m": 0}
                                            if self.supports_home_features else {"m": 0, "t": 1})
                 payload = self._unwrap(response) if "status" in response else response
@@ -667,6 +725,19 @@ class HoymilesHomeClient:
                         "later_refresh" if previous_invalid_refresh else "same_refresh",
                     )
                 return payload
+            delay_ms = live_pending_delay(payload)
+            if delay_ms is not None:
+                if live_target != (station_id, self.profile, self._live_uri):
+                    raise HoymilesConnectionError("Live target changed while reading")
+                delay = max(LIVE_MIN_INTERVAL.total_seconds(), delay_ms / 1000)
+                self._live_pending_target = live_target
+                self._live_pending_until = monotonic() + delay
+                CLOUD_LOGGER.debug("Cloud live data pending: stage=live_data state=waiting")
+                if _attempt:
+                    raise HoymilesLivePending(delay)
+                # Outside the HTTP/account locks; keep the URI and request body.
+                await self._async_wait_live_pending(station_id)
+                continue
             self._cloud_report("live_data", "invalid_live_data", {"data": payload})
             self._live_uri = None
         raise CloudDiagnosticError("invalid_live_data", "Live response contains no usable telemetry after retry")

@@ -21,6 +21,7 @@ from .api import (
     microinverters,
 )
 from .battery_telemetry import BatteryTelemetryPoller
+from .errors import HoymilesLivePending
 from .device_settings import DeviceSettings, read_retry_delay
 from .output_power import OutputPowerSettings
 from .battery import battery_settings_confirmed, writable_modes
@@ -154,6 +155,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Cancel our background read before the entry is removed or reloaded."""
         self._stopped = True
         self._battery_read_retry_at = None
+        await self.client.async_stop_live()
         await self.device_settings.async_shutdown()
         await self.cutoff_settings.async_shutdown()
         await self.output_settings.async_shutdown()
@@ -514,6 +516,9 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._reset_energy_samples()
             raise ConfigEntryAuthFailed(str(err)) from err
         except HoymilesRateLimitError as err:
+            self._reset_energy_samples()
+            raise UpdateFailed(str(err), retry_after=err.retry_after) from err
+        except HoymilesLivePending as err:
             self._reset_energy_samples()
             raise UpdateFailed(str(err), retry_after=err.retry_after) from err
         except HoymilesConnectionError as err:

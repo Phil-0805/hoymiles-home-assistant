@@ -1,5 +1,7 @@
 """Shared API errors without transport or Home Assistant dependencies."""
 
+from math import ceil
+
 
 class HoymilesError(Exception):
     """Base API error."""
@@ -11,6 +13,16 @@ class HoymilesAuthError(HoymilesError):
 
 class HoymilesConnectionError(HoymilesError):
     """Connection or response error."""
+
+
+class HoymilesLivePending(HoymilesConnectionError):
+    """A live server requested a later read, without returning telemetry."""
+
+    def __init__(self, retry_after):
+        super().__init__("Live data is not ready; a later read is scheduled")
+        self.wait_seconds = retry_after
+        # Only cap scheduler wake-ups. The client retains the full deadline.
+        self.retry_after = min(86400, max(1, ceil(retry_after)))
 
 
 SETTINGS_ERROR_REASONS = frozenset({
