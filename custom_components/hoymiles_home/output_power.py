@@ -2,6 +2,7 @@
 
 import asyncio
 from copy import deepcopy
+from datetime import UTC, datetime
 import json
 
 from . import device_settings as settings_runtime
@@ -82,6 +83,7 @@ class OutputPowerSettings(DeviceSettings):
     def __init__(self, *args, get_inverters=None):
         super().__init__(*args, features=("output_power",))
         self.output = None
+        self.confirmed_target = None
         self.get_inverters = get_inverters or (lambda: [])
 
     def _target(self, feature):
@@ -96,7 +98,28 @@ class OutputPowerSettings(DeviceSettings):
 
     def _store(self, feature, value):
         self.output = deepcopy(value)
+        self.confirmed_target = deepcopy(self.target)
         self._mark_readable(feature)
+
+    def display_status(self):
+        """A confirmed setting can outlive a failed read, bound to its target.
+
+        This is presentation only. Every change still runs the existing locked
+        fresh-read preflight and full readback; a retained range grants no write.
+        """
+        if (not self.enabled or self.stopped or not self.may_write()
+                or self.output is None or self.confirmed_target is None
+                or "output_power" not in self.updated
+                or self.target != self.confirmed_target
+                or self._target("output_power") != self.confirmed_target):
+            return "unavailable"
+        return "current" if self.available("output_power") else "last_confirmed"
+
+    def confirmed_age_seconds(self):
+        stamp = self.updated.get("output_power")
+        if stamp is None:
+            return None
+        return max(0, min(2**31 - 1, int((datetime.now(UTC) - stamp).total_seconds())))
 
     async def async_set_power(self, value):
         if type(value) is not int or not 100 <= value <= 2**31 - 1:

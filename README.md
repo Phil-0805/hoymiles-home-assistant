@@ -151,9 +151,11 @@ A settings refresh may take several minutes after a transient startup failure.
 
 For login reports, name the exact app tested: **S-Miles Home** and **S-Miles
 Installer** are different clients. A successful Installer/website login does
-not establish access through the Home API. The v0.6.1b9 beta includes initial account routing, improved TOU mode readback,
-activation of supported existing basic plans and restored bounded live-data recovery after the b5 regression, and station setup while a live server address is missing; see [its test instructions](docs/release-0.6.1b9.md)
+not establish access through the Home API. The v0.6.1b10 beta includes initial account routing, improved TOU mode readback,
+activation of supported existing basic plans and restored bounded live-data recovery after the b5 regression, and station setup while a live server address is missing; see [its test instructions](docs/release-0.6.1b10.md)
 and [the evidence and remaining limits](docs/login-routing-0.6.1.md).
+B10 also corrects Home DTU nesting and chart-time acceptance, retains confirmed
+output settings overnight, and removes the separate last-temperature entity.
 
 Download diagnostics for the affected integration under **Devices & services**.
 Report the version, affected setting and matching app observation in an

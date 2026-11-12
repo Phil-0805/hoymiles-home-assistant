@@ -1,5 +1,10 @@
 # Standalone HMS review against v0.6.1b6 — 2026-11-11
 
+**Local follow-up, 2026-11-12:** see the [b9 daylight investigation](b9-daylight-investigation.md)
+for corrected Home DTU/type nesting, chart handling, retained output display and
+removal of the separate last-temperature entity. The historical findings below
+refer to the published versions examined at the time.
+
 The report and follow-up in [issue #38](https://github.com/Phil-0805/hoymiles-home-assistant/issues/38)
 describe Home profile v0.6.0 on an HMS-2000-4WB without a battery. The relevant
 paths were compared with published **v0.6.1b6**, commit

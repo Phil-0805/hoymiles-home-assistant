@@ -62,7 +62,6 @@
     "sensor": {
       "inverter_voltage": {"name": "AC-Spannung"},
       "inverter_frequency": {"name": "Netzfrequenz"},
-      "inverter_last_temperature": { "name": "Letzte Wechselrichtertemperatur" },
       "inverter_temperature": {"name": "Wechselrichtertemperatur"},
       "battery_activity": {"name": "Batterieaktivität", "state": {"idle": "Leerlauf", "charging": "Laden", "discharging": "Entladen", "unrecognized": "Unbekannter Code"}},
       "pv_power": {"name": "PV-Leistung"},

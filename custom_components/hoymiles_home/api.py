@@ -44,7 +44,7 @@ from .const import (
     INSTALLER_USER_AGENT, CLIENT_PROFILES,
     WORK_MODE_SETTINGS_ACTION,
 )
-from .protobuf import latest_module_samples
+from .protobuf import ProtobufDecodeError, latest_module_samples
 from .telemetry import number
 from .inverter import inverter_model
 from .module_data import MAX_MODULE_BYTES, decode_module_snapshot
@@ -57,6 +57,7 @@ from .cloud_logging import (
 from .cloud_runtime import AccountRuntime, retry_delay
 from .errors import (
     HoymilesError, HoymilesAuthError, HoymilesConnectionError, HoymilesRateLimitError, HoymilesSettingsError,
+    HoymilesTelemetryError,
 )
 
 MAX_JSON_BYTES = 8 * 1024 * 1024
@@ -751,7 +752,8 @@ class HoymilesHomeClient:
         try:
             return latest_module_samples(raw, device_id=device_id, port=port, latest_time=latest_time)
         except (ValueError, UnicodeError) as err:
-            raise HoymilesConnectionError("Invalid chart response") from err
+            reason = err.reason if isinstance(err, ProtobufDecodeError) else "invalid_protobuf"
+            raise HoymilesTelemetryError(reason) from None
 
     async def async_module_snapshot(self, station_id: int, date: str) -> dict[str, Any]:
         """Optional read-only inverter telemetry; never replaces live power."""
@@ -763,7 +765,8 @@ class HoymilesHomeClient:
         try:
             return decode_module_snapshot(raw, station_id, date)
         except (ValueError, UnicodeError) as err:
-            raise HoymilesConnectionError("Invalid inverter details response") from err
+            reason = err.reason if isinstance(err, ProtobufDecodeError) else "invalid_protobuf"
+            raise HoymilesTelemetryError(reason) from None
 
     async def async_micro_details(self, station_id: int, device_ids: list[int], date: str, *, latest_time=None) -> dict[str, Any]:
         """Read the Home app's inverter chart, through the existing account budget."""
@@ -781,7 +784,8 @@ class HoymilesHomeClient:
         try:
             return decode_micro_details(raw, device_ids, latest_time=latest_time)
         except (ValueError, UnicodeError) as err:
-            raise HoymilesConnectionError("Invalid microinverter chart response") from err
+            reason = err.reason if isinstance(err, ProtobufDecodeError) else "invalid_protobuf"
+            raise HoymilesTelemetryError(reason) from None
 
     async def _async_battery_settings_request(
         self, payload: dict[str, Any], request_method: str

@@ -333,7 +333,6 @@ async def async_setup_entry(
                 entities.append(HoymilesInverterDetailSensor(
                     coordinator, entry, inverter, key, unit, device_class
                 ))
-            entities.append(HoymilesLastInverterTemperatureSensor(coordinator, entry, inverter))
     async_add_entities(entities)
     if coordinator.battery_telemetry.enabled:
         known_batteries = set()
@@ -381,6 +380,7 @@ class HoymilesStationSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEn
         return super().available and (
             self.entity_description.key not in LIVE_SENSOR_KEYS
             or live_connected((self.coordinator.data or {}).get("live", {}))
+            or (self.entity_description.key == "pv_power" and self.native_value == 0)
         )
 
     @property
@@ -433,7 +433,8 @@ class HoymilesModuleSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEnt
     def available(self) -> bool:
         return (
             super().available
-            and live_connected((self.coordinator.data or {}).get("live", {}))
+            and (live_connected((self.coordinator.data or {}).get("live", {}))
+                 or (self._quota == "MODULE_POWER" and _number(self.native_value) == 0))
             and self.coordinator.module_is_fresh(self._inverter_id, self._port, self._quota)
         )
 
@@ -499,30 +500,6 @@ class HoymilesInverterDetailSensor(CoordinatorEntity[HoymilesHomeCoordinator], S
         return {"sample_time": stamp, "last_valid_value": _number(values.get(self._key)),
                 "sample_status": "unavailable" if stamp is None else
                 "fresh" if self.coordinator.module_polling.detail_is_fresh(self._inverter_id, self._key) else "stale"}
-
-
-class HoymilesLastInverterTemperatureSensor(HoymilesInverterDetailSensor):
-    """Explicit last-known sample, independent of current-temperature availability."""
-
-    _attr_state_class = None
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-
-    def __init__(self, coordinator, entry, inverter):
-        super().__init__(coordinator, entry, inverter, "temperature", UnitOfTemperature.CELSIUS,
-                         SensorDeviceClass.TEMPERATURE)
-        self._attr_translation_key = "inverter_last_temperature"
-        self._attr_unique_id = f"{entry.entry_id}_{inverter['id']}_inverter_last_temperature"
-
-    @property
-    def available(self):
-        values = (self.coordinator.data or {}).get("inverter_details", {}).get(self._inverter_id, {})
-        return (not self.coordinator.module_polling.stopped and self.native_value is not None
-                and values.get("temperature_sample_time") is not None)
-
-    @property
-    def extra_state_attributes(self):
-        values = (self.coordinator.data or {}).get("inverter_details", {}).get(self._inverter_id, {})
-        return {"sample_time": values.get("temperature_sample_time"), "sample_status": "last_known"}
 
 
 class HoymilesBatteryTemperatureSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEntity):

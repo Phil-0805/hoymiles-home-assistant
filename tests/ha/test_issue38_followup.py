@@ -24,7 +24,7 @@ from custom_components.hoymiles_home.micro_data import decode_micro_details
 from custom_components.hoymiles_home.module_polling import ModulePoller
 from custom_components.hoymiles_home.output_power import parse_output_settings
 from custom_components.hoymiles_home.protobuf import latest_module_samples, ProtobufDecodeError
-from custom_components.hoymiles_home.sensor import HoymilesInverterDetailSensor, HoymilesLastInverterTemperatureSensor
+from custom_components.hoymiles_home.sensor import HoymilesInverterDetailSensor
 from custom_components.hoymiles_home.const import DOMAIN
 
 RAW = [{"id": 7, "type": 2, "children": [{"id": 99, "type": 3, "sn": "ABCDEF000001"}]}]
@@ -314,7 +314,7 @@ async def test_stale_temperature_is_unavailable_but_keeps_last_value_and_origina
         await coordinator.async_shutdown()
 
 
-async def test_real_ha_states_show_last_temperature_attributes_when_main_sensor_is_unavailable(hass, freezer):
+async def test_real_ha_state_is_unavailable_when_current_temperature_expires(hass, freezer):
     freezer.move_to("2026-11-11 10:20:00+00:00")
     coordinator = HoymilesHomeCoordinator(hass, AsyncMock(), 123, station_timezone=ZoneInfo("UTC"))
     coordinator.update_interval = None
@@ -324,24 +324,18 @@ async def test_real_ha_states_show_last_temperature_attributes_when_main_sensor_
     entry = SimpleNamespace(entry_id="entry", data={"station_id": 123})
     primary = HoymilesInverterDetailSensor(coordinator, entry, {"id": 99}, "temperature",
                                          UnitOfTemperature.CELSIUS, SensorDeviceClass.TEMPERATURE)
-    last = HoymilesLastInverterTemperatureSensor(coordinator, entry, {"id": 99})
-    for entity, name in ((primary, "current"), (last, "last")):
+    for entity, name in ((primary, "current"),):
         entity.entity_id = f"sensor.synthetic_{name}_temperature"
         entity._attr_device_info = None
         entity._attr_name = name
     component = EntityComponent(logging.getLogger(__name__), "sensor", hass)
     try:
-        await component.async_add_entities([primary, last])
+        await component.async_add_entities([primary])
         current_state = hass.states.get(primary.entity_id)
-        last_state = hass.states.get(last.entity_id)
         assert current_state.state == "unavailable"
         assert "sample_time" not in current_state.attributes
-        assert last_state.state == "21"
-        assert last_state.attributes["sample_time"] == "2026-11-11T10:00:00+00:00"
-        assert last_state.attributes["sample_status"] == "last_known"
-        assert "state_class" not in last_state.attributes
     finally:
-        for entity in (primary, last):
+        for entity in (primary,):
             if entity.hass is not None:
                 await entity.async_remove()
         await coordinator.async_shutdown()

@@ -62,7 +62,6 @@
     "sensor": {
       "inverter_voltage": {"name": "AC voltage"},
       "inverter_frequency": {"name": "Grid frequency"},
-      "inverter_last_temperature": { "name": "Last inverter temperature" },
       "inverter_temperature": {"name": "Inverter temperature"},
       "battery_activity": {"name": "Battery activity", "state": {"idle": "Idle", "charging": "Charging", "discharging": "Discharging", "unrecognized": "Unrecognized code"}},
       "pv_power": {"name": "PV power"},

@@ -32,6 +32,17 @@ def async_remove_obsolete_max_power_sensor(hass, entry):
     _remove_owned_entities(hass, entry, {("sensor", f"{entry.entry_id}_battery_max_power")})
 
 
+@callback
+def async_remove_last_inverter_temperature_sensors(hass, entry):
+    """Retire only canonical b9 last-temperature IDs owned by this entry."""
+    registry = er.async_get(hass)
+    pattern = re.compile(rf"{re.escape(entry.entry_id)}_[1-9][0-9]*_inverter_last_temperature")
+    for entity in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if (entity.platform == DOMAIN and entity.domain == "sensor"
+                and pattern.fullmatch(entity.unique_id)):
+            registry.async_remove(entity.entity_id)
+
+
 def _owned_device(device, entry_id):
     # Never remove composite/shared devices. Older HA has a set of owners;
     # current HA stores one owner on each ordinary device entry.
