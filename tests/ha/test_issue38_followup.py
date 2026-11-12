@@ -251,11 +251,19 @@ async def test_repeated_chart_zero_does_not_refresh_age_and_sparse_metrics_expir
         assert poller.modules[99][1]["MODULE_POWER"] == 0
         assert poller.is_fresh(99, 1, "MODULE_V")
         freezer.move_to("2026-11-11 10:11:00+00:00")
+        api._async_binary_data.return_value = chart([
+            ("MODULE_POWER", [10, 0, 0], 99, 1), ("MODULE_V", [30], 99, 1)],
+            labels=("10:00", "10:05", "10:10"))
+        await poller._async_poll([{"id": 99, "model_no": "HMS-800-2WB"}])
+        assert poller.is_fresh(99, 1, "MODULE_V")
+        assert poller.is_fresh(99, 1, "MODULE_POWER")
+        assert poller.module_field_updated[(99, 1, "MODULE_POWER")] == datetime(2026, 11, 11, 10, 10, tzinfo=UTC)
+        freezer.move_to("2026-11-11 10:16:00+00:00")
         await poller._async_poll([{"id": 99, "model_no": "HMS-800-2WB"}])
         assert not poller.is_fresh(99, 1, "MODULE_V")
         assert poller.is_fresh(99, 1, "MODULE_POWER")
-        assert poller.module_field_updated[(99, 1, "MODULE_POWER")] == datetime(2026, 11, 11, 10, 5, tzinfo=UTC)
-        freezer.move_to("2026-11-11 10:16:00+00:00")
+        assert poller.module_field_progress[(99, 1, "MODULE_POWER")] == datetime(2026, 11, 11, 10, 11, tzinfo=UTC)
+        freezer.move_to("2026-11-11 10:21:00+00:00")
         await poller._async_poll([{"id": 99, "model_no": "HMS-800-2WB"}])
         assert not poller.is_fresh(99, 1, "MODULE_POWER")
         assert not poller.is_fresh(99, 2, "MODULE_POWER")

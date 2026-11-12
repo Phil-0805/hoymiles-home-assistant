@@ -178,12 +178,19 @@ async def test_fallback_uses_chart_timestamps_and_does_not_renew_old_or_future_v
         assert poller.detail_is_fresh(99, "frequency")
         freezer.move_to("2026-11-11 10:11:00+00:00")
         await poller._async_details([HMS], "2026-11-11")
+        assert poller.detail_is_fresh(99, "frequency")
+        assert poller.detail_is_fresh(99, "temperature")
+        freezer.move_to("2026-11-11 10:16:00+00:00")
+        api.async_micro_details.return_value = decode_micro_details(chart([
+            (99, "MI_TEMPERATURE", [20, 21, 22], 0), (99, "MI_NET_RATE", [50], 0),
+            (99, "MI_NET_V", [230, 231, 232], 0)], labels=("10:00", "10:05", "10:10")), [99])
+        await poller._async_details([HMS], "2026-11-11")
         assert not poller.detail_is_fresh(99, "frequency")
         assert poller.detail_is_fresh(99, "temperature")
         api.async_micro_details.return_value = decode_micro_details(chart(labels=("12:00", "12:05")), [99])
         await poller._async_details([HMS], "2026-11-11")
-        assert poller.details[99]["temperature"] == 21
-        assert poller.detail_field_updated[(99, "temperature")] == datetime(2026, 11, 11, 10, 5, tzinfo=UTC)
+        assert poller.details[99]["temperature"] == 22
+        assert poller.detail_field_updated[(99, "temperature")] == datetime(2026, 11, 11, 10, 10, tzinfo=UTC)
     finally:
         await poller.async_shutdown()
 

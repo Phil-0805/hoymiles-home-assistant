@@ -161,12 +161,14 @@ Startfehler kann das Nachladen der Einstellungen einige Minuten dauern.
 Bei Loginmeldungen die genaue getestete App nennen: **S-Miles Home** und
 **S-Miles Installer** sind unterschiedliche Clients. Ein erfolgreicher
 Installer-/Weblogin bestätigt keinen Zugriff über die Home-API. Die Beta
-v0.6.1b10 enthält die anfängliche Kontoroute, verbesserte TOU-Modusanzeige,
+v0.6.1b11 enthält die anfängliche Kontoroute, verbesserte TOU-Modusanzeige,
 das Aktivieren unterstützter vorhandener Basispläne und stellt die begrenzte Live-Wiederherstellung nach der b5-Regression wieder her und erlaubt den Anlagenstart bei fehlender Live-Serveradresse; siehe
-[Testanleitung](docs/release-0.6.1b10.md) und
+[Testanleitung](docs/release-0.6.1b11.md) und
 [Befunde und offene Grenzen](docs/login-routing-0.6.1.md).
 B10 korrigiert außerdem Home-DTU-Verschachtelungen und Chartzeiten, behält
 bestätigte Leistungsgrenzen über Nacht bei und entfernt die separate letzte Temperatur.
+B11 korrigiert die Chart-Verfügbarkeit zwischen normalen Abrufen, erhält die
+ursprünglichen Messzeiten und lässt stehengebliebene Daten weiterhin ablaufen.
 
 Die Diagnose der betroffenen Integration unter **Geräte & Dienste** herunterladen.
 Version, betroffene Einstellung und den passenden App-Vergleich in einem
