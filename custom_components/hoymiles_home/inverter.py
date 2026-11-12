@@ -29,25 +29,34 @@ def inverter_ports(inverter: dict[str, Any]) -> range:
 
 
 def standalone_hms_target(tree: Any, enriched: Any = None) -> dict[str, Any] | None:
-    """Recognize only an explicit single HMS inverter with optional DTU nodes.
+    """Return a verified target; diagnostics use exactly the same assessment."""
+    return standalone_hms_assessment(tree, enriched)[0]
+
+
+def standalone_hms_assessment(tree: Any, enriched: Any = None) -> tuple[dict | None, str]:
+    """Recognize one explicit HMS with optional DTU/repeater nodes.
 
     Unknown, empty, malformed and mixed trees retain the existing battery path.
     This is a narrow station-level capability, not a guessed battery address.
     """
     inverters = []
     identities = set()
+    reason = "no_inverter"
 
     def model_for(node):
+        nonlocal reason
         model = inverter_model(node)
         if _HMS_MODEL.fullmatch(model):
             return model
         # Supplemental metadata may supply a model, never a device identity or
         # topology. It must still describe this exact original Home-tree node.
         if not isinstance(enriched, list):
+            reason = "missing_model_metadata"
             return None
         candidates = [item for item in enriched if isinstance(item, dict)
                       and type(item.get("id")) is int and item["id"] == node["id"]]
         if len(candidates) != 1:
+            reason = "missing_model_metadata" if not candidates else "ambiguous_model_metadata"
             return None
         candidate = candidates[0]
         discovery = candidate.get("_model_discovery")
@@ -55,8 +64,10 @@ def standalone_hms_target(tree: Any, enriched: Any = None) -> dict[str, Any] | N
                 or candidate.get("sn") != node.get("sn")
                 or not isinstance(discovery, dict) or discovery.get("result") != "identified"
                 or discovery.get("source") not in {"web_tree", "micro_detail"}):
+            reason = "unverified_model_metadata"
             return None
         model = inverter_model(candidate)
+        reason = "unsupported_model"
         return model if _HMS_MODEL.fullmatch(model) else None
 
     def has_storage(value):
@@ -65,15 +76,23 @@ def standalone_hms_target(tree: Any, enriched: Any = None) -> dict[str, Any] | N
         return isinstance(value, list) and any(has_storage(child) for child in value)
 
     def visit(nodes):
+        nonlocal reason
         if not isinstance(nodes, list) or not nodes:
+            reason = "invalid_children"
             return False
         for node in nodes:
             if not isinstance(node, dict):
+                reason = "invalid_node"
                 return False
             kind, identity = node.get("type"), node.get("id")
-            if (type(kind) is not int or kind not in (2, 3)
-                    or type(identity) is not int or identity <= 0
-                    or (kind, identity) in identities):
+            if type(kind) is not int or kind not in (1, 2, 3):
+                reason = "unsupported_device_type"
+                return False
+            if type(identity) is not int or identity <= 0:
+                reason = "invalid_device_id"
+                return False
+            if (kind, identity) in identities:
+                reason = "duplicate_device"
                 return False
             identities.add((kind, identity))
             if kind == 3:
@@ -81,11 +100,22 @@ def standalone_hms_target(tree: Any, enriched: Any = None) -> dict[str, Any] | N
                 if model is None:
                     return False
                 inverters.append({"id": identity, "model": model})
-            children = node.get("children")
-            if children is not None and children != [] and not visit(children):
-                return False
+            # Home DevicesDTO nests physical nodes in `devices`; the web
+            # tree uses `children`. Both must be checked, including conflicts.
+            for key in ("children", "devices"):
+                children = node.get(key)
+                if children is not None and children != [] and not visit(children):
+                    return False
         return True
 
-    if has_storage(tree) or not visit(tree) or len(inverters) != 1:
-        return None
-    return {"inverter": inverters[0], "devices": tuple(sorted(identities))}
+    if has_storage(tree):
+        return None, "storage_present"
+    if not isinstance(tree, list):
+        return None, "unsupported_tree_shape"
+    if not tree:
+        return None, "empty_tree"
+    if not visit(tree):
+        return None, reason
+    if len(inverters) != 1:
+        return None, "no_inverter" if not inverters else "multiple_inverters"
+    return {"inverter": inverters[0], "devices": tuple(sorted(identities))}, "recognized"

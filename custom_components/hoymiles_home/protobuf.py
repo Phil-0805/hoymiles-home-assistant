@@ -9,7 +9,11 @@ from typing import Any
 
 
 class ProtobufDecodeError(ValueError):
-    """Raised for malformed protobuf data."""
+    """Raised for malformed protobuf data, with a fixed diagnostic reason."""
+
+    def __init__(self, message, *, reason="invalid_protobuf"):
+        super().__init__(message)
+        self.reason = reason
 
 
 def _varint(data: bytes, offset: int) -> tuple[int, int]:
@@ -111,13 +115,35 @@ def latest_values(
     return result
 
 
+def chart_time(label):
+    """Normalize unambiguous minute labels, including a day-end axis boundary.
+
+    The app treats hours/minutes numerically, without requiring a zero-padded
+    hour. 24:00 is an end boundary, never midnight on the requested day.
+    """
+    if not isinstance(label, str):
+        return None
+    match = re.fullmatch(r"([0-9]{1,2}):([0-5][0-9])", label)
+    if match is None:
+        return None
+    hour, minute = map(int, match.groups())
+    if hour > 24 or (hour == 24 and minute != 0):
+        return None
+    return f"{hour:02d}:{minute:02d}"
+
+
 def chart_labels(chart):
     """Validate the Home day-chart axis before associating values with times."""
     labels = chart["labels"]
-    if (not labels or len(labels) > 10000
-            or any(not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", label) for label in labels)
-            or labels != sorted(set(labels))):
-        raise ProtobufDecodeError("Invalid chart time axis")
+    if not labels:
+        raise ProtobufDecodeError("Missing chart time axis", reason="empty_axis")
+    if len(labels) > 10000:
+        raise ProtobufDecodeError("Oversized chart time axis", reason="oversized_axis")
+    labels = [chart_time(label) for label in labels]
+    if any(label is None for label in labels):
+        raise ProtobufDecodeError("Unsupported chart time axis", reason="unsupported_axis_format")
+    if labels != sorted(set(labels)):
+        raise ProtobufDecodeError("Unordered chart time axis", reason="unordered_axis")
     return labels
 
 
@@ -125,12 +151,14 @@ def latest_series_sample(series, labels, latest_time=None):
     """Return an aligned finite sample; never assign missing tails a later time."""
     values = series["data"]
     if len(values) > len(labels):
-        raise ProtobufDecodeError("Misaligned chart series")
-    if latest_time is not None and (not isinstance(latest_time, str)
-            or not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", latest_time)):
-        raise ProtobufDecodeError("Invalid chart cutoff time")
+        raise ProtobufDecodeError("Misaligned chart series", reason="misaligned_series")
+    if latest_time is not None:
+        latest_time = chart_time(latest_time)
+        if latest_time is None or latest_time == "24:00":
+            raise ProtobufDecodeError("Invalid chart cutoff time", reason="invalid_cutoff")
     for index in range(len(values) - 1, -1, -1):
-        if isfinite(values[index]) and (latest_time is None or labels[index] <= latest_time):
+        if (labels[index] != "24:00" and isfinite(values[index])
+                and (latest_time is None or labels[index] <= latest_time)):
             return float(values[index]), labels[index]
     return None
 
@@ -148,7 +176,7 @@ def latest_module_samples(data, *, device_id, port, latest_time=None):
                 or series["port"] not in (0, port)):
             continue
         if key in seen:
-            raise ProtobufDecodeError("Ambiguous module chart series")
+            raise ProtobufDecodeError("Ambiguous module chart series", reason="duplicate_series")
         seen.add(key)
         sample = latest_series_sample(series, labels, latest_time)
         if sample is not None:

@@ -4,7 +4,9 @@ import asyncio
 import re
 from datetime import UTC, datetime, timedelta
 
-from .errors import HoymilesAuthError, HoymilesConnectionError, HoymilesRateLimitError
+from .errors import (
+    HoymilesAuthError, HoymilesConnectionError, HoymilesRateLimitError, TELEMETRY_READ_REASONS,
+)
 from .const import MODULE_INTERVAL
 from .inverter import inverter_ports, inverter_model
 from .telemetry import number
@@ -19,10 +21,48 @@ class ModulePoller:
         self.modules, self.updated, self.details, self.detail_updated = {}, {}, {}, {}
         self.detail_field_updated = {}
         self.module_field_updated = {}
+        self.module_read_status = {}
+        self.detail_read_status = {"snapshot": "not_requested", "micro_chart": "not_requested"}
         self.task = None
         self.stopped = False
         self.next_allowed = datetime.min.replace(tzinfo=UTC)
         self.details_status = "disabled" if not detailed else "pending"
+
+    @staticmethod
+    def _read_failure(error):
+        if isinstance(error, HoymilesAuthError):
+            return "authentication"
+        if isinstance(error, HoymilesRateLimitError):
+            return "rate_limited"
+        if isinstance(error, TimeoutError):
+            return "timeout"
+        reason = getattr(error, "reason", None)
+        return reason if type(reason) is str and reason in TELEMETRY_READ_REASONS else "connection"
+
+    def diagnostics(self, device_id, ports):
+        """Expose field ages and fixed read outcomes, never chart data or identities."""
+        now = datetime.now(UTC)
+
+        def sample(stamp):
+            if stamp is None:
+                return {"status": "missing", "age_seconds": None}
+            age = (now - stamp).total_seconds()
+            status = ("stopped" if self.stopped else "future" if age < -60
+                      else "fresh" if age <= (MODULE_INTERVAL * 2).total_seconds() else "stale")
+            return {"status": status, "age_seconds": max(-2**31, min(2**31 - 1, int(age)))}
+
+        return {
+            "pv_inputs": [{
+                "port": port,
+                "read_status": self.module_read_status.get((device_id, port), "not_requested"),
+                "fields": {name: sample(self.module_field_updated.get((device_id, port, quota)))
+                           for name, quota in (("power", "MODULE_POWER"), ("voltage", "MODULE_V"),
+                                               ("current", "MODULE_I"))},
+            } for port in ports],
+            "detail_reads": dict(self.detail_read_status),
+            "detail_fields": {key: sample(self.detail_field_updated.get((device_id, key)))
+                              for key in ("temperature", "frequency", "voltage")},
+        }
 
     def start(self, inverters):
         if self.stopped or datetime.now(UTC) < self.next_allowed:
@@ -66,6 +106,8 @@ class ModulePoller:
                         if key[0] in ports and key[1] in ports[key[0]]}
         self.module_field_updated = {key: stamp for key, stamp in self.module_field_updated.items()
                                     if key[0] in ports and key[1] in ports[key[0]]}
+        self.module_read_status = {key: status for key, status in self.module_read_status.items()
+                                   if key[0] in ports and key[1] in ports[key[0]]}
         try:
             async with asyncio.timeout(120):
                 if self.detailed:
@@ -76,17 +118,26 @@ class ModulePoller:
                     for port in inverter_ports(inverter):
                         modules[device_id].setdefault(port, {})
                         try:
+                            self.module_read_status[(device_id, port)] = "pending"
                             values = await self.client.async_module_values(
                                 self.station_id, device_id, port, date, latest_time=self._chart_cutoff(date)
                             )
                             self._merge_module(modules, device_id, port, values, date)
-                        except (HoymilesAuthError, HoymilesRateLimitError):
+                            self.module_read_status[(device_id, port)] = "success"
+                        except (HoymilesAuthError, HoymilesRateLimitError) as err:
+                            self.module_read_status[(device_id, port)] = self._read_failure(err)
                             raise
-                        except HoymilesConnectionError:
+                        except HoymilesConnectionError as err:
+                            self.module_read_status[(device_id, port)] = self._read_failure(err)
                             continue
         except HoymilesRateLimitError as err:
             self.next_allowed = datetime.now(UTC) + timedelta(seconds=err.retry_after)
-        except (HoymilesAuthError, TimeoutError):
+        except TimeoutError:
+            self.module_read_status = {key: "timeout" if status == "pending" else status
+                                       for key, status in self.module_read_status.items()}
+            self.detail_read_status = {key: "timeout" if status == "pending" else status
+                                       for key, status in self.detail_read_status.items()}
+        except HoymilesAuthError:
             pass  # Live polling handles reauthentication; freshness still expires.
         finally:
             if not self.stopped:
@@ -94,8 +145,10 @@ class ModulePoller:
                 self.on_update()
 
     def _chart_cutoff(self, date):
-        now = datetime.now(UTC).astimezone(self.timezone)
-        return "23:59" if date < now.date().isoformat() else now.strftime("%H:%M")
+        # Match _sample_stamp/detail_is_fresh's existing one-minute tolerance.
+        # Clamp at the requested day's end instead of wrapping to 00:00.
+        cutoff = (datetime.now(UTC) + timedelta(minutes=1)).astimezone(self.timezone)
+        return "23:59" if date < cutoff.date().isoformat() else cutoff.strftime("%H:%M")
 
     def _sample_stamp(self, date, time):
         if not isinstance(time, str) or not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", time):
@@ -132,14 +185,18 @@ class ModulePoller:
         self.details = {key: dict(value) for key, value in self.details.items() if key in known}
         self.detail_updated = {key: value for key, value in self.detail_updated.items() if key in known}
         self.detail_field_updated = {key: value for key, value in self.detail_field_updated.items() if key[0] in known}
+        self.detail_read_status = {"snapshot": "pending", "micro_chart": "not_requested"}
         try:
             snapshot = await self.client.async_module_snapshot(self.station_id, date)
-        except (HoymilesAuthError, HoymilesRateLimitError):
+        except (HoymilesAuthError, HoymilesRateLimitError) as err:
+            self.detail_read_status["snapshot"] = self._read_failure(err)
             self.details_status = "unavailable"
             raise
-        except HoymilesConnectionError:
+        except HoymilesConnectionError as err:
+            self.detail_read_status["snapshot"] = self._read_failure(err)
             self.details_status = "unavailable"
             return
+        self.detail_read_status["snapshot"] = "success"
         self._merge_details(snapshot, known, date)
         # Only supplement explicit HMS models, once per existing slow poll.
         # Working/fresh metrics do not cause additional requests.
@@ -150,14 +207,17 @@ class ModulePoller:
                            for key in ("frequency", "temperature", "voltage"))]
         if missing:
             try:
+                self.detail_read_status["micro_chart"] = "pending"
                 chart = await self.client.async_micro_details(
                     self.station_id, missing, date, latest_time=self._chart_cutoff(date))
-            except (HoymilesAuthError, HoymilesRateLimitError):
+            except (HoymilesAuthError, HoymilesRateLimitError) as err:
+                self.detail_read_status["micro_chart"] = self._read_failure(err)
                 self.details_status = "unavailable"
                 raise
-            except HoymilesConnectionError:
-                pass
+            except HoymilesConnectionError as err:
+                self.detail_read_status["micro_chart"] = self._read_failure(err)
             else:
+                self.detail_read_status["micro_chart"] = "success"
                 self._merge_details(chart, known, date)
         self.details_status = "readable" if any(
             self.detail_is_fresh(identity, key)

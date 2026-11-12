@@ -16,7 +16,7 @@ from custom_components.hoymiles_home.api import HoymilesHomeClient, HoymilesConn
 from custom_components.hoymiles_home.coordinator import HoymilesHomeCoordinator
 from custom_components.hoymiles_home.module_data import decode_module_snapshot
 from custom_components.hoymiles_home.module_polling import ModulePoller
-from custom_components.hoymiles_home.sensor import HoymilesInverterDetailSensor, HoymilesLastInverterTemperatureSensor, async_setup_entry
+from custom_components.hoymiles_home.sensor import HoymilesInverterDetailSensor, async_setup_entry
 from custom_components.hoymiles_home.const import DOMAIN
 from custom_components.hoymiles_home.protobuf import ProtobufDecodeError
 from zoneinfo import ZoneInfo
@@ -124,16 +124,12 @@ async def test_details_are_routed_only_to_known_inverter_and_expire(hass, freeze
     entities = []
     await async_setup_entry(hass, SimpleNamespace(entry_id="test", data={"station_id": 123}), entities.extend)
     extras = [entity for entity in entities if type(entity) is HoymilesInverterDetailSensor]
-    last = [entity for entity in entities if isinstance(entity, HoymilesLastInverterTemperatureSensor)]
-    assert len(last) == 1
+    assert not any(entity.unique_id.endswith("_inverter_last_temperature") for entity in entities)
     assert len(extras) == 3
     assert next(e for e in extras if e.unique_id.endswith("temperature")).native_value == 21
     assert all(e.available for e in extras)
     freezer.move_to("2026-10-29 10:11:00+00:00")
     assert all(not e.available for e in extras)
-    assert last[0].available
-    assert last[0].native_value == 21
-    assert last[0].state_class is None
     await coordinator.async_shutdown()
 
 

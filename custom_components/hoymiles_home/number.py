@@ -184,6 +184,17 @@ class HoymilesOutputPowerNumber(DeviceSettingsEntity, NumberEntity):
         return self.coordinator.output_settings
 
     @property
+    def available(self):
+        return (self.coordinator.last_update_success and self.controls_enabled
+                and self.manager.display_status() != "unavailable")
+
+    @property
+    def extra_state_attributes(self):
+        stamp = self.manager.updated.get("output_power")
+        return {"value_status": self.manager.display_status(),
+                "last_confirmed_at": stamp.isoformat() if stamp is not None else None}
+
+    @property
     def native_value(self):
         return (self.manager.output or {}).get("values", {}).get("total")
 

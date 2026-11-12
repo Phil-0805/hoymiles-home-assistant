@@ -4,7 +4,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
-from .inverter import inverter_model, inverter_ports, standalone_hms_target
+from .inverter import inverter_model, inverter_ports, standalone_hms_assessment
 from .battery import work_mode_upper_soc, writable_modes
 from .telemetry import battery_activity, live_power, number, pv_power_details, status_codes
 from .errors import SETTINGS_ERROR_REASONS, SETTINGS_DIAGNOSTIC_FIELDS
@@ -61,6 +61,8 @@ def _output_power_diagnostics(manager):
         "phases": [phase for phase in phases if type(phase) is str and phase in {"A", "B", "C"}],
         "power_w": number(data.get("values", {}).get("total")),
         "maximum_w": number(data.get("limits", {}).get("total")),
+        "value_status": manager.display_status() if manager is not None else "unavailable",
+        "last_confirmed_age_seconds": manager.confirmed_age_seconds() if manager is not None else None,
     }
 
 
@@ -126,18 +128,24 @@ async def async_get_config_entry_diagnostics(
         }
         if discovery.get("timeout") is True:
             safe_discovery["timeout"] = True
+        poller = getattr(coordinator, "module_polling", None)
+        telemetry = {"telemetry": poller.diagnostics(inverter["id"], inverter_ports(inverter))} if poller is not None else {}
         inverters.append({
+            **telemetry,
             "model": inverter_model(inverter),
             "queried_pv_ports": list(inverter_ports(inverter)),
             "discovery": safe_discovery,
         })
     data = getattr(coordinator, "data", None) or {}
     live = data.get("live", {})
-    standalone = standalone_hms_target(getattr(coordinator, "device_tree", []), coordinator.inverters) is not None
+    target, standalone_reason = standalone_hms_assessment(
+        getattr(coordinator, "device_tree", []), coordinator.inverters)
+    standalone = target is not None
     return {
         "inverters": inverters,
         "polling": {
             "standalone_hms_recognized": standalone,
+            "standalone_hms_reason": standalone_reason,
             "live_available": data.get("live_available", bool(live)) is True,
             "station_timezone": str(getattr(coordinator, "station_timezone", "unknown")),
             "details_enabled": getattr(coordinator, "inverter_details", False) is True,

@@ -144,7 +144,8 @@ async def test_noop_does_not_write_and_entity_has_explicit_range(output):
     assert entity.native_unit_of_measurement == "W"
     assert entity.available  # Battery permission, independent of display permission.
     assert entity.unique_id == "entry_device_setting_output_power_limit"
-    assert entity.extra_state_attributes is None
+    assert entity.extra_state_attributes["value_status"] == "current"
+    assert entity.extra_state_attributes["last_confirmed_at"] is not None
     await manager.async_set_power(600)
     api.async_write_output_power_settings.assert_not_awaited()
     assert TREE[0]["sn"] not in json.dumps(_output_power_diagnostics(manager))

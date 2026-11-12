@@ -1,5 +1,10 @@
 # Issue 38 follow-up after b8 — local review, 2026-11-11
 
+**Local follow-up, 2026-11-12:** see the [b9 daylight investigation](b9-daylight-investigation.md)
+for corrected Home DTU/type nesting, chart handling, retained output display and
+removal of the separate last-temperature entity. The historical findings below
+refer to the published versions examined at the time.
+
 Prepared for **v0.6.1b9**. See the [release notes](release-0.6.1b9.md).
 This review does not claim that the reporter's hardware has tested the changes.
 The original report and latest comments are in

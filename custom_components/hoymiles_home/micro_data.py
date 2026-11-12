@@ -15,7 +15,7 @@ def decode_micro_details(raw, device_ids, *, latest_time=None):
         if identity not in device_ids or key is None or series["port"] != 0:
             continue
         if (identity, key) in seen:
-            raise ProtobufDecodeError("Ambiguous microinverter chart series")
+            raise ProtobufDecodeError("Ambiguous microinverter chart series", reason="duplicate_series")
         seen.add((identity, key))
         sample = latest_series_sample(series, labels, latest_time)
         if sample is not None:
