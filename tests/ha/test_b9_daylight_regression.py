@@ -140,7 +140,7 @@ async def test_real_chart_api_keeps_valid_zero_and_temperature_before_day_end(ha
         assert poller.details_status == "readable"
         assert poller.module_field_updated[(99, 1, "MODULE_POWER")] == datetime(2026, 11, 12, 10, 5, tzinfo=UTC)
         summary = poller.diagnostics(99, [1])
-        assert summary["pv_inputs"][0]["fields"]["power"] == {"status": "fresh", "age_seconds": -30}
+        assert summary["pv_inputs"][0]["fields"]["power"] == {"status": "fresh", "age_seconds": -30, "progress_age_seconds": 0}
         assert summary["detail_fields"]["voltage"]["status"] == "missing"
         freezer.move_to("2026-11-12 10:15:01+00:00")
         assert not poller.is_fresh(99, 1, "MODULE_POWER")
@@ -227,7 +227,7 @@ async def test_readable_summary_does_not_claim_all_fields_are_fresh(hass, freeze
         await poller._async_poll(coordinator.inverters)
         assert poller.details_status == "readable"
         summary = poller.diagnostics(99, [1])
-        assert summary["detail_fields"]["temperature"] == {"status": "stale", "age_seconds": 3960}
+        assert summary["detail_fields"]["temperature"] == {"status": "stale", "age_seconds": 3960, "progress_age_seconds": 0}
         assert summary["detail_fields"]["frequency"]["status"] == "fresh"
         assert summary["pv_inputs"][0]["fields"]["power"]["status"] == "missing"
         assert summary["detail_reads"] == {"snapshot": "success", "micro_chart": "success"}

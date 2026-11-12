@@ -1,5 +1,9 @@
 # API timing and bounded settings recovery
 
+For the local correction after b10, see [chart progress and availability](chart-progress-freshness.md).
+It preserves these request intervals and fixes availability assessment between
+slow chart polls; no new manufacturer quota is inferred.
+
 This records the existing timing controls and the local preparation for the
 v0.6.0 prerelease, replacing the previously planned b10.
 Manufacturer UI polling is evidence for a command workflow, not a published
