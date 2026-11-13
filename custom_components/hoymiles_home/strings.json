@@ -12,7 +12,7 @@
       },
       "user": {
         "title": "Connect to S-Miles Home",
-        "description": "Choose the account type matching your official app. Installer is experimental: live readings and energy totals only; no controls or additional device telemetry.",
+        "description": "Choose the account type matching your official app: S-Miles Home, S-Miles Installer or S-Miles Enduser. Installer and Enduser are experimental monitoring profiles without controls or additional device telemetry.",
         "data": {
           "username": "Email",
           "password": "Password",
@@ -38,6 +38,7 @@
       "cannot_connect": "Could not connect to Hoymiles",
       "invalid_auth": "Hoymiles rejected authentication",
       "invalid_station": "No devices were found for this station ID. Check the number and account access.",
+      "unsupported_station": "This plant type is not yet supported by the selected account profile.",
       "unknown": "Unexpected error",
       "discovery_failed": "Could not load the plant list. You can enter the station ID manually.",
       "no_stations": "The account returned no plants in its list. If you know your station ID, you can enter it manually.",
@@ -110,6 +111,13 @@
   },
   "options": {
     "step": {
+      "enduser": {
+        "title": "Plant timezone",
+        "description": "Choose your plant’s timezone for daily energy boundaries.",
+        "data": {
+          "station_timezone": "Station timezone"
+        }
+      },
       "init": {
         "title": "Station settings",
         "description": "Compare the PV power sensor attributes pv and pv2 with the S-Miles Home app. Select another source only after confirming the match. Automatic preserves the existing behavior: pv2 when available, otherwise pv; zero is a valid value. This changes only the display in HA. Battery temperatures are read automatically at most every five minutes. Additional inverter telemetry is optional. Select the actual station timezone for daily boundaries and charts. Battery commands are disabled by default, including after an upgrade. Enable battery controls only if Home Assistant should change the mode, reserve SOC and separate charge/discharge cutoffs. Cutoffs and output power add reads every 30 minutes. Output power is bounded by the freshly reported maximum; the new control still needs device testing. Avoid simultaneous changes in the S-Miles Home app. Device controls additionally read heating and display settings every 30 minutes and are separately disabled by default. The heating switch permits automatic heating; it does not force the heater to run. Available lighting functions depend on the device.",
@@ -124,7 +132,7 @@
     }
   },
   "selector": {
-    "client_profile": {"options": {"home": "S-Miles Home", "installer": "S-Miles Installer (experimental, read only)"}},
+    "client_profile": {"options": {"home": "S-Miles Home", "installer": "S-Miles Installer (experimental, read only)", "enduser": "S-Miles Enduser (experimental, read only)"}},
     "pv_power_source": {
       "options": {
         "auto": "Automatic (existing behavior)",

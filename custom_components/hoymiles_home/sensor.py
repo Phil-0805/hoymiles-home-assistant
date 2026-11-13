@@ -42,6 +42,12 @@ LIVE_SENSOR_KEYS = {
     "battery_charge_power", "battery_discharge_power", "battery_soc",
     "battery_activity", "ems", "brs", "chs", "bhs",
 }
+ENDUSER_SENSOR_KEYS = {
+    "pv_power", "grid_power", "load_power", "battery_power", "battery_soc",
+    "battery_charge_power", "battery_discharge_power", "battery_activity",
+    "load_energy_today", "battery_charge_energy_today", "battery_discharge_energy_today",
+    "today_energy", "month_energy", "year_energy", "total_energy",
+}
 
 
 def _live(key: str) -> Callable[[dict[str, Any]], Any]:
@@ -65,6 +71,8 @@ def _pv_attributes(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def _status_attributes(data: dict[str, Any]) -> dict[str, Any]:
+    if data.get("live", {}).get("_enduser_schema") == "es":
+        return {"direction_mapping": "Enduser flow: battery inflow=charging, outflow=discharging"}
     return {"raw_codes": status_codes(data.get("live", {})),
             "direction_mapping": "brs: 0=idle, 1=charging, 2=discharging",
             "mapping_verified_on": "HMS-2000-4WB, HiBattery 4020-X",
@@ -305,11 +313,15 @@ async def async_setup_entry(
 ) -> None:
     """Set up sensor entities."""
     coordinator: HoymilesHomeCoordinator = hass.data[DOMAIN][entry.entry_id]
+    enduser = getattr(getattr(coordinator, "client", None), "profile", "home") == "enduser"
     entities: list[SensorEntity] = [
         HoymilesStationSensor(coordinator, entry, description)
         for description in STATION_SENSORS
+        if not enduser or description.key in ENDUSER_SENSOR_KEYS
     ]
     for inverter in coordinator.inverters:
+        if enduser:
+            continue  # No evidenced Enduser module-chart implementation yet.
         for port in inverter_ports(inverter):
             for key, quota, unit, device_class in MODULE_SENSORS:
                 entities.append(
@@ -370,6 +382,13 @@ class HoymilesStationSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEn
     @property
     def available(self) -> bool:
         data = self.coordinator.data or {}
+        if getattr(getattr(self.coordinator, "client", None), "profile", "home") == "enduser":
+            if self.native_value is None:
+                return False
+            calculated_source = {"load_energy_today": "load", "battery_charge_energy_today": "bat",
+                                 "battery_discharge_energy_today": "bat"}.get(self.entity_description.key)
+            if calculated_source and _number(live_power(data).get(calculated_source)) is None:
+                return False
         if (self.entity_description.key in LIVE_SENSOR_KEYS | {
                 "load_energy_today", "battery_charge_energy_today", "battery_discharge_energy_today"}
                 and data.get("live_available", True) is not True):
