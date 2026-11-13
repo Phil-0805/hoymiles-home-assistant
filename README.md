@@ -15,11 +15,12 @@ installation and supported battery settings through the Hoymiles cloud.
 No Node-RED or MQTT broker is required. This is a community integration,
 unaffiliated with Hoymiles, and officially listed in the HACS default catalog.
 
-**v0.6.0** brings account-aware login, separate battery cutoffs and light/display
-controls to the stable channel. It includes the fixes tested throughout the
-v0.5.2 betas and v0.6.0b1. Existing installations can update without starting over.
+**v0.6.1** improves Home login and startup recovery, standalone HMS detection,
+chart availability and retained output settings. It also includes explicitly
+selected, experimental read-only Installer and Enduser profiles. Existing
+installations can update without starting over.
 
-[What changed in v0.6.0](docs/release-0.6.0.md) · [Upgrade notes](#updating-to-060)
+[What changed in v0.6.1](docs/release-0.6.1.md) · [Upgrade notes](#updating-to-061)
 
 [Installation](#installation) · [Features](#features) · [Controls](#controls) ·
 [Beta testing](#testing-beta-versions) · [Troubleshooting](#troubleshooting)
@@ -31,12 +32,31 @@ v0.5.2 betas and v0.6.0b1. Existing installations can update without starting ov
 2. Install the integration and restart Home Assistant.
 3. Open **Settings → Devices & services → Add integration** and choose
    **Hoymiles S-Miles Home**.
-4. Enter your S-Miles Home email and password, then select your plant.
+4. Select the account type matching your official app, enter its email and
+   password, then select your plant.
    For another plant, add the integration again.
 
 If plant discovery is unavailable, enter the numeric station ID manually.
 See [Finding your station ID](#finding-your-station-id). Updates do not require
 recreating an existing integration or its entities.
+
+## Account profiles
+
+**S-Miles Home, S-Miles Installer and S-Miles Enduser are different apps.**
+Choose the matching profile; owning the plant does not determine the API family.
+
+| Profile | Scope in v0.6.1 |
+| --- | --- |
+| Home | The features and optional controls below, where supplied by the installation |
+| Installer — experimental, read only | Station live readings, energy totals and basic device identity/model; no Home controls, module charts or inverter detail telemetry |
+| Enduser — experimental, read only | Station PV/storage monitoring and explicitly returned standard generation totals; no device-tree dependency, device controls, module charts or inverter detail telemetry |
+
+Installer account access and Enduser setup have been reported working. Full
+measurement coverage is not established for every installation. Several fields
+on the reported HIS-6L-G3 Enduser installation remain unavailable and are under
+investigation; they are not treated as confirmed zero values. See the
+[Installer](docs/installer-app-protocol.md) and [Enduser](docs/enduser-app-protocol.md)
+protocol scope and limits.
 
 ## Features
 
@@ -53,8 +73,10 @@ Availability depends on the device, firmware and cloud response.
 | Output power | Watt control when the cloud reports complete settings, limits and phase information; device validation remains open |
 | Diagnostics | Login/connection error stages and reasons, plus attempted recovery when the mobile API supplies no live-server address |
 
-Live polling follows Hoymiles' requested interval, normally around three seconds.
-Module charts and battery temperatures refresh about every five minutes.
+Live polling follows Hoymiles' requested interval, with a minimum of three seconds;
+station cloud totals are requested about once per minute. Home module charts and
+battery temperatures refresh about every five minutes. Chart readings have their
+own source times and are not seconds-current Live measurements.
 Settings normally refresh every 30 minutes and have manual refresh buttons.
 Transient settings-read failures receive at most two additional attempts, after
 one and then three minutes. Authentication errors, rate limits and invalid
@@ -89,6 +111,7 @@ a change and avoid simultaneous app/HA edits.
 | Setup | Evidence so far |
 | --- | --- |
 | HMS-2000-4WB with HiBattery | Maintainer setup; model/PV readings and selected battery/device controls tested |
+| Standalone HMS-2000-4WB | Daytime readings, overnight unavailability, retained 2000 W output setting and automatic sunrise recovery confirmed by a tester |
 | HMS-800-2WB | Model and PV readings confirmed; battery/device settings can differ between installations |
 | HiBattery 4020-X with one expansion battery | User confirmed selected PV source, temperatures, relay direction and battery commands in v0.5.1; [issue #9](https://github.com/Phil-0805/hoymiles-home-assistant/issues/9) |
 
@@ -99,7 +122,26 @@ otherwise the name remains generic. Missing values remain unavailable. Battery
 entities only provide useful data when the installation has supported storage.
 Daily calculated energy can have gaps during outages and is not a billing meter.
 
-## Updating to 0.6.0
+## Updating to 0.6.1
+
+Install **v0.6.1** and restart Home Assistant Core. Keep existing config entries,
+entity identities and control permissions. Beta testers can move directly to
+Stable and disable prereleases if desired.
+
+- The separate **Last inverter temperature** diagnostic entity is removed.
+  Update dashboard/automation references to it. The normal temperature sensor
+  remains and becomes unavailable when no sufficiently fresh measurement exists.
+- Original chart sample times are preserved. Advancing delayed samples can stay
+  usable between ordinary five-minute polls; frozen or old data still expires.
+  Missing/stale power is not replaced with an inferred nighttime zero.
+- A confirmed output setting may remain visible through an overnight outage.
+  This is an in-memory setting, not a live measurement or a guarantee of physical
+  output. After restart it must be read again. New commands still require fresh
+  settings, limits, permission and confirmation.
+- Installer and Enduser remain experimental read-only profiles within this
+  stable integration release. Existing working Home entries need no profile change.
+
+### Upgrading from versions before 0.6.0
 
 Read the selected release's notes, install it and restart Home Assistant.
 Keep existing config entries and entity identities.
@@ -123,7 +165,7 @@ and create a backup before testing.
 - **HA 2026.11+ / Marketplace:** Open **Settings → Devices & services → Marketplace**
   and the device page for this repository. Enable the disabled **Pre-release**
   switch entity, then turn it on. Install the offered beta, or use **Install
-  another version** on the repository page to select a beta such as `0.6.0b1`.
+  another version** on the repository page to select an available prerelease.
 - **HA 2026.10 or older / HACS:** Open this repository, enable prereleases and use
   **Redownload** to choose the beta. Labels vary with the HACS version.
 
@@ -143,21 +185,19 @@ Check the installed integration version, HA version and device/firmware model.
 For login or connection failures, open **Settings → System → Logs →
 Home Assistant Core** and look for `hoymiles_home.cloud_logging`.
 Warnings identify `stage`, `reason` and, where relevant, numeric status codes.
-Debug logging is not required. See [connection test instructions](docs/release-0.6.0.md).
+Debug logging is not required. See [release and troubleshooting notes](docs/release-0.6.1.md).
 A missing live-server address and a failed login can have different causes.
 If readings stop, compare with the official app. Stale values in both may indicate
 a shared device/cloud issue; this alone does not establish its cause.
 A settings refresh may take several minutes after a transient startup failure.
 
-For login reports, name the exact app tested: **S-Miles Home** and **S-Miles
-Installer** are different clients. A successful Installer/website login does
-not establish access through the Home API. The v0.6.1b11 beta includes initial account routing, improved TOU mode readback,
-activation of supported existing basic plans and restored bounded live-data recovery after the b5 regression, and station setup while a live server address is missing; see [its test instructions](docs/release-0.6.1b11.md)
-and [the evidence and remaining limits](docs/login-routing-0.6.1.md).
-B10 also corrects Home DTU nesting and chart-time acceptance, retains confirmed
-output settings overnight, and removes the separate last-temperature entity.
-B11 corrects chart availability between normal polls while preserving original
-sample times and expiring non-advancing data.
+For login reports, name the exact app tested: **S-Miles Home**, **S-Miles
+Installer** or **S-Miles Enduser**, and the selected account profile. A website
+login alone does not establish access through the Home API. Incomplete cloud
+fields can leave individual entities unavailable without a request error.
+Include the affected entity names and privacy-checked diagnostics when reporting
+that case; missing measurements and unsupported features must not be guessed.
+See [login evidence and limits](docs/login-routing-0.6.1.md).
 
 Download diagnostics for the affected integration under **Devices & services**.
 Report the version, affected setting and matching app observation in an
@@ -192,8 +232,9 @@ inverter serial number or an individual device's numeric `id`.
 If you already use the Node-RED `hoymiles-watch` node successfully for this
 plant, its configured `sid` is the station ID. Node-RED is not required.
 
-Setup checks that the signed-in account can retrieve a non-empty device tree
-for the entered ID. After setup, check that the devices and measurements match
+Home/Installer setup checks device-tree access for the entered ID. Enduser
+station monitoring instead validates authenticated metadata for that exact
+station and a supported station type. After setup, check that the devices and measurements match
 your plant. If the URL differs or you cannot identify a numeric station ID, ask
 in issue #2 rather than entering a serial number. Never post passwords, login
 tokens or unredacted diagnostics in a public issue.
@@ -215,24 +256,10 @@ audited.
 [MIT license](LICENSE) · [Release notes](https://github.com/Phil-0805/hoymiles-home-assistant/releases) ·
 [Device test plan](docs/testing-0.5.0.de.md) · [MQTT investigation for v0.7.0](docs/roadmap-0.7.md)
 
-### Installer account profile (experimental)
+## Planned for v0.6.2
 
-Beta **v0.6.1b3** adds an explicitly selected experimental **S-Miles Installer**
-account type at setup and reauthentication. It covers live readings, energy
-totals and basic device identity/model only. Home controls, temperatures, charts
-and additional telemetry are not enabled for this profile. See
-[the protocol findings and test scope](docs/installer-app-protocol.md).
-
-### Enduser account profile (experimental)
-
-Beta **v0.6.1b12** adds **S-Miles Enduser (experimental, read only)** as
-a separate account type. It supports station monitoring for the verified PV
-and storage/hybrid response formats, with generation totals where the cloud
-supplies the standard fields. Home controls, module charts and inverter detail
-telemetry are not enabled. Device testing is pending; this profile is experimental. See [protocol, scope and testing](docs/enduser-app-protocol.md).
-
-B13 additionally accepts app-compatible Enduser setup response representations
-and provides specific validation reasons; see [the b13 test instructions](docs/release-0.6.1b13.md).
-
-B14 validates Enduser station access without requiring the optional device tree
-for station monitoring; see [the b14 test instructions](docs/release-0.6.1b14.md).
+Optional history sampling for fast-changing sensors is tracked in
+[issue #51](https://github.com/Phil-0805/hoymiles-home-assistant/issues/51).
+The intended scope preserves responsive live readings while investigating
+lower-volume history. It is not implemented in v0.6.1. MQTT research remains
+planned separately for [v0.7.0](docs/roadmap-0.7.md).
