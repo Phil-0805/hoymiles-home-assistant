@@ -27,7 +27,7 @@ def retry_delay(value):
 
 
 class AccountRuntime:
-    """One token, login lock and request budget for identical account credentials.
+    """Profile sessions, login lock and HTTP budget for identical credentials.
 
     Keep at least one second between HTTP request starts and at most two HTTP
     requests in flight. These are conservative client limits, not a claim about
@@ -39,6 +39,7 @@ class AccountRuntime:
         self.token = None
         self.auth_dc = None
         self.installer_session = _AuthSession()
+        self.enduser_session = _AuthSession()
         self.token_expires = datetime.min.replace(tzinfo=UTC)
         self.login_retry_at = datetime.min.replace(tzinfo=UTC)
         self.login_lock = asyncio.Lock()

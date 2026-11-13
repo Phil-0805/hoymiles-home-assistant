@@ -67,7 +67,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.battery_controls = battery_controls is True and self.home_features
         self.client = client
         self.station_id = station_id
-        self.pv_power_source = pv_power_source
+        self.pv_power_source = "pv" if getattr(client, "profile", "home") == "enduser" else pv_power_source
         self.device_tree: list[dict[str, Any]] = []
         self.inverters: list[dict[str, Any]] = []
         self.station_timezone = station_timezone or dt_util.get_default_time_zone()

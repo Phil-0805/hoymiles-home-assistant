@@ -141,7 +141,10 @@ async def async_get_config_entry_diagnostics(
     target, standalone_reason = standalone_hms_assessment(
         getattr(coordinator, "device_tree", []), coordinator.inverters)
     standalone = target is not None
+    profile = getattr(getattr(coordinator, "client", None), "profile", "home")
     return {
+        "client_profile": profile if profile in {"home", "installer", "enduser"} else "unknown",
+        "live_schema": live.get("_enduser_schema") if live.get("_enduser_schema") in {"es", "power"} else "home_or_installer",
         "inverters": inverters,
         "polling": {
             "standalone_hms_recognized": standalone,
@@ -167,8 +170,11 @@ async def async_get_config_entry_diagnostics(
             "power": number(live_power(data).get("bat")),
             "soc": number(live.get("soc")),
             "raw_status_codes": status_codes(live),
-            "activity_from_brs": battery_activity(live),
-            "direction_mapping_verified_on": "HMS-2000-4WB, HiBattery 4020-X",
+            "activity_from_brs": battery_activity(live) if profile != "enduser" else None,
+            "activity": battery_activity(live),
+            "activity_source": "enduser_flow" if profile == "enduser" else "brs",
+            "direction_mapping_verified_on": ("Enduser Android flow mapping; device comparison pending"
+                                              if profile == "enduser" else "HMS-2000-4WB, HiBattery 4020-X"),
             "other_status_meanings": "unverified",
             "settings": _battery_diagnostics(
                 getattr(coordinator, "battery_settings", {})

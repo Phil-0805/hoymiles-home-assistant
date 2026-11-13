@@ -242,3 +242,12 @@ bei Einrichtung und Wiederanmeldung. Er umfasst Live-Messwerte,
 Energiewerte und Geräteidentität/Modell. Home-Steuerungen, Temperaturen,
 Moduldiagramme und zusätzliche Telemetrie werden dafür nicht freigegeben.
 Siehe [Protokollbefunde und Testumfang](docs/installer-app-protocol.md).
+
+### Enduser-Kontoprofil (experimentell)
+
+Beta **v0.6.1b12** ergänzt **S-Miles Enduser (experimentell, nur Lesen)**
+als eigenen Kontotyp. Er unterstützt Stationswerte der belegten PV- und
+Speicher-/Hybrid-Antwortformate sowie Ertragswerte, soweit die Cloud die
+Standardfelder liefert. Home-Steuerungen, Moduldiagramme und zusätzliche
+Wechselrichter-Messwerte sind nicht freigegeben. Der Gerätetest steht noch aus; das Profil ist experimentell.
+Siehe [Protokoll, Umfang und Testhinweise](docs/enduser-app-protocol.md).

@@ -237,7 +237,8 @@ class HoymilesHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return await self._async_login_form_with_error()
             except HoymilesConnectionError as err:
                 log_failure("station_validation", err)
-                errors["base"] = "cannot_connect"
+                errors["base"] = ("unsupported_station" if getattr(err, "reason", None) == "unsupported_profile_operation"
+                                  else "cannot_connect")
             except Exception as err:  # noqa: BLE001
                 log_failure("station_validation", err)
                 errors["base"] = "unknown"
@@ -269,6 +270,8 @@ class HoymilesHomeOptionsFlow(config_entries.OptionsFlow):
     """Allow comparison of PV fields without recreating the station."""
 
     async def async_step_init(self, user_input=None) -> ConfigFlowResult:
+        if self.config_entry.data.get(CONF_CLIENT_PROFILE) == "enduser":
+            return await self.async_step_enduser(user_input)
         if user_input is not None:
             options = {**self.config_entry.options, **user_input}
             options.pop(CONF_BATTERY_TEMPERATURES, None)
@@ -308,3 +311,14 @@ class HoymilesHomeOptionsFlow(config_entries.OptionsFlow):
             unsupported = {CONF_BATTERY_CONTROLS, CONF_DEVICE_CONTROLS, CONF_INVERTER_DETAILS}
             schema = {key: value for key, value in schema.items() if key.schema not in unsupported}
         return self.async_show_form(step_id="init", data_schema=vol.Schema(schema))
+
+    async def async_step_enduser(self, user_input=None) -> ConfigFlowResult:
+        """Only expose the setting supported by the Enduser monitoring profile."""
+        if user_input is not None:
+            return self.async_create_entry(title="", data={**self.config_entry.options, **user_input})
+        timezones = await self.hass.async_add_executor_job(_time_zone_options)
+        return self.async_show_form(step_id="enduser", data_schema=vol.Schema({
+            vol.Required(CONF_STATION_TIMEZONE, default=self.config_entry.options.get(
+                CONF_STATION_TIMEZONE, self.hass.config.time_zone)): SelectSelector(
+                    SelectSelectorConfig(options=timezones, mode=SelectSelectorMode.DROPDOWN)),
+        }))

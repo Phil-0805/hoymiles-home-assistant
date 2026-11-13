@@ -30,6 +30,8 @@ _KNOWN_STAGES.update({
 })
 _KNOWN_STAGES.update({
     f"{DATA_BASE_URL}/pvm/api/0/station/select_by_page": "station_discovery",
+    f"{DATA_BASE_URL}/pvm/api/0/station_v3/next_p_a": "station_discovery",
+    f"{DATA_BASE_URL}/pvm/api/0/station/find": "station_validation",
     f"{DATA_BASE_URL}/pvm/api/0/station/select_device_of_tree": "station_validation",
     f"{DATA_BASE_URL}/pvm-data/api/0/station/data/count_station_real_data": "station_realtime",
     f"{DATA_BASE_URL}/pvmc/api/0/station/select_by_page_c": "station_discovery",

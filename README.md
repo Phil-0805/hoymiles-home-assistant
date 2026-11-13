@@ -222,3 +222,11 @@ account type at setup and reauthentication. It covers live readings, energy
 totals and basic device identity/model only. Home controls, temperatures, charts
 and additional telemetry are not enabled for this profile. See
 [the protocol findings and test scope](docs/installer-app-protocol.md).
+
+### Enduser account profile (experimental)
+
+Beta **v0.6.1b12** adds **S-Miles Enduser (experimental, read only)** as
+a separate account type. It supports station monitoring for the verified PV
+and storage/hybrid response formats, with generation totals where the cloud
+supplies the standard fields. Home controls, module charts and inverter detail
+telemetry are not enabled. Device testing is pending; this profile is experimental. See [protocol, scope and testing](docs/enduser-app-protocol.md).

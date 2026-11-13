@@ -41,7 +41,7 @@ from .const import (
     STATION_SETTING_WRITE_URL,
     TOKEN_LIFETIME,
     USER_AGENT,
-    INSTALLER_USER_AGENT, CLIENT_PROFILES,
+    INSTALLER_USER_AGENT, ENDUSER_USER_AGENT, CLIENT_PROFILES,
     WORK_MODE_SETTINGS_ACTION,
 )
 from .protobuf import ProtobufDecodeError, latest_module_samples
@@ -55,6 +55,10 @@ from .cloud_logging import (
     live_response_summary, request_stage, cloud_failure_reason, work_mode_response_summary,
 )
 from .cloud_runtime import AccountRuntime, retry_delay
+from .enduser import (
+    ES_CLASSIFICATIONS, SUPPORTED_CLASSIFICATIONS,
+    parse_live as parse_enduser_live, parse_totals as parse_enduser_totals,
+)
 from .errors import (
     HoymilesError, HoymilesAuthError, HoymilesConnectionError, HoymilesRateLimitError, HoymilesSettingsError,
     HoymilesTelemetryError,
@@ -111,7 +115,10 @@ class HoymilesHomeClient:
         self.runtime = runtime or AccountRuntime()
         self.profile = profile
         self.supports_home_features = profile == "home"
-        self._auth_state = self.runtime if self.supports_home_features else self.runtime.installer_session
+        self._auth_state = {"home": self.runtime, "installer": self.runtime.installer_session,
+                            "enduser": self.runtime.enduser_session}[profile]
+        self._station_classifications: dict[int, int] = {}
+        self._station_metadata_lock = asyncio.Lock()
         self._live_uri: str | None = None
         self._cloud_log_states = {}
         self._auth_version = None
@@ -147,7 +154,8 @@ class HoymilesHomeClient:
 
     @property
     def headers(self) -> dict[str, str]:
-        agent = USER_AGENT if self.supports_home_features else INSTALLER_USER_AGENT
+        agent = {"home": USER_AGENT, "installer": INSTALLER_USER_AGENT,
+                 "enduser": ENDUSER_USER_AGENT}[self.profile]
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
@@ -178,7 +186,7 @@ class HoymilesHomeClient:
         if stage in {"login_region", "login_challenge", "login"} and type(auth_dc) is int and auth_dc in AUTH_BASE_URLS:
             summary = f"{summary} auth_dc={auth_dc}"
         if not self.supports_home_features:
-            summary = f"{summary} client_profile=installer"
+            summary = f"{summary} client_profile={self.profile}"
         key = (stage, reason)
         if self._cloud_log_states.get(key) != summary:
             self._cloud_log_states[key] = summary
@@ -200,8 +208,12 @@ class HoymilesHomeClient:
                 "/pvm/api/0/station/select_by_page", "/pvm/api/0/station/select_device_of_tree",
                 "/pvm/api/0/station/get_sd_uri", "/pvm-data/api/0/station/data/count_station_real_data",
             )}
+            if self.profile == "enduser":
+                allowed |= {f"{DATA_BASE_URL}/pvm/api/0/{path}" for path in (
+                    "station_v3/next_p_a", "station/find",
+                )}
             if url not in allowed and url != self._live_uri:
-                raise CloudDiagnosticError("unsupported_profile_operation", "Operation is unavailable for the Installer profile")
+                raise CloudDiagnosticError("unsupported_profile_operation", "Operation is unavailable for the Installer/Enduser monitoring profiles")
         if not trusted_hoymiles_url(url):
             raise HoymilesConnectionError("Untrusted Hoymiles API URL")
         stage = self._cloud_stage(url, payload)
@@ -322,6 +334,7 @@ class HoymilesHomeClient:
         self._token = None
         self._token_expires = datetime.min.replace(tzinfo=UTC)
         self._live_uri = None
+        self._station_classifications.clear()
         if self.supports_home_features:
             region = await self._json(f"{AUTH_BASE_URL}/iam/pub/0/c/region_c", {"email": self._email})
             routing = self._unwrap(region)
@@ -333,7 +346,7 @@ class HoymilesHomeClient:
             self._auth_state.auth_dc = dc
             base = AUTH_BASE_URLS[dc]
         else:
-            # Installer LoginActivity clears stored DC before pre-inspection.
+            # Installer and Enduser clear stored DC before pre-inspection.
             base = DATA_BASE_URL
         pre = await self._json(
             f"{base}/iam/pub/3/auth/pre-insp", {"u": self._email}
@@ -415,6 +428,8 @@ class HoymilesHomeClient:
 
     async def async_device_tree(self, station_id: int) -> list[dict[str, Any]]:
         await self.async_ensure_login()
+        if self.profile == "enduser":
+            await self._async_enduser_classification(station_id)
         response = await self._json(
             f"{DATA_BASE_URL}/pvmc/api/0/station/select_device_c" if self.supports_home_features
             else f"{DATA_BASE_URL}/pvm/api/0/station/select_device_of_tree",
@@ -534,6 +549,8 @@ class HoymilesHomeClient:
     async def async_list_stations(self) -> list[dict[str, Any]]:
         """Discover Home-account stations, without confusing device IDs with sids."""
         await self.async_ensure_login()
+        if self.profile == "enduser":
+            return await self._async_list_enduser_stations()
         stations: dict[int, dict[str, Any]] = {}
         page_size = 100
         # Bound discovery even if the undocumented endpoint repeats a full page.
@@ -580,14 +597,68 @@ class HoymilesHomeClient:
                 return list(stations.values())
         raise HoymilesConnectionError("Station discovery exceeded its page limit")
 
+    async def _async_enduser_classification(self, station_id: int) -> int:
+        """Read station metadata once per client session, including manual setup."""
+        if type(station_id) is not int or station_id <= 0:
+            raise CloudDiagnosticError("unexpected_response", "Invalid Enduser station identity")
+        async with self._station_metadata_lock:
+            if station_id not in self._station_classifications:
+                data = self._unwrap(await self._json(
+                    f"{DATA_BASE_URL}/pvm/api/0/station/find", {"id": station_id}))
+                if (not isinstance(data, dict) or type(data.get("id")) is not int
+                        or data["id"] != station_id or type(data.get("classify")) is not int):
+                    raise CloudDiagnosticError("unexpected_response", "Invalid Enduser station identity")
+                if data["classify"] not in SUPPORTED_CLASSIFICATIONS:
+                    raise CloudDiagnosticError("unsupported_profile_operation", "Unsupported Enduser station classification")
+                self._station_classifications[station_id] = data["classify"]
+            return self._station_classifications[station_id]
+
+    async def _async_list_enduser_stations(self) -> list[dict[str, Any]]:
+        """Follow the app's unfiltered list and bounded continuation tokens."""
+        stations = {}
+        token = None
+        for page in range(1, 21):
+            body = {"classify": 0, "page": page, "page_size": 10}
+            if token is not None:
+                body["ntk"] = token
+            data = self._unwrap(await self._json(
+                f"{DATA_BASE_URL}/pvm/api/0/station_v3/next_p_a", body))
+            if not isinstance(data, dict) or not isinstance(data.get("list"), list):
+                raise CloudDiagnosticError("unexpected_response", "Invalid Enduser station list")
+            rows = data["list"]
+            if len(rows) > 10:
+                raise CloudDiagnosticError("unexpected_response", "Invalid Enduser page size")
+            previous = len(stations)
+            for row in rows:
+                if not isinstance(row, dict) or type(row.get("id")) is not int or row["id"] <= 0:
+                    raise CloudDiagnosticError("unexpected_response", "Invalid Enduser station identity")
+                name = row.get("name")
+                stations[row["id"]] = {"sid": row["id"], "name": name.strip() if isinstance(name, str) else ""}
+            if rows and len(stations) == previous:
+                raise CloudDiagnosticError("unexpected_response", "Enduser station page did not advance")
+            if not rows or len(rows) < 10:
+                return list(stations.values())
+            token = data.get("ntk")
+            # The app omits absent/empty ntk and still advances the page number.
+            # ntk may identify the list snapshot rather than a unique cursor.
+            if token == "":
+                token = None
+            if token is not None and (not isinstance(token, str) or len(token) > 4096):
+                raise CloudDiagnosticError("unexpected_response", "Invalid Enduser continuation")
+        raise CloudDiagnosticError("unexpected_response", "Enduser discovery exceeded page limit")
+
     async def async_station_realtime(self, station_id: int) -> dict[str, Any]:
         await self.async_ensure_login()
+        es = (self.profile == "enduser" and
+              await self._async_enduser_classification(station_id) in ES_CLASSIFICATIONS)
         response = await self._json(
             f"{DATA_BASE_URL}/pvmc/api/0/station_data/count_station_real_data_c" if self.supports_home_features
             else f"{DATA_BASE_URL}/pvm-data/api/0/station/data/count_station_real_data",
-            {"sid": station_id},
+            {"sid": station_id, **({"off_real": 1} if es else {})},
         )
         data = self._unwrap(response)
+        if self.profile == "enduser":
+            return parse_enduser_totals(data)
         if data is not None and not isinstance(data, dict):
             raise HoymilesConnectionError("Unexpected station totals response")
         return data or {}
@@ -639,6 +710,11 @@ class HoymilesHomeClient:
         previous_invalid_refresh = ("live_data", "invalid_live_data") in self._cloud_log_states
         delay_hint_retried = False
         await self.async_ensure_login()
+        classification = (await self._async_enduser_classification(station_id)
+                          if self.profile == "enduser" else None)
+        if self.profile == "enduser" and getattr(self, "_live_station_id", None) != station_id:
+            self._live_uri = None
+            self._live_station_id = station_id
         for _attempt in range(2):
             try:
                 if not self._live_uri:
@@ -655,6 +731,8 @@ class HoymilesHomeClient:
                     raise
                 self._token_expires = datetime.min.replace(tzinfo=UTC)
                 await self.async_ensure_login()
+                if self.profile == "enduser":
+                    classification = await self._async_enduser_classification(station_id)
                 continue
             except HoymilesConnectionError:
                 self._live_uri = None
@@ -668,6 +746,12 @@ class HoymilesHomeClient:
                 isinstance(payload.get("flow"), list)
                 or number(payload.get("con")) in (0, 1)
             ):
+                if self.profile == "enduser":
+                    try:
+                        payload = parse_enduser_live(payload, classification)
+                    except CloudDiagnosticError:
+                        self._cloud_report("live_data", "invalid_live_data")
+                        raise
                 if delay_hint_retried:
                     CLOUD_LOGGER.info(
                         "Cloud live retry recovered: stage=live_data first_sample=delay_without_telemetry"
@@ -699,7 +783,7 @@ class HoymilesHomeClient:
     async def _async_binary_data(self, url: str, payload: dict[str, Any]) -> bytes:
         """Read a bounded binary payload, rejecting redirects and JSON errors."""
         if not self.supports_home_features:
-            raise CloudDiagnosticError("unsupported_profile_operation", "Home charts are unavailable for the Installer profile")
+            raise CloudDiagnosticError("unsupported_profile_operation", "Home charts are unavailable for the Installer/Enduser monitoring profiles")
         if not trusted_hoymiles_url(url):
             raise HoymilesConnectionError("Untrusted Hoymiles API URL")
         try:
