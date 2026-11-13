@@ -56,3 +56,19 @@ class HoymilesRateLimitError(HoymilesConnectionError):
         # Limit scheduler wake-up delays, never the account's HTTP pause.
         # The runtime keeps the full server deadline, including multi-day waits.
         self.retry_after = min(86400, max(1, retry_after))
+
+
+TELEMETRY_READ_REASONS = frozenset({
+    "not_requested", "pending", "success", "connection", "authentication", "rate_limited", "timeout",
+    "invalid_protobuf", "empty_axis", "oversized_axis", "unsupported_axis_format",
+    "unordered_axis", "misaligned_series", "duplicate_series", "invalid_cutoff",
+    "station_date_mismatch",
+})
+
+
+class HoymilesTelemetryError(HoymilesConnectionError):
+    """Carry only a fixed decoder reason across the API/poller boundary."""
+
+    def __init__(self, reason):
+        super().__init__("Invalid telemetry response")
+        self.reason = reason if type(reason) is str and reason in TELEMETRY_READ_REASONS else "invalid_protobuf"

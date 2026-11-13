@@ -70,6 +70,7 @@ async def test_mobile_transport_auth_or_rate_failure_never_probes_web(failure):
 
 
 async def test_both_routes_missing_remain_bounded_and_warnings_deduplicated(caplog):
+    caplog.set_level(logging.INFO)
     api = client(*[ok(None)] * 4)
     with pytest.raises(HoymilesConnectionError, match="mobile and web"):
         await api.async_live(123)
@@ -143,7 +144,7 @@ async def test_actual_cloud_rejection_logs_numeric_code_and_shape_not_message(ca
 
 
 async def test_login_challenge_invalid_is_identified_without_values(caplog):
-    api = client(ok({"v": 3, "dc": 1, "a": SECRET, "n": SECRET}))
+    api = client(ok({"dc": 1, "login_url": "https://euapi.hoymiles.com"}), ok({"v": 3, "dc": 1, "a": SECRET, "n": SECRET}))
     with pytest.raises(HoymilesAuthError):
         await api.async_login()
     assert "stage=login_challenge reason=invalid_challenge" in caplog.text
@@ -151,7 +152,7 @@ async def test_login_challenge_invalid_is_identified_without_values(caplog):
 
 
 async def test_login_missing_token_is_identified_without_values(caplog):
-    api = client(ok({"v": 3, "dc": 1, "a": "0123456789abcdef", "n": SECRET}), ok({SECRET: SECRET}))
+    api = client(ok({"dc": 1, "login_url": "https://euapi.hoymiles.com"}), ok({"v": 3, "dc": 1, "a": "0123456789abcdef", "n": SECRET}), ok({SECRET: SECRET}))
     with pytest.raises(HoymilesAuthError):
         await api.async_login()
     assert "stage=login reason=missing_token" in caplog.text
@@ -207,6 +208,8 @@ async def test_recovery_after_retry_is_visible_once_without_info_logging(caplog)
     assert await api.async_live(123) == {"con": 1}
     assert "flow_type=missing con_type=missing" in caplog.text
     assert caplog.text.count("Cloud request recovered: stage=live_data") == 1
+    assert "recovery_scope=same_refresh" in caplog.text
+    assert "recovery_scope=later_refresh" not in caplog.text
     assert "uri=missing" not in caplog.text
     assert SECRET not in caplog.text
 
@@ -223,9 +226,11 @@ async def test_persistent_live_failure_has_no_false_recovery_and_new_episode_is_
     # A valid offline response is accepted by the existing contract too.
     assert await api.async_live(123) == {"con": 0}
     assert caplog.text.count("Cloud request recovered") == 1
+    assert caplog.text.count("recovery_scope=later_refresh") == 1
     assert await api.async_live(123) == {"flow": []}
     assert caplog.text.count("Cloud request failed: stage=live_data reason=invalid_live_data") == 2
     assert caplog.text.count("Cloud request recovered") == 2
+    assert caplog.text.count("recovery_scope=same_refresh") == 1
     assert SECRET not in caplog.text
 
 
@@ -234,3 +239,56 @@ async def test_healthy_live_samples_do_not_log_recovery(caplog):
     api._live_uri = LIVE
     await api.async_live(123)
     assert "Cloud request recovered" not in caplog.text
+
+
+@pytest.mark.parametrize("payload,shape,delay_type,delay_state", [
+    ({}, "empty", "missing", "missing"),
+    ({SECRET: SECRET}, "nonempty", "missing", "missing"),
+    ({"dly": 3000}, "nonempty", "integer", "nonnegative"),
+    ({"dly": "3000"}, "nonempty", "string", "nonnegative"),
+    ({"dly": 0}, "nonempty", "integer", "nonnegative"),
+    ({"dly": -1}, "nonempty", "integer", "negative"),
+    ({"dly": True}, "nonempty", "boolean", "invalid"),
+    ({"dly": float("inf")}, "nonempty", "number", "invalid"),
+    ({"dly": float("nan")}, "nonempty", "number", "invalid"),
+    ({"dly": SECRET}, "nonempty", "string", "invalid"),
+    ({"dly": {SECRET: SECRET}}, "nonempty", "object", "invalid"),
+    ([], "not_object", "missing", "missing"),
+    (None, "not_object", "missing", "missing"),
+])
+def test_live_summary_distinguishes_empty_and_delay_shapes_without_values(
+    payload, shape, delay_type, delay_state, caplog,
+):
+    api = client()
+    api._cloud_report("live_data", "invalid_live_data", {"data": payload})
+    assert f"object_state={shape} dly_type={delay_type} dly_state={delay_state}" in caplog.text
+    assert SECRET not in caplog.text
+    assert "3000" not in caplog.text
+    assert "uri=" not in caplog.text and "cloud_status=" not in caplog.text
+
+
+async def test_delay_only_payload_still_never_becomes_telemetry_or_guessed_uri_expiry(caplog):
+    api = client(ok({"dly": 3000}), ok({"uri": LIVE}), ok({"dly": 3000}))
+    api._live_uri = LIVE
+    with pytest.raises(HoymilesConnectionError, match="no usable telemetry after retry"):
+        await api.async_live(123)
+    assert api._json.await_count == 3
+    assert api._json.call_args_list[0].args == (LIVE, {"sid": 123, "m": 0})
+    assert api._json.call_args_list[1].args == (MOBILE, {"sid": 123})
+    assert api._json.call_args_list[2].args == (LIVE, {"sid": 123, "m": 0})
+    assert api._live_uri is None
+    assert "dly_type=integer dly_state=nonnegative" in caplog.text
+    assert caplog.text.count("reason=invalid_live_data") == 1
+    assert "Cloud request recovered" not in caplog.text
+    assert SECRET not in caplog.text
+
+
+async def test_next_refresh_recovery_stays_later_when_it_also_needs_retry(caplog):
+    api = client(ok({}), ok({"uri": LIVE}), ok({}),
+                 ok({"uri": LIVE}), ok({}), ok({"uri": LIVE}), ok({"con": 1}))
+    api._live_uri = LIVE
+    with pytest.raises(HoymilesConnectionError):
+        await api.async_live(123)
+    assert await api.async_live(123) == {"con": 1}
+    assert caplog.text.count("recovery_scope=later_refresh") == 1
+    assert "recovery_scope=same_refresh" not in caplog.text

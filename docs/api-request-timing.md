@@ -1,5 +1,9 @@
 # API timing and bounded settings recovery
 
+For the local correction after b10, see [chart progress and availability](chart-progress-freshness.md).
+It preserves these request intervals and fixes availability assessment between
+slow chart polls; no new manufacturer quota is inferred.
+
 This records the existing timing controls and the local preparation for the
 v0.6.0 prerelease, replacing the previously planned b10.
 Manufacturer UI polling is evidence for a command workflow, not a published
@@ -27,6 +31,27 @@ preflight and readback, uses the shared account budget. TLS, redirect restrictio
 and server pauses are unchanged. HTTP 429 uses Retry-After; the account runtime
 retains its complete deadline even when scheduler wake-up delays are capped.
 An arbitrary cloud rejection with status 1 is not evidence of a rate limit.
+
+## Live-wait correction in v0.6.1b5
+
+**Regression update:** the maintainer reports persistent unavailable entities
+with b5. B6 removes this waiting policy and restores b4's bounded URI lookup/retry.
+See [the b6 instructions](release-0.6.1b6.md); b4 remains a rollback option.
+The description below records b5's historical behavior, not the repaired code.
+
+An explicit reduced live response with integer `dly` and no flow/connection/
+power fields is handled as pending data in v0.6.1b5.
+Short delays reuse the same URI after the server delay (at least three seconds),
+outside account/HTTP locks, with at most two live reads per update. More than
+30 seconds of inline waiting is deferred to the HA scheduler; repeated pending
+replies are also deferred. The full per-client monotonic deadline is preserved,
+including across in-process setup retries/reloads; a capped scheduler wake-up
+never permits an early live request. This is not an account-wide rate pause.
+
+Deferred updates remain missing data and reset energy-integration samples.
+Unknown/malformed replies retain existing bounded URI recovery and warnings.
+These changes are introduced in b5; b4 is unchanged. See the
+[evidence, implementation and limits](live-data-investigation.md).
 
 ## What the inspected Android app establishes
 

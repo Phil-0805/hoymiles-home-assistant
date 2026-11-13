@@ -61,6 +61,9 @@ def battery_activity(live: dict[str, Any]) -> str | None:
     This is the same mapping used by the existing energy calculation, not a
     verified protocol specification for every battery model or firmware.
     """
+    if live.get("_enduser_schema") == "es":
+        activity = live.get("_enduser_activity")
+        return activity if activity in {"idle", "charging", "discharging"} else None
     code = number(live.get("brs"))
     if code is None:
         return None

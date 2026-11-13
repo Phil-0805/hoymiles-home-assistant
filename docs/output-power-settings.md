@@ -1,5 +1,11 @@
 # Output power commands: manufacturer evidence
 
+As of v0.6.1b7, an explicitly recognized single-HMS/optional-DTU tree without
+storage can also use the existing station-level control. The older battery-only
+scope below describes its initial introduction. Fresh phase evidence and returned
+limits remain mandatory; see the [standalone review](standalone-hms-issue-38.md)
+for recognition rules, remaining limits and the pending hardware test.
+
 The public manufacturer web client was inspected on 2026-11-05. It exposes two
 different operations. The screenshot's output-power **upper limit** must not be
 silently substituted with the running output-power setting or grid-export limit.

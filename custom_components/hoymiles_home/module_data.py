@@ -66,7 +66,7 @@ def decode_module_snapshot(raw: bytes, station_id: int, date: str) -> dict:
                 raise ProtobufDecodeError("Duplicate inverter in module response")
             micros[device_id] = micro
     if sid != station_id or response_date != date:
-        raise ProtobufDecodeError("Module station/date mismatch")
+        raise ProtobufDecodeError("Module station/date mismatch", reason="station_date_mismatch")
 
     inverters = {}
     for device_id, micro in micros.items():

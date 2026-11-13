@@ -77,6 +77,7 @@ async def test_concurrent_expired_token_calls_share_one_login():
 async def test_argon2_runs_outside_event_loop():
     api = api_client()
     api._json = AsyncMock(side_effect=[
+        {"status": 0, "data": {"dc": 1, "login_url": "https://euapi.hoymiles.com"}},
         {"status": "0", "data": {"v": 3, "dc": 1, "a": "0123456789abcdef", "n": "nonce"}},
         {"status": "0", "data": {"token": "NEW"}},
     ])
@@ -159,10 +160,12 @@ async def test_offline_live_sensors_and_stale_module_are_unavailable(hass):
     key, quota, unit, device_class = MODULE_SENSORS[0]
     module = HoymilesModuleSensor(coordinator, entry, {"id": 99}, 1, key, quota, unit, device_class)
     coordinator.module_updated[(99, 1)] = datetime.now(UTC)
+    coordinator.module_polling.module_field_updated[(99, 1, quota)] = datetime.now(UTC)
     assert not module.available
     coordinator.data["live"]["con"] = 1
     assert module.available
     coordinator.module_updated[(99, 1)] -= timedelta(minutes=11)
+    coordinator.module_polling.module_field_updated[(99, 1, quota)] -= timedelta(minutes=11)
     assert not module.available
 
 
@@ -242,8 +245,9 @@ async def test_queued_write_uses_settings_after_lock_is_acquired(hass):
 
 @pytest.mark.parametrize("upper", [None, "bad", False, float("inf"), 101, 5, 90.5])
 def test_invalid_work_mode_upper_soc_is_handled(upper):
-    with pytest.raises(BatterySettingsError):
-        parse_work_mode_settings({"code": 0, "data": {"mode": 2, "k_2": {"soc_l": 10, "soc_h": upper}}})
+    parsed = parse_work_mode_settings({"code": 0, "data": {"mode": 2, "k_2": {"soc_l": 10, "soc_h": upper}}})
+    assert parsed["mode"] == 1 and parsed["readable"] is True
+    assert parsed["writable"] is False and parsed["reserve_soc_verified"] is False
 
 
 def test_reserve_soc_evidence_matches_exact_mode_segment():

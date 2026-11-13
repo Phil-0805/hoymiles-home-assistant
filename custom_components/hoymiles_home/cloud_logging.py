@@ -26,6 +26,14 @@ _KNOWN_STAGES = {
     for operation, stage in (("pre-insp", "login_challenge"), ("login", "login"))
 }
 _KNOWN_STAGES.update({
+    f"{base}/iam/pub/0/c/region_c": "login_region" for base in AUTH_BASE_URLS.values()
+})
+_KNOWN_STAGES.update({
+    f"{DATA_BASE_URL}/pvm/api/0/station/select_by_page": "station_discovery",
+    f"{DATA_BASE_URL}/pvm/api/0/station_v3/next_p_a": "station_discovery",
+    f"{DATA_BASE_URL}/pvm/api/0/station/find": "station_validation",
+    f"{DATA_BASE_URL}/pvm/api/0/station/select_device_of_tree": "station_validation",
+    f"{DATA_BASE_URL}/pvm-data/api/0/station/data/count_station_real_data": "station_realtime",
     f"{DATA_BASE_URL}/pvmc/api/0/station/select_by_page_c": "station_discovery",
     f"{DATA_BASE_URL}/pvmc/api/0/station/select_device_c": "station_validation",
     f"{DATA_BASE_URL}/pvmc/api/0/station/get_sd_uri_c": "live_uri_mobile",
@@ -45,7 +53,32 @@ REASONS = frozenset({"http_error", "timeout", "transport_error", "redirect_rejec
                      "invalid_json", "cloud_rejected", "invalid_challenge", "missing_token",
                      "missing_uri", "invalid_uri_type", "untrusted_uri", "invalid_live_data",
                      "unexpected_response", "authentication", "rate_limited", "connection", "unexpected_error",
-                     "unsupported_auth_version", "unsupported_auth_region"})
+                     "unsupported_auth_version", "unsupported_auth_region", "invalid_auth_routing",
+                     "session_expired", "client_update_required", "home_app_required",
+                     "invalid_work_mode_settings", "unsupported_profile_operation", "account_action_required",
+                     "invalid_enduser_metadata", "invalid_enduser_station_id",
+                     "invalid_enduser_classification", "invalid_enduser_tree"})
+
+
+def cloud_failure_reason(response):
+    """Recognize evidenced server errors without returning any server text."""
+    status = response.get("status")
+    if type(status) in (str, int) and str(status) == "0":
+        return None
+    if type(status) in (str, int) and str(status) == "100":
+        return "session_expired"
+    message = response.get("message")
+    text = message.lower() if isinstance(message, str) and len(message) <= 4096 else ""
+    if "logins exceeds the daily maximum limit" in text:
+        return "rate_limited"
+    if "your app version is low. please update to the latest version." in text:
+        return "client_update_required"
+    if any(signal in text for signal in (
+        "can only login to the s-miles home", "can only log in to s-miles home app",
+        "can only be used for logging in to the s-miles home app",
+    )):
+        return "home_app_required"
+    return "cloud_rejected"
 
 
 def request_stage(url, payload=None, live_uri=None):
@@ -71,16 +104,49 @@ def value_kind(value):
             bool: "boolean", type(None): "null"}.get(type(value), "other")
 
 
+def work_mode_response_summary(result):
+    """Summarize unwrapped action-83 results without plans or private values."""
+    result = result if isinstance(result, dict) else {}
+    data = result.get("data")
+    fields = data if isinstance(data, dict) else {}
+    tou = fields.get("k_3")
+    tou_fields = tou if isinstance(tou, dict) else {}
+
+    def known(value, allowed):
+        return value if type(value) is int and value in allowed else "unavailable"
+
+    return (f"command_code={safe_code(result.get('code'))} data_type={value_kind(data)} "
+            f"app_mode={known(fields.get('mode'), (2, 3))} "
+            f"tou_submode={known(tou_fields.get('mode'), (1, 2, 3, 4, 5))} "
+            f"self_settings_type={value_kind(fields.get('k_2'))} "
+            f"tou_settings_type={value_kind(tou)} "
+            f"soc_l_type={value_kind(fields.get('soc_l'))} "
+            f"soc_h_type={value_kind(fields.get('soc_h'))}")
+
+
 def live_response_summary(payload):
     """Describe the actual live acceptance criteria, without exposing measurements."""
     def field_kind(key):
         return value_kind(payload[key]) if isinstance(payload, dict) and key in payload else "missing"
 
+    object_state = "not_object"
     con_state = "missing"
-    if isinstance(payload, dict) and "con" in payload:
-        con_state = "valid" if number(payload["con"]) in (0, 1) else "invalid"
+    delay_state = "missing"
+    if isinstance(payload, dict):
+        object_state = "nonempty" if payload else "empty"
+        if "con" in payload:
+            con_state = "valid" if number(payload["con"]) in (0, 1) else "invalid"
+        if "dly" in payload:
+            delay = number(payload["dly"])
+            if delay is None:
+                delay_state = "invalid"
+            elif delay < 0:
+                delay_state = "negative"
+            else:
+                delay_state = "nonnegative"
     return (f"data_type={value_kind(payload)} flow_type={field_kind('flow')} "
-            f"con_type={field_kind('con')} con_state={con_state} power_type={field_kind('power')}")
+            f"con_type={field_kind('con')} con_state={con_state} power_type={field_kind('power')} "
+            f"object_state={object_state} dly_type={field_kind('dly')} dly_state={delay_state}")
 
 
 def response_summary(response):

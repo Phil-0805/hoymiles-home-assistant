@@ -6,15 +6,17 @@
         "title": "S-Miles Home erneut anmelden",
         "description": "Das Passwort für das bestehende Konto erneut eingeben. Anlage, Entitäten und Verlauf bleiben erhalten.",
         "data": {
-          "password": "Passwort"
+          "password": "Passwort",
+          "client_profile": "Kontotyp"
         }
       },
       "user": {
         "title": "Mit S-Miles Home verbinden",
-        "description": "Melde dich mit deinem S-Miles-Home-Konto an. Anschließend kannst du eine Anlage auswählen.",
+        "description": "Mit dem Kontotyp deiner offiziellen App anmelden: S-Miles Home, S-Miles Installer oder S-Miles Enduser. Installer und Enduser sind experimentell und unterstützen nur Messwerte; keine Steuerungen oder zusätzlichen Gerätedaten.",
         "data": {
           "username": "E-Mail",
-          "password": "Passwort"
+          "password": "Passwort",
+          "client_profile": "Kontotyp"
         }
       },
       "select_station": {
@@ -34,8 +36,10 @@
     },
     "error": {
       "cannot_connect": "Verbindung zu Hoymiles fehlgeschlagen",
-      "invalid_auth": "S-Miles Home hat die Anmeldung abgelehnt",
+      "invalid_auth": "Hoymiles hat die Anmeldung abgelehnt",
       "invalid_station": "Für diese Anlagen-ID wurden keine Geräte gefunden. Prüfe die Nummer und den Kontozugriff.",
+      "unsupported_station": "Dieser Anlagentyp wird vom ausgewählten Kontoprofil noch nicht unterstützt.",
+      "invalid_station_response": "Hoymiles hat ein unerwartetes Anlagen-Datenformat geliefert. Der Prüfgrund steht im Integrationsprotokoll.",
       "unknown": "Unerwarteter Fehler",
       "discovery_failed": "Die Anlagenliste konnte nicht geladen werden. Du kannst die Station-ID manuell eingeben.",
       "no_stations": "Das Konto hat keine Anlagen in der Liste zurückgegeben. Falls du deine Station-ID kennst, kannst du sie manuell eingeben.",
@@ -108,12 +112,19 @@
   },
   "options": {
     "step": {
+      "enduser": {
+        "title": "Zeitzone der Anlage",
+        "description": "Wähle die Zeitzone deiner Anlage für die Tagesgrenzen der Energiewerte.",
+        "data": {
+          "station_timezone": "Zeitzone der Anlage"
+        }
+      },
       "init": {
         "title": "Anlageneinstellungen",
         "description": "Vergleiche die Attribute pv und pv2 des Sensors PV-Leistung mit der S-Miles-Home-App. Wähle eine andere Quelle nur, wenn der Vergleich das bestätigt. Automatisch behält das bisherige Verhalten bei: pv2, falls verfügbar, sonst pv; auch 0 ist ein gültiger Wert. Die Auswahl ändert nur die Anzeige in HA. Batterietemperaturen werden automatisch höchstens alle fünf Minuten gelesen. Zusätzliche Wechselrichterwerte sind optional. Wähle die tatsächliche Zeitzone der Anlage für Tagesgrenzen und Diagramme. Batteriebefehle sind standardmäßig gesperrt, auch nach einem Update. Aktiviere die Batteriesteuerung nur, wenn Home Assistant Modus, Reserve-SOC und die separaten Lade-/Entladeschlussstufen ändern darf. Schlussstufen und Ausgangsleistung werden zusätzlich alle 30 Minuten gelesen. Die Ausgangsleistung ist auf den frisch gemeldeten Höchstwert begrenzt; die neue Steuerung benötigt noch einen Gerätetest. Gleichzeitige Änderungen in der S-Miles-Home-App vermeiden. Gerätesteuerung liest zusätzlich Heizungs- und Displayeinstellungen alle 30 Minuten. Sie ist separat standardmäßig gesperrt. Der Heizungsschalter erlaubt das automatische Heizen; er erzwingt keinen laufenden Heizbetrieb. Je nach Gerät sind nicht alle Lichtfunktionen verfügbar.",
         "data": {
           "device_controls": "Gerätesteuerung freigeben (Heizung, Licht und Display; Beta)",
-          "battery_controls": "Batteriesteuerung freigeben (Modus, SOC und Ausgangsleistung)",
+          "battery_controls": "Steuerung freigeben (Batteriemodus, SOC und Ausgangsleistung)",
           "pv_power_source": "Quelle der PV-Leistung",
           "inverter_details": "Zusätzliche Wechselrichter-Messwerte (Beta)",
           "station_timezone": "Zeitzone der Anlage"
@@ -122,6 +133,7 @@
     }
   },
   "selector": {
+    "client_profile": {"options": {"home": "S-Miles Home", "installer": "S-Miles Installer (experimentell, nur Lesen)", "enduser": "S-Miles Enduser (experimentell, nur Lesen)"}},
     "pv_power_source": {
       "options": {
         "auto": "Automatisch (bisheriges Verhalten)",

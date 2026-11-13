@@ -42,6 +42,12 @@ LIVE_SENSOR_KEYS = {
     "battery_charge_power", "battery_discharge_power", "battery_soc",
     "battery_activity", "ems", "brs", "chs", "bhs",
 }
+ENDUSER_SENSOR_KEYS = {
+    "pv_power", "grid_power", "load_power", "battery_power", "battery_soc",
+    "battery_charge_power", "battery_discharge_power", "battery_activity",
+    "load_energy_today", "battery_charge_energy_today", "battery_discharge_energy_today",
+    "today_energy", "month_energy", "year_energy", "total_energy",
+}
 
 
 def _live(key: str) -> Callable[[dict[str, Any]], Any]:
@@ -65,6 +71,8 @@ def _pv_attributes(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def _status_attributes(data: dict[str, Any]) -> dict[str, Any]:
+    if data.get("live", {}).get("_enduser_schema") == "es":
+        return {"direction_mapping": "Enduser flow: battery inflow=charging, outflow=discharging"}
     return {"raw_codes": status_codes(data.get("live", {})),
             "direction_mapping": "brs: 0=idle, 1=charging, 2=discharging",
             "mapping_verified_on": "HMS-2000-4WB, HiBattery 4020-X",
@@ -305,11 +313,15 @@ async def async_setup_entry(
 ) -> None:
     """Set up sensor entities."""
     coordinator: HoymilesHomeCoordinator = hass.data[DOMAIN][entry.entry_id]
+    enduser = getattr(getattr(coordinator, "client", None), "profile", "home") == "enduser"
     entities: list[SensorEntity] = [
         HoymilesStationSensor(coordinator, entry, description)
         for description in STATION_SENSORS
+        if not enduser or description.key in ENDUSER_SENSOR_KEYS
     ]
     for inverter in coordinator.inverters:
+        if enduser:
+            continue  # No evidenced Enduser module-chart implementation yet.
         for port in inverter_ports(inverter):
             for key, quota, unit, device_class in MODULE_SENSORS:
                 entities.append(
@@ -369,12 +381,25 @@ class HoymilesStationSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEn
 
     @property
     def available(self) -> bool:
+        data = self.coordinator.data or {}
+        if getattr(getattr(self.coordinator, "client", None), "profile", "home") == "enduser":
+            if self.native_value is None:
+                return False
+            calculated_source = {"load_energy_today": "load", "battery_charge_energy_today": "bat",
+                                 "battery_discharge_energy_today": "bat"}.get(self.entity_description.key)
+            if calculated_source and _number(live_power(data).get(calculated_source)) is None:
+                return False
+        if (self.entity_description.key in LIVE_SENSOR_KEYS | {
+                "load_energy_today", "battery_charge_energy_today", "battery_discharge_energy_today"}
+                and data.get("live_available", True) is not True):
+            return False
         if self.entity_description.key in {"today_energy", "month_energy", "year_energy", "total_energy"}:
             if not self.coordinator.station_is_fresh(self.entity_description.key):
                 return False
         return super().available and (
             self.entity_description.key not in LIVE_SENSOR_KEYS
             or live_connected((self.coordinator.data or {}).get("live", {}))
+            or (self.entity_description.key == "pv_power" and self.native_value == 0)
         )
 
     @property
@@ -427,8 +452,9 @@ class HoymilesModuleSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEnt
     def available(self) -> bool:
         return (
             super().available
-            and live_connected((self.coordinator.data or {}).get("live", {}))
-            and self.coordinator.module_is_fresh(self._inverter_id, self._port)
+            and (live_connected((self.coordinator.data or {}).get("live", {}))
+                 or (self._quota == "MODULE_POWER" and _number(self.native_value) == 0))
+            and self.coordinator.module_is_fresh(self._inverter_id, self._port, self._quota)
         )
 
     @property
@@ -440,6 +466,15 @@ class HoymilesModuleSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEnt
             .get(self._port, {})
             .get(self._quota)
         )
+
+    @property
+    def extra_state_attributes(self):
+        stamp = self.coordinator.module_polling.module_field_updated.get(
+            (self._inverter_id, self._port, self._quota))
+        return {"sample_time": stamp.isoformat() if stamp is not None else None,
+                "last_valid_value": _number(self.native_value),
+                "sample_status": "unavailable" if stamp is None else
+                "fresh" if self.coordinator.module_is_fresh(self._inverter_id, self._port, self._quota) else "stale"}
 
 
 class HoymilesInverterDetailSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEntity):
@@ -479,9 +514,11 @@ class HoymilesInverterDetailSensor(CoordinatorEntity[HoymilesHomeCoordinator], S
 
     @property
     def extra_state_attributes(self):
-        return {"sample_time": (self.coordinator.data or {}).get("inverter_details", {}).get(
-            self._inverter_id, {}
-        ).get(f"{self._key}_sample_time")}
+        values = (self.coordinator.data or {}).get("inverter_details", {}).get(self._inverter_id, {})
+        stamp = values.get(f"{self._key}_sample_time")
+        return {"sample_time": stamp, "last_valid_value": _number(values.get(self._key)),
+                "sample_status": "unavailable" if stamp is None else
+                "fresh" if self.coordinator.module_polling.detail_is_fresh(self._inverter_id, self._key) else "stale"}
 
 
 class HoymilesBatteryTemperatureSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEntity):

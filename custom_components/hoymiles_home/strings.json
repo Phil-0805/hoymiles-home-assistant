@@ -6,15 +6,17 @@
         "title": "Reconnect to S-Miles Home",
         "description": "Enter the password for the existing account. Your plant, entities and history are retained.",
         "data": {
-          "password": "Password"
+          "password": "Password",
+          "client_profile": "Account type"
         }
       },
       "user": {
         "title": "Connect to S-Miles Home",
-        "description": "Sign in with your S-Miles Home account, then choose a plant.",
+        "description": "Choose the account type matching your official app: S-Miles Home, S-Miles Installer or S-Miles Enduser. Installer and Enduser are experimental monitoring profiles without controls or additional device telemetry.",
         "data": {
           "username": "Email",
-          "password": "Password"
+          "password": "Password",
+          "client_profile": "Account type"
         }
       },
       "select_station": {
@@ -34,8 +36,10 @@
     },
     "error": {
       "cannot_connect": "Could not connect to Hoymiles",
-      "invalid_auth": "S-Miles Home rejected authentication",
+      "invalid_auth": "Hoymiles rejected authentication",
       "invalid_station": "No devices were found for this station ID. Check the number and account access.",
+      "unsupported_station": "This plant type is not yet supported by the selected account profile.",
+      "invalid_station_response": "Hoymiles returned an unexpected plant data format. Check the integration log for the validation reason.",
       "unknown": "Unexpected error",
       "discovery_failed": "Could not load the plant list. You can enter the station ID manually.",
       "no_stations": "The account returned no plants in its list. If you know your station ID, you can enter it manually.",
@@ -108,12 +112,19 @@
   },
   "options": {
     "step": {
+      "enduser": {
+        "title": "Plant timezone",
+        "description": "Choose your plant’s timezone for daily energy boundaries.",
+        "data": {
+          "station_timezone": "Station timezone"
+        }
+      },
       "init": {
         "title": "Station settings",
         "description": "Compare the PV power sensor attributes pv and pv2 with the S-Miles Home app. Select another source only after confirming the match. Automatic preserves the existing behavior: pv2 when available, otherwise pv; zero is a valid value. This changes only the display in HA. Battery temperatures are read automatically at most every five minutes. Additional inverter telemetry is optional. Select the actual station timezone for daily boundaries and charts. Battery commands are disabled by default, including after an upgrade. Enable battery controls only if Home Assistant should change the mode, reserve SOC and separate charge/discharge cutoffs. Cutoffs and output power add reads every 30 minutes. Output power is bounded by the freshly reported maximum; the new control still needs device testing. Avoid simultaneous changes in the S-Miles Home app. Device controls additionally read heating and display settings every 30 minutes and are separately disabled by default. The heating switch permits automatic heating; it does not force the heater to run. Available lighting functions depend on the device.",
         "data": {
           "device_controls": "Allow device controls (heating, light and display; beta)",
-          "battery_controls": "Allow battery controls (mode, SOC and output power)",
+          "battery_controls": "Allow controls (battery mode, SOC and output power)",
           "pv_power_source": "PV power source",
           "inverter_details": "Additional inverter telemetry (beta)",
           "station_timezone": "Station timezone"
@@ -122,6 +133,7 @@
     }
   },
   "selector": {
+    "client_profile": {"options": {"home": "S-Miles Home", "installer": "S-Miles Installer (experimental, read only)", "enduser": "S-Miles Enduser (experimental, read only)"}},
     "pv_power_source": {
       "options": {
         "auto": "Automatic (existing behavior)",

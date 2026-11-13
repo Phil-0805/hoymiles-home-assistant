@@ -32,6 +32,13 @@ AUTH_REDIRECT_HOSTS = frozenset({"euapi.hoymiles.com", "neapi.hoymiles.com", "in
 AUTH_PATHS = frozenset({"/iam/pub/3/auth/pre-insp", "/iam/pub/3/auth/login"})
 
 
+def trusted_auth_base(value: str) -> bool:
+    """Routing responses may name only an exact production authentication base."""
+    return isinstance(value, str) and value in {
+        f"https://{host}{suffix}" for host in AUTH_REDIRECT_HOSTS for suffix in ("", "/")
+    }
+
+
 def trusted_auth_redirect(source: str, target: str) -> bool:
     """Allow one same-operation auth reroute, not arbitrary token forwarding."""
     if not isinstance(target, str) or len(target) > 4096:

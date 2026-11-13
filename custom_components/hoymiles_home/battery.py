@@ -6,6 +6,7 @@ from typing import Any
 from math import isfinite
 from copy import deepcopy
 import json
+import re
 
 BATTERY_MODE_NAMES = {
     1: "Self-Consumption",
@@ -33,10 +34,13 @@ WRITABLE_BATTERY_MODES = {1, 2, 3, 4, 7, 8}
 
 def writable_modes(settings: dict[str, Any]) -> list[int]:
     """Only offer advertised modes whose control semantics are supported."""
-    modes = settings.get("available_modes")
-    if not isinstance(modes, list):
+    advertised = settings.get("available_modes")
+    modes = settings.get("writable_modes", advertised)
+    if not isinstance(modes, list) or not isinstance(advertised, list):
         return []
-    return [mode for mode in modes if type(mode) is int and mode in WRITABLE_BATTERY_MODES]
+    advertised = [mode for mode in advertised if type(mode) is int]
+    return [mode for mode in modes if type(mode) is int and mode in WRITABLE_BATTERY_MODES
+            and mode in advertised]
 
 
 class BatterySettingsError(ValueError):
@@ -135,7 +139,7 @@ def battery_setting_targets(tree: Any) -> list[dict[str, Any]]:
         dtu_serial = value.get("dtu_sn")
         device_type = value.get("type")
         if (
-            device_type == 12
+            type(device_type) is int and device_type == 12
             and isinstance(serial, str)
             and serial
             and isinstance(dtu_serial, str)
@@ -160,7 +164,7 @@ def parse_battery_settings(result: Any) -> dict[str, Any]:
         raise BatterySettingsError("Missing battery settings result")
 
     code = result.get("code")
-    if code not in (None, 0):
+    if code is not None and (type(code) is not int or code != 0):
         raise BatterySettingsError(
             "Battery settings device list is empty"
             if "device list is empty" in str(result.get("message", "")).lower()
@@ -201,6 +205,57 @@ def parse_battery_settings(result: Any) -> dict[str, Any]:
     }
 
 
+def _basic_tou_plan(plan: Any) -> dict[str, Any]:
+    """Preserve an existing basic plan, including the Android custom ID zero."""
+    if (not isinstance(plan, dict) or type(plan.get("id")) is not int
+            or not 0 <= plan["id"] <= 2**31 - 1
+            or not isinstance(plan.get("week"), list) or not 1 <= len(plan["week"]) <= 7):
+        raise BatterySettingsError("TOU basic plan must already be configured in the app")
+    used_days = set()
+    for group in plan["week"]:
+        if not isinstance(group, dict):
+            raise BatterySettingsError("Invalid TOU weekday group")
+        days, periods = group.get("week"), group.get("dcs")
+        if (not isinstance(days, list) or not days
+                or any(type(day) is not int or not 1 <= day <= 7 for day in days)
+                or len(set(days)) != len(days) or used_days.intersection(days)
+                or not isinstance(periods, list) or not periods):
+            raise BatterySettingsError("Invalid TOU weekday group")
+        used_days.update(days)
+        intervals = []
+        for period in periods:
+            if (not isinstance(period, dict) or type(period.get("type")) is not int
+                    or period["type"] not in (1, 2, 3, 4, 255)):
+                raise BatterySettingsError("Unsupported TOU period action")
+            times = []
+            for key in ("start_time", "end_time"):
+                value = period.get(key)
+                if not isinstance(value, str) or not re.fullmatch(r"(?:[01][0-9]|2[0-3]):[0-5][0-9]", value):
+                    raise BatterySettingsError("Invalid TOU period time")
+                hour, minute = value.split(":")
+                times.append(int(hour) * 60 + int(minute))
+            if times[0] >= times[1]:
+                raise BatterySettingsError("Invalid TOU period interval")
+            intervals.append(times)
+            for key in ("soc_l", "soc_h", "power_l", "power_h"):
+                if key in period:
+                    value = period[key]
+                    maximum = 100 if key.startswith("soc_") else 2**31 - 1
+                    if type(value) is not int or not 0 <= value <= maximum:
+                        raise BatterySettingsError("Invalid TOU period limits")
+        ordered = sorted(intervals)
+        if any(left[1] > right[0] for left, right in zip(ordered, ordered[1:])):
+            raise BatterySettingsError("Overlapping TOU periods")
+    # Retain fields supplied by the device; never synthesize or clamp a plan.
+    result = {"id": plan["id"], "week": deepcopy(plan["week"])}
+    try:
+        if len(json.dumps(result, allow_nan=False)) > 65536:
+            raise ValueError("oversized schedule")
+    except (ValueError, TypeError, RecursionError) as err:
+        raise BatterySettingsError("Invalid TOU schedule") from err
+    return result
+
+
 def _tou_settings(raw: Any, *, command: bool = False) -> dict[str, Any]:
     """Reuse an existing action-83 TOU selection; never create a schedule."""
     if not isinstance(raw, dict) or type(raw.get("mode")) is not int:
@@ -210,18 +265,7 @@ def _tou_settings(raw: Any, *, command: bool = False) -> dict[str, Any]:
         return {"mode": 1}  # Existing recommended configuration.
     if submode == 2:
         plan = raw.get("data" if command else "k_2")
-        if (not isinstance(plan, dict) or type(plan.get("id")) is not int
-                or plan["id"] <= 0 or not isinstance(plan.get("week"), list)
-                or not 1 <= len(plan["week"]) <= 7
-                or not all(isinstance(day, dict) for day in plan["week"])):
-            raise BatterySettingsError("TOU basic plan must already be configured in the app")
-        result = {"mode": 2, "data": {"id": plan["id"], "week": deepcopy(plan["week"])}}
-        try:
-            if len(json.dumps(result, allow_nan=False)) > 65536:
-                raise ValueError("oversized schedule")
-        except (ValueError, TypeError, RecursionError) as err:
-            raise BatterySettingsError("Invalid TOU schedule") from err
-        return result
+        return {"mode": 2, "data": _basic_tou_plan(plan)}
     if submode == 3:
         plan = raw if command else raw.get("k_3")
         if not isinstance(plan, dict) or type(plan.get("id")) is not int or plan["id"] <= 0:
@@ -249,7 +293,7 @@ def work_mode_command_data(mode: int, settings: dict[str, Any]) -> dict[str, Any
 
 def parse_work_mode_settings(result: Any) -> dict[str, Any]:
     """Read action 83: app mode 2 is self-consumption, 3 is TOU (not BMS ids)."""
-    if not isinstance(result, dict) or result.get("code") != 0:
+    if not isinstance(result, dict) or type(result.get("code")) is not int or result["code"] != 0:
         raise BatterySettingsError("Work mode settings are not ready")
     data = result.get("data")
     if not isinstance(data, dict) or type(data.get("mode")) is not int or data["mode"] not in (2, 3):
@@ -262,8 +306,10 @@ def parse_work_mode_settings(result: Any) -> dict[str, Any]:
     if "soc_l" in data:
         if isinstance(self_data, dict) and any(key in self_data and self_data[key] != data[key]
                                               for key in ("soc_l", "soc_h") if key in data):
-            raise BatterySettingsError("Conflicting work mode SOC settings")
-        self_data = data
+            # The mode remains readable, but ambiguous SOC must never be sent.
+            self_data = None
+        else:
+            self_data = data
         source = "station_action_83_soc_l"
     if isinstance(self_data, dict):
         candidate = {"reserve_soc": self_data.get("soc_l"), "soc_h": self_data.get("soc_h", 100)}
@@ -271,27 +317,26 @@ def parse_work_mode_settings(result: Any) -> dict[str, Any]:
             payload = work_mode_command_data(1, candidate)
             modes[1] = {"reserve_soc": payload["soc_l"], "soc_l": payload["soc_l"], "soc_h": payload["soc_h"]}
         except BatterySettingsError:
-            if data["mode"] == 2:
-                raise
+            pass
     try:
         modes[8] = {"tou_settings": _tou_settings(data.get("k_3"))}
     except BatterySettingsError:
-        if data["mode"] == 3:
-            raise
+        pass
     mode = 1 if data["mode"] == 2 else 8
-    if mode not in modes:
-        raise BatterySettingsError("Missing active work mode settings")
+    available = list(modes)
+    if mode not in available:
+        available.append(mode)
     return {
-        "readable": True, "writable": True,
+        "readable": True, "writable": bool(modes),
         "mode": mode, "mode_name": BATTERY_MODE_NAMES[mode],
         "app_work_mode": data["mode"],
-        "available_modes": list(modes),
-        "available_mode_names": [BATTERY_MODE_NAMES[item] for item in modes],
-        "active_settings": deepcopy(modes[mode]), "mode_settings": modes,
+        "available_modes": available, "writable_modes": list(modes),
+        "available_mode_names": [BATTERY_MODE_NAMES[item] for item in available],
+        "active_settings": deepcopy(modes.get(mode, {})), "mode_settings": modes,
         "request_method": "station_action_83",
-        "reserve_soc_verified": mode == 1,
-        "reserve_soc_source": source if mode == 1 else None,
-        "work_mode_upper_soc_explicit": mode == 1 and "soc_h" in self_data,
+        "reserve_soc_verified": mode == 1 and mode in modes,
+        "reserve_soc_source": source if mode == 1 and mode in modes else None,
+        "work_mode_upper_soc_explicit": mode == 1 and mode in modes and "soc_h" in self_data,
     }
 
 
@@ -379,6 +424,7 @@ def battery_settings_attributes(settings: dict[str, Any]) -> dict[str, Any]:
     return {
         "mode": mode if type(mode) is int and mode in BATTERY_MODE_NAMES else None,
         "available_modes": modes,
+        "writable_modes": writable_modes(settings),
         "available_mode_names": [BATTERY_MODE_NAMES[item] for item in modes],
         "active_settings": numeric_fields(settings.get("active_settings")),
         "mode_settings": {

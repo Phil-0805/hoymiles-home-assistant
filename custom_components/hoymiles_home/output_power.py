@@ -2,11 +2,13 @@
 
 import asyncio
 from copy import deepcopy
+from datetime import UTC, datetime
 import json
 
 from . import device_settings as settings_runtime
 from .device_settings import DeviceSettings, setting_integer, settings_equal
 from .errors import HoymilesAuthError, HoymilesConnectionError, HoymilesSettingsError
+from .inverter import standalone_hms_target
 
 
 def output_phases(data):
@@ -78,16 +80,46 @@ def output_write_data(settings, value):
 class OutputPowerSettings(DeviceSettings):
     """Reuse scheduled reads and cooldowns; preserve current phase settings."""
 
-    def __init__(self, *args):
+    def __init__(self, *args, get_inverters=None):
         super().__init__(*args, features=("output_power",))
         self.output = None
+        self.confirmed_target = None
+        self.get_inverters = get_inverters or (lambda: [])
+
+    def _target(self, feature):
+        tree = self.get_tree()
+        standalone = standalone_hms_target(tree, self.get_inverters())
+        if standalone is not None:
+            return {"station_id": self.station_id, **standalone}
+        return super()._target(feature)
 
     async def _read(self, feature, target=None):
         return validate_output_settings(await self.client.async_output_power_settings(self.station_id))
 
     def _store(self, feature, value):
         self.output = deepcopy(value)
+        self.confirmed_target = deepcopy(self.target)
         self._mark_readable(feature)
+
+    def display_status(self):
+        """A confirmed setting can outlive a failed read, bound to its target.
+
+        This is presentation only. Every change still runs the existing locked
+        fresh-read preflight and full readback; a retained range grants no write.
+        """
+        if (not self.enabled or self.stopped or not self.may_write()
+                or self.output is None or self.confirmed_target is None
+                or "output_power" not in self.updated
+                or self.target != self.confirmed_target
+                or self._target("output_power") != self.confirmed_target):
+            return "unavailable"
+        return "current" if self.available("output_power") else "last_confirmed"
+
+    def confirmed_age_seconds(self):
+        stamp = self.updated.get("output_power")
+        if stamp is None:
+            return None
+        return max(0, min(2**31 - 1, int((datetime.now(UTC) - stamp).total_seconds())))
 
     async def async_set_power(self, value):
         if type(value) is not int or not 100 <= value <= 2**31 - 1:
@@ -100,7 +132,7 @@ class OutputPowerSettings(DeviceSettings):
                     raise HoymilesConnectionError("Output power settings are unavailable")
                 target = self._target(feature)
                 if target is None or target != self.target:
-                    raise HoymilesConnectionError("Battery controller changed or is ambiguous")
+                    raise HoymilesConnectionError("Output control target changed or is ambiguous")
                 cached = self.output
                 fresh = await self._read(feature)
                 self._store(feature, fresh)
@@ -113,7 +145,7 @@ class OutputPowerSettings(DeviceSettings):
                     return
                 self._check_controls()
                 if self._target(feature) != target:
-                    raise HoymilesConnectionError("Battery controller changed during preflight")
+                    raise HoymilesConnectionError("Output control target changed during preflight")
                 await self.client.async_write_output_power_settings(self.station_id, fresh, value)
                 for attempt in range(settings_runtime.READBACK_ATTEMPTS):
                     if self.stopped:
