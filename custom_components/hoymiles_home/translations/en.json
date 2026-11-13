@@ -39,6 +39,7 @@
       "invalid_auth": "Hoymiles rejected authentication",
       "invalid_station": "No devices were found for this station ID. Check the number and account access.",
       "unsupported_station": "This plant type is not yet supported by the selected account profile.",
+      "invalid_station_response": "Hoymiles returned an unexpected plant data format. Check the integration log for the validation reason.",
       "unknown": "Unexpected error",
       "discovery_failed": "Could not load the plant list. You can enter the station ID manually.",
       "no_stations": "The account returned no plants in its list. If you know your station ID, you can enter it manually.",

@@ -55,7 +55,9 @@ REASONS = frozenset({"http_error", "timeout", "transport_error", "redirect_rejec
                      "unexpected_response", "authentication", "rate_limited", "connection", "unexpected_error",
                      "unsupported_auth_version", "unsupported_auth_region", "invalid_auth_routing",
                      "session_expired", "client_update_required", "home_app_required",
-                     "invalid_work_mode_settings", "unsupported_profile_operation", "account_action_required"})
+                     "invalid_work_mode_settings", "unsupported_profile_operation", "account_action_required",
+                     "invalid_enduser_metadata", "invalid_enduser_station_id",
+                     "invalid_enduser_classification", "invalid_enduser_tree"})
 
 
 def cloud_failure_reason(response):
