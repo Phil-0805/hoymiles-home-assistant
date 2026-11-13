@@ -251,3 +251,6 @@ Speicher-/Hybrid-Antwortformate sowie Ertragswerte, soweit die Cloud die
 Standardfelder liefert. Home-Steuerungen, Moduldiagramme und zusätzliche
 Wechselrichter-Messwerte sind nicht freigegeben. Der Gerätetest steht noch aus; das Profil ist experimentell.
 Siehe [Protokoll, Umfang und Testhinweise](docs/enduser-app-protocol.md).
+
+B13 akzeptiert zusätzlich app-konforme Enduser-Antwortformate bei der Einrichtung
+und unterscheidet die Prüfgründe; siehe [b13-Testanleitung](docs/release-0.6.1b13.md).

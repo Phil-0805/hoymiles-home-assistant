@@ -237,7 +237,11 @@ class HoymilesHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return await self._async_login_form_with_error()
             except HoymilesConnectionError as err:
                 log_failure("station_validation", err)
-                errors["base"] = ("unsupported_station" if getattr(err, "reason", None) == "unsupported_profile_operation"
+                reason = getattr(err, "reason", None)
+                errors["base"] = ("unsupported_station" if reason == "unsupported_profile_operation"
+                                  else "invalid_station_response" if reason in {
+                                      "invalid_enduser_metadata", "invalid_enduser_station_id",
+                                      "invalid_enduser_classification", "invalid_enduser_tree"}
                                   else "cannot_connect")
             except Exception as err:  # noqa: BLE001
                 log_failure("station_validation", err)

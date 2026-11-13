@@ -39,6 +39,7 @@
       "invalid_auth": "Hoymiles hat die Anmeldung abgelehnt",
       "invalid_station": "Für diese Anlagen-ID wurden keine Geräte gefunden. Prüfe die Nummer und den Kontozugriff.",
       "unsupported_station": "Dieser Anlagentyp wird vom ausgewählten Kontoprofil noch nicht unterstützt.",
+      "invalid_station_response": "Hoymiles hat ein unerwartetes Anlagen-Datenformat geliefert. Der Prüfgrund steht im Integrationsprotokoll.",
       "unknown": "Unerwarteter Fehler",
       "discovery_failed": "Die Anlagenliste konnte nicht geladen werden. Du kannst die Station-ID manuell eingeben.",
       "no_stations": "Das Konto hat keine Anlagen in der Liste zurückgegeben. Falls du deine Station-ID kennst, kannst du sie manuell eingeben.",

@@ -232,6 +232,40 @@ import/export and charging/discharging directions. Report fixed diagnostic
 stage/reason labels only on failure. An Android static comparison and synthetic
 tests do not establish iOS/server compatibility or physical device behavior.
 
+## Local follow-up after b12 feedback
+
+The reporter confirms successful Enduser authentication and plant discovery in
+b12, followed by setup failure `stage=station_validation reason=unexpected_response`.
+This establishes a failure after selection, but does not identify whether
+station metadata or the device tree failed validation. No raw reply or field
+types were supplied; the actual cause remains unconfirmed.
+
+The b12 code requires JSON integers for metadata/device identity and assumes
+already decoded `data` objects/arrays. The APK instead parses
+`StationInfoBean` with `JSON.parseObject` and `StationTreeBean` with
+`JSON.parseArray` from `BaseDataResponse.data`; its bundled FastJSON
+`TypeUtils.castToInt` explicitly accepts decimal strings via
+`Integer.parseInt`. This is a source-proven compatibility gap, not evidence
+that the reporter received that particular representation.
+
+The b13 correction accepts bounded embedded JSON once, and canonicalizes
+only known Enduser `id/type/station_id/classify` integer fields using the
+existing strict decimal-string parser. Boolean, float, nondecimal, oversized,
+missing, nonpositive and mismatched identities remain rejected. Device nodes
+are copied, not mutated; duplicate/conflicting identities, invalid children
+and tree size limits remain enforced. Home/Installer behavior, requests,
+permissions and polling are unchanged.
+
+Setup reasons now distinguish `invalid_enduser_metadata`,
+`invalid_enduser_station_id`, `invalid_enduser_classification` and
+`invalid_enduser_tree`; they contain no server text, identifiers or values.
+Malformed embedded JSON still fails, and no repeated decoding is attempted.
+No alternate API operation, manufactured ID, arbitrary device choice or
+permission bypass is introduced. Synthetic tests exercise object/text
+representations, numeric strings, identity rejection and log privacy. Local validation: 1312 HA tests plus 134 subtests on HA 2026.11.0 and 56
+unit tests pass; syntax, translation-key parity and whitespace checks pass. A
+new device test remains necessary before calling this the reporter's confirmed fix.
+
 ## Selected source hashes
 
 Paths below are relative to the archived JADX `sources` directory.
@@ -244,3 +278,4 @@ Paths below are relative to the archived JADX `sources` directory.
 | `com/hoymiles/http/HttpHelper.java` | `a63c9eac57c2bef87db3e3cc63f09e33bf8920ecaba29c22d5656b8c6ee5225f` |
 | `com/hoymiles/fragment/PowerTab1FragmentV3Es.java` | `f2489e70d1f3bfdc3e703c1d13cc794cdbbc52ffa3c4b50178a638a3d69508f1` |
 | `com/hoymiles/bean/StationDataSecondEsBean.java` | `067da93bde29d79775f79f3a34366745996410a369f7dc766b03bbf7e1cd47b7` |
+| `com/alibaba/fastjson/util/TypeUtils.java` | `5ecb4f06073314968443a9b450bc2f8f2783e9313bffd8911003d2cbc3f4bf8d` |

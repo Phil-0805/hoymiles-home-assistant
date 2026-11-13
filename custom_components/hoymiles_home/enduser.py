@@ -6,9 +6,37 @@ invented. ES flow nodes: grid=1, battery=2, solar=4, load=10, charger=50.
 
 from .cloud_logging import CloudDiagnosticError
 from .telemetry import number
+from .device_settings import setting_integer
 
 ES_CLASSIFICATIONS = frozenset({4, 5, 100})
 SUPPORTED_CLASSIFICATIONS = ES_CLASSIFICATIONS | {1}
+
+
+def normalize_tree(tree):
+    """Canonicalize only app integer fields; retain all identity checks afterward."""
+    if not isinstance(tree, list):
+        raise CloudDiagnosticError("invalid_enduser_tree", "Invalid Enduser device tree")
+    result = []
+    pending = [(tree, result)]
+    visited = 0
+    while pending:
+        nodes, destination = pending.pop()
+        for node in nodes:
+            visited += 1
+            if visited > 4096 or not isinstance(node, dict):
+                raise CloudDiagnosticError("invalid_enduser_tree", "Invalid Enduser device tree")
+            normalized = dict(node)
+            for key in ("id", "type", "station_id"):
+                if key in node:
+                    normalized[key] = setting_integer(node[key], 2**31 - 1)
+            children = node.get("children")
+            if isinstance(children, list):
+                normalized["children"] = []
+                pending.append((children, normalized["children"]))
+            elif children is not None:
+                raise CloudDiagnosticError("invalid_enduser_tree", "Invalid Enduser device children")
+            destination.append(normalized)
+    return result
 
 
 def _direction(flows, node):

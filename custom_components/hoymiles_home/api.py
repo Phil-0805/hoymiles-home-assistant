@@ -57,6 +57,7 @@ from .cloud_logging import (
 from .cloud_runtime import AccountRuntime, retry_delay
 from .enduser import (
     ES_CLASSIFICATIONS, SUPPORTED_CLASSIFICATIONS,
+    normalize_tree as normalize_enduser_tree,
     parse_live as parse_enduser_live, parse_totals as parse_enduser_totals,
 )
 from .errors import (
@@ -79,7 +80,7 @@ async def _bounded_json(response) -> dict[str, Any]:
     return _decode_json(b"".join(chunks))
 
 
-def _decode_json(raw: bytes | str) -> dict[str, Any]:
+def _decode_json(raw: bytes | str, *, allow_array: bool = False) -> Any:
     """Apply the same limits to HTTP bodies and JSON embedded in text fields."""
     try:
         size = len(raw.encode("utf-8")) if isinstance(raw, str) else len(raw)
@@ -88,7 +89,7 @@ def _decode_json(raw: bytes | str) -> dict[str, Any]:
         data = json.loads(raw)
     except (ValueError, UnicodeError, RecursionError):
         raise CloudDiagnosticError("invalid_json", "Invalid JSON response") from None
-    if not isinstance(data, dict):
+    if not isinstance(data, (dict, list) if allow_array else dict):
         raise CloudDiagnosticError("unexpected_response", "Unexpected API response")
     pending = [(data, 0)]
     while pending:
@@ -436,6 +437,15 @@ class HoymilesHomeClient:
             {"sid": station_id} if self.supports_home_features else {"id": station_id},
         )
         tree = self._unwrap(response)
+        if self.profile == "enduser":
+            if isinstance(tree, str):
+                tree = _decode_json(tree, allow_array=True)
+            tree = normalize_enduser_tree(tree)
+            try:
+                self._validate_installer_tree(tree, station_id)
+            except CloudDiagnosticError:
+                raise CloudDiagnosticError("invalid_enduser_tree", "Invalid Enduser device identity") from None
+            return tree
         if tree is None or self.supports_home_features and not tree:
             tree = []
         if not self.supports_home_features:
@@ -605,12 +615,19 @@ class HoymilesHomeClient:
             if station_id not in self._station_classifications:
                 data = self._unwrap(await self._json(
                     f"{DATA_BASE_URL}/pvm/api/0/station/find", {"id": station_id}))
-                if (not isinstance(data, dict) or type(data.get("id")) is not int
-                        or data["id"] != station_id or type(data.get("classify")) is not int):
-                    raise CloudDiagnosticError("unexpected_response", "Invalid Enduser station identity")
-                if data["classify"] not in SUPPORTED_CLASSIFICATIONS:
+                if isinstance(data, str):
+                    data = _decode_json(data)
+                if not isinstance(data, dict):
+                    raise CloudDiagnosticError("invalid_enduser_metadata", "Invalid Enduser station metadata")
+                identity = setting_integer(data.get("id"), 2**31 - 1)
+                classification = setting_integer(data.get("classify"), 2**31 - 1)
+                if identity is None or identity != station_id:
+                    raise CloudDiagnosticError("invalid_enduser_station_id", "Invalid Enduser station identity")
+                if classification is None:
+                    raise CloudDiagnosticError("invalid_enduser_classification", "Invalid Enduser station classification")
+                if classification not in SUPPORTED_CLASSIFICATIONS:
                     raise CloudDiagnosticError("unsupported_profile_operation", "Unsupported Enduser station classification")
-                self._station_classifications[station_id] = data["classify"]
+                self._station_classifications[station_id] = classification
             return self._station_classifications[station_id]
 
     async def _async_list_enduser_stations(self) -> list[dict[str, Any]]:
