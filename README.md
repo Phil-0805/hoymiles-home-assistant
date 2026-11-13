@@ -233,3 +233,6 @@ telemetry are not enabled. Device testing is pending; this profile is experiment
 
 B13 additionally accepts app-compatible Enduser setup response representations
 and provides specific validation reasons; see [the b13 test instructions](docs/release-0.6.1b13.md).
+
+B14 validates Enduser station access without requiring the optional device tree
+for station monitoring; see [the b14 test instructions](docs/release-0.6.1b14.md).

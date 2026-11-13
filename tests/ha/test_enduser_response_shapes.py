@@ -80,7 +80,7 @@ async def test_response_validation_is_not_displayed_as_transport_failure(hass, c
     from unittest.mock import patch
     from homeassistant.config_entries import SOURCE_USER
     from custom_components.hoymiles_home.const import DOMAIN
-    client.async_device_tree.side_effect = CloudDiagnosticError(reason, "Invalid Enduser response")
+    client.async_validate_station.side_effect = CloudDiagnosticError(reason, "Invalid Enduser response")
     with patch("custom_components.hoymiles_home.config_flow.HoymilesHomeClient", return_value=client):
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
         result = await hass.config_entries.flow.async_configure(result["flow_id"], {

@@ -64,6 +64,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=LIVE_MIN_INTERVAL,
         )
         self.home_features = getattr(client, "supports_home_features", True) is not False
+        self.station_only = getattr(client, "profile", "home") == "enduser"
         self.battery_controls = battery_controls is True and self.home_features
         self.client = client
         self.station_id = station_id
@@ -479,12 +480,15 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if not live_available:
                 self._reset_energy_samples()
                 if not self._station_access_validated:
-                    stations = await self.client.async_list_stations()
-                    if (type(self.station_id) is not int or self.station_id <= 0 or not isinstance(stations, list)
-                            or not any(isinstance(station, dict)
-                                       and type(station.get("sid")) is int
-                                       and station["sid"] == self.station_id for station in stations)):
-                        raise HoymilesConnectionError("Selected station is not accessible to this account")
+                    if self.station_only:
+                        await self.client.async_validate_station(self.station_id)
+                    else:
+                        stations = await self.client.async_list_stations()
+                        if (type(self.station_id) is not int or self.station_id <= 0 or not isinstance(stations, list)
+                                or not any(isinstance(station, dict)
+                                           and type(station.get("sid")) is int
+                                           and station["sid"] == self.station_id for station in stations)):
+                            raise HoymilesConnectionError("Selected station is not accessible to this account")
                     self._station_access_validated = True
             now = datetime.now(UTC)
             battery_energy = self._update_battery_energy(live, now)
@@ -498,7 +502,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if not live_available:
                 self.update_interval = STATION_INTERVAL
 
-            if not self.device_tree:
+            if not self.device_tree and not self.station_only:
                 tree = await self.client.async_device_tree(self.station_id)
                 if not isinstance(tree, (list, dict)):
                     raise HoymilesConnectionError("Invalid station device tree")

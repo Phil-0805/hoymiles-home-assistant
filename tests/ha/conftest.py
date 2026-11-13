@@ -27,4 +27,5 @@ def client():
             return_value=[{"sid": 123, "name": "Home"}, {"sid": 456, "name": "Home"}]
         )
         api.async_device_tree = AsyncMock(return_value=[{"id": 999, "type": 3}])
+        api.async_validate_station = AsyncMock()
         yield api

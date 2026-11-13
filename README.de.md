@@ -254,3 +254,6 @@ Siehe [Protokoll, Umfang und Testhinweise](docs/enduser-app-protocol.md).
 
 B13 akzeptiert zusätzlich app-konforme Enduser-Antwortformate bei der Einrichtung
 und unterscheidet die Prüfgründe; siehe [b13-Testanleitung](docs/release-0.6.1b13.md).
+
+B14 prüft den Enduser-Stationszugriff ohne den für Stationswerte unnötigen
+Gerätebaum; siehe [b14-Testanleitung](docs/release-0.6.1b14.md).

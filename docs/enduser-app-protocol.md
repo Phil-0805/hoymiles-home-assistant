@@ -266,6 +266,45 @@ representations, numeric strings, identity rejection and log privacy. Local vali
 unit tests pass; syntax, translation-key parity and whitespace checks pass. A
 new device test remains necessary before calling this the reporter's confirmed fix.
 
+## Follow-up after b13 tree failure
+
+The reporter now supplies `stage=station_validation reason=invalid_enduser_tree`.
+In b13's actual setup sequence this occurs after exact station metadata and
+supported classification have been accepted. It narrows the failure to optional
+device data; it does not establish the rejected field or actual tree structure.
+No shape-specific tree exception or guessed device identity is justified.
+
+The current Enduser feature scope is station monitoring only. The APK's
+`PowerStationActivity` station metadata path and
+`PowerTab1FragmentV3Es.E1/W1` station Live path address the plant by station ID;
+the Live and energy requests do not need a device-tree identity. Device-tree
+parsing is a distinct capability used by device views such as
+`EquipListActivity.X0`. Requiring that whole tree for our station-only profile
+was an unnecessary startup dependency, independently of which field failed.
+
+The b14 correction validates Enduser setup through authenticated
+`station/find` metadata, still requiring the exact requested station ID and a
+supported classification. It does not create placeholder devices or fall back
+to an arbitrary plant. Neither setup nor runtime station monitoring requests a
+device tree. A missing initial Live URI uses the same exact metadata validation,
+retains the existing retry cooldown and permits station totals/recovery without
+depending on plant-list discovery. A failed or mismatched metadata response
+still blocks setup/recovery.
+
+The direct device-tree API and its strict validation remain intact for future
+device-specific work. No device or control feature is enabled, and Home/Installer
+retain their existing tree validation and discovery. Diagnostics explicitly
+state `device_tree_required:false` for Enduser. Account pacing, authentication,
+poll intervals and write boundaries are unchanged.
+
+Local validation: **1323 HA tests plus 134 subtests** on HA 2026.11.0 and
+**56 unit tests** pass. New tests exercise real HA setup with the mocked HTTP
+boundary, matching/mismatched/unsupported metadata, runtime Live/totals without
+tree requests, absent-Live startup and recovery, failed metadata authorization,
+and rejection of the station-only method for other profiles. The reporter's
+actual tree format remains unknown; this correction removes an irrelevant
+dependency rather than claiming to repair that unknown format.
+
 ## Selected source hashes
 
 Paths below are relative to the archived JADX `sources` directory.
