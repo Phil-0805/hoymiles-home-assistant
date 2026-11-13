@@ -427,6 +427,18 @@ class HoymilesHomeClient:
                     self._login_retry_at = datetime.now(UTC) + timedelta(seconds=60)
                     raise
 
+    async def async_validate_station(self, station_id: int) -> None:
+        """Validate Enduser station access independently of optional device data.
+
+        This profile exposes station monitoring only. The authenticated metadata
+        response must identify the exact requested station and a supported class.
+        Device-specific operations retain their separate, strict tree checks.
+        """
+        if self.profile != "enduser":
+            raise CloudDiagnosticError("unsupported_profile_operation", "Station-only validation requires Enduser")
+        await self.async_ensure_login()
+        await self._async_enduser_classification(station_id)
+
     async def async_device_tree(self, station_id: int) -> list[dict[str, Any]]:
         await self.async_ensure_login()
         if self.profile == "enduser":

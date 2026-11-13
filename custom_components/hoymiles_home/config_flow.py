@@ -229,9 +229,12 @@ class HoymilesHomeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors[CONF_STATION_ID] = "invalid_station_id"
         else:
             try:
-                devices = await self._client.async_device_tree(station_id)
-                if not devices:
-                    errors["base"] = "invalid_station"
+                if self._credentials.get(CONF_CLIENT_PROFILE) == "enduser":
+                    await self._client.async_validate_station(station_id)
+                else:
+                    devices = await self._client.async_device_tree(station_id)
+                    if not devices:
+                        errors["base"] = "invalid_station"
             except HoymilesAuthError as err:
                 log_failure("station_validation", err)
                 return await self._async_login_form_with_error()

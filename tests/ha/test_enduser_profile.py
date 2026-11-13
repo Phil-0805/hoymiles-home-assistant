@@ -298,7 +298,7 @@ async def test_enduser_options_exclude_home_controls_and_unrelated_pv2_selection
 
 
 async def test_unsupported_classification_has_specific_setup_error(hass, client):
-    client.async_device_tree.side_effect = CloudDiagnosticError(
+    client.async_validate_station.side_effect = CloudDiagnosticError(
         "unsupported_profile_operation", "Unsupported Enduser station classification")
     with patch("custom_components.hoymiles_home.config_flow.HoymilesHomeClient", return_value=client):
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})

@@ -144,6 +144,7 @@ async def async_get_config_entry_diagnostics(
     profile = getattr(getattr(coordinator, "client", None), "profile", "home")
     return {
         "client_profile": profile if profile in {"home", "installer", "enduser"} else "unknown",
+        "device_tree_required": profile != "enduser",
         "live_schema": live.get("_enduser_schema") if live.get("_enduser_schema") in {"es", "power"} else "home_or_installer",
         "inverters": inverters,
         "polling": {
