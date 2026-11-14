@@ -19,7 +19,10 @@ def client(*responses):
     return api
 
 
-@pytest.mark.parametrize("model,ports", [("HMS-800-2WB", [1, 2]), ("HMS-2000-4WB", [1, 2, 3, 4])])
+@pytest.mark.parametrize("model,ports", [
+    ("HMS-800-2WB", [1, 2]), ("HMS-2000-4WB", [1, 2, 3, 4]),
+    ("HMT-2250-6T", [1, 2, 3, 4, 5, 6]),
+])
 async def test_web_tree_model_no_is_used(model, ports):
     original = [{"type": 3, "id": 99, "sn": "PRIVATE"}]
     api = client({"status": "0", "data": [{"type": 1, "id": 1, "children": [

@@ -10,20 +10,26 @@ from .const import DEFAULT_PORT_COUNT
 # Only an explicit model number is evidence of a model/physical input count.
 # Serial numbers, numeric model IDs and installed PV modules are not equivalent.
 _HMS_MODEL = re.compile(r"\bHMS-\d+(?:DW|W)?-([124])(?:WB|T)\b", re.IGNORECASE)
+# HMT-1800/2250-6T: six physical PV inputs (three MPPTs, two inputs each).
+# Model/port recognition does not extend the HMS-only control target below.
+_HMT_MODEL = re.compile(r"\bHMT-(?:1800|2250)-(6)T\b", re.IGNORECASE)
 
 
 def inverter_model(inverter: dict[str, Any]) -> str:
-    """Use an explicit HMS model, otherwise avoid claiming a specific device."""
+    """Use an explicit supported model, otherwise avoid a specific device claim."""
     for key in ("model_no", "model", "model_name", "name"):
         value = inverter.get(key)
-        if isinstance(value, str) and (match := _HMS_MODEL.search(value)):
-            return match.group(0).upper()
+        if isinstance(value, str):
+            for pattern in (_HMS_MODEL, _HMT_MODEL):
+                if match := pattern.search(value):
+                    return match.group(0).upper()
     return "Hoymiles microinverter"
 
 
 def inverter_ports(inverter: dict[str, Any]) -> range:
     """Derive physical inputs from a known model; retain legacy probes if unknown."""
-    match = _HMS_MODEL.fullmatch(inverter_model(inverter))
+    model = inverter_model(inverter)
+    match = _HMS_MODEL.fullmatch(model) or _HMT_MODEL.fullmatch(model)
     count = int(match.group(1)) if match else DEFAULT_PORT_COUNT
     return range(1, count + 1)
 
