@@ -22,6 +22,12 @@ installations can update without starting over.
 
 [What changed in v0.6.1](docs/release-0.6.1.md) · [Upgrade notes](#updating-to-061)
 
+**Beta v0.6.2b1** adds six-input monitoring for explicitly identified
+HMT-1800-6T and HMT-2250-6T models, addressing missing PV5/PV6 entities.
+Device confirmation is pending; stable remains **v0.6.1**.
+[Beta notes and test steps](docs/release-0.6.2b1.md).
+History sampling is still a design proposal and is not included in b1.
+
 [Installation](#installation) · [Features](#features) · [Controls](#controls) ·
 [Beta testing](#testing-beta-versions) · [Troubleshooting](#troubleshooting)
 
