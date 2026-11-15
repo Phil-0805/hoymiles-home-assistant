@@ -8,7 +8,7 @@ import pytest
 from custom_components.hoymiles_home.api import HoymilesHomeClient
 from custom_components.hoymiles_home.cloud_logging import CloudDiagnosticError, cloud_failure_reason
 from custom_components.hoymiles_home.cloud_runtime import AccountRuntime
-from custom_components.hoymiles_home.const import AUTH_BASE_URLS, DATA_BASE_URL
+from custom_components.hoymiles_home.const import AUTH_BASE_URL, AUTH_BASE_URLS, DATA_BASE_URL, USER_AGENT
 from custom_components.hoymiles_home.errors import HoymilesAuthError, HoymilesRateLimitError
 from test_auth_redirects import SECRET, client_with, response
 
@@ -19,64 +19,64 @@ def ok(data):
     return response(data={"status": "0", "data": data})
 
 
-def route(dc=1, base=None):
-    return ok({"dc": dc, "login_url": base or AUTH_BASE_URLS[int(dc)]})
-
-
 def pre(dc=1):
     return ok({"v": 3, "dc": dc, "a": "0123456789abcdef", "n": SECRET})
 
 
 @pytest.mark.parametrize("dc", [0, 1, 4])
-async def test_region_routes_challenge_and_login_with_consistent_identity(dc, caplog):
-    api = client_with(route(dc), pre(dc), ok({"token": SECRET}), ok([]))
+async def test_direct_home_challenge_selects_login_host_without_oem_region(dc, caplog):
+    api = client_with(pre(dc), ok({"token": SECRET}), ok([]))
+    api._auth_state.auth_dc = 4  # Neither a cached DC nor token selects the entry.
     with patch("custom_components.hoymiles_home.api.asyncio.to_thread", new=AsyncMock(return_value=b"hash")):
         await api.async_login()
     await api.async_device_tree(123)
     calls = api._session.post.call_args_list
     base = AUTH_BASE_URLS[dc]
-    assert [c.args[0] for c in calls] == [REGION, base + "/iam/pub/3/auth/pre-insp",
+    assert [c.args[0] for c in calls] == [AUTH_BASE_URL + "/iam/pub/3/auth/pre-insp",
         base + "/iam/pub/3/auth/login", DATA_BASE_URL + "/pvmc/api/0/station/select_device_c"]
-    assert calls[0].kwargs["json"] == {"email": SECRET}
-    for call in calls[:3]:
+    assert calls[0].kwargs["json"] == {"u": SECRET}
+    assert calls[0].kwargs["headers"]["User-Agent"] == USER_AGENT
+    for call in calls[:2]:
         assert "Authorization" not in call.kwargs["headers"]
         assert call.kwargs["allow_redirects"] is False
     for call in calls[1:]:
         assert call.kwargs["headers"]["User-Agent"].endswith(f"/159/{dc}")
     assert calls[-1].kwargs["headers"]["Authorization"] == SECRET
-    assert api.runtime.request.call_count == 4
+    assert api.runtime.request.call_count == 3
     assert SECRET not in caplog.text
 
 
-@pytest.mark.parametrize("data", [None, [], {}, {"dc": 1}, {"dc": True, "login_url": AUTH_BASE_URLS[1]},
-    {"dc": 2, "login_url": AUTH_BASE_URLS[1]}, {"dc": "01", "login_url": AUTH_BASE_URLS[1]},
-    {"dc": 1, "login_url": AUTH_BASE_URLS[0]},
-    *[{"dc": 1, "login_url": value} for value in [
-        "https://evil.example/" + SECRET, "http://euapi.hoymiles.com",
-        "https://euapi.hoymiles.com:443", "https://euapi.hoymiles.com?" + SECRET,
-        "https://euapi.hoymiles.com/#" + SECRET, "https://euapi.hoymiles.com/iam/pub/3/auth/login",
-        "https://euapi.hoymiles.com\n", "https://static.hoymiles.com", None, 1, {},
-    ]],
-])
-async def test_invalid_region_stops_before_challenge_or_hash(data, caplog):
-    api = client_with(ok(data))
+async def test_direct_login_ignores_unrelated_region_url_fields(caplog):
+    """The password target is derived from DC, never an unvalidated URL field."""
+    api = client_with(ok({"v": 2, "dc": 0, "login_url": "https://evil.invalid/" + SECRET}),
+                      ok({"token": SECRET}))
+    await api.async_login()
+    assert [call.args[0] for call in api._session.post.call_args_list] == [
+        AUTH_BASE_URL + "/iam/pub/3/auth/pre-insp", AUTH_BASE_URLS[0] + "/iam/pub/3/auth/login",
+    ]
+    assert SECRET not in caplog.text
+
+
+@pytest.mark.parametrize("dc", [None, True, False, 0.0, 2, 3, -1, "01", {}, "PRIVATE_DC"])
+async def test_invalid_challenge_dc_stops_before_hash_or_password_submission(dc, caplog):
+    api = client_with(pre(dc))
     with patch("custom_components.hoymiles_home.api.asyncio.to_thread", new=AsyncMock()) as worker:
-        with pytest.raises(CloudDiagnosticError, match="routing"):
+        with pytest.raises(CloudDiagnosticError, match="authentication region"):
             await api.async_login()
     worker.assert_not_awaited()
     assert api._session.post.call_count == 1
-    assert "reason=invalid_auth_routing" in caplog.text
+    assert "reason=unsupported_auth_region" in caplog.text
     assert SECRET not in caplog.text
 
 
 @pytest.mark.parametrize("dc", ["0", "1", "4"])
-async def test_short_dc_strings_and_trailing_root_are_accepted(dc):
-    api = client_with(route(dc, AUTH_BASE_URLS[int(dc)] + "/"), pre(int(dc)), ok({"token": SECRET}))
+async def test_short_challenge_dc_strings_select_known_login_hosts(dc):
+    api = client_with(pre(dc), ok({"token": SECRET}))
     await api.async_login()
     assert api._session.post.call_args_list[1].args[0].startswith(AUTH_BASE_URLS[int(dc)])
 
 
-@pytest.mark.parametrize("step", ["region", "pre", "login"])
+@pytest.mark.parametrize("step", ["pre", "login"])
 @pytest.mark.parametrize("kind", ["reject", "rate", "expired"])
 async def test_rejection_at_each_auth_stage_has_no_fallback_or_repeat(step, kind, caplog):
     status, message, error = {
@@ -84,7 +84,7 @@ async def test_rejection_at_each_auth_stage_has_no_fallback_or_repeat(step, kind
         "rate": (1, "The number of logins exceeds the daily maximum limit", HoymilesRateLimitError),
         "expired": (100, SECRET, HoymilesAuthError),
     }[kind]
-    preceding = [] if step == "region" else [route()] if step == "pre" else [route(), pre()]
+    preceding = [] if step == "pre" else [pre()]
     api = client_with(*preceding, response(data={"status": status, "message": message, "data": SECRET}))
     with pytest.raises(error):
         await api.async_login()
@@ -97,12 +97,12 @@ async def test_rejection_at_each_auth_stage_has_no_fallback_or_repeat(step, kind
 
 
 async def test_login_success_does_not_mask_refused_station_or_choose_web_profile(caplog):
-    api = client_with(route(), pre(), ok({"token": SECRET}),
+    api = client_with(pre(), ok({"token": SECRET}),
         response(data={"status": 1, "data": SECRET, "message": "Synthetic rejection"}))
     await api.async_login()
     with pytest.raises(CloudDiagnosticError):
         await api.async_device_tree(123)
-    assert api._session.post.call_count == 4
+    assert api._session.post.call_count == 3
     assert "stage=station_validation reason=cloud_rejected" in caplog.text
     assert SECRET not in caplog.text
 
@@ -152,23 +152,23 @@ def test_success_boolean_is_not_a_success_status():
 async def test_region_redirect_is_not_an_auth_challenge_redirect(status, caplog):
     api = client_with(response(status, location=REGION.replace("euapi", "neapi")))
     with pytest.raises(CloudDiagnosticError, match="redirected"):
-        await api.async_login()
+        await api._json(REGION, {"email": SECRET})
     assert api._session.post.call_count == 1
     assert "Authorization" not in api._session.post.call_args.kwargs["headers"]
     assert SECRET not in caplog.text
 
 
-async def test_region_http_rate_limit_stops_all_followup_requests(caplog):
+async def test_initial_challenge_http_rate_limit_stops_all_followup_requests(caplog):
     api = client_with(response(429))
     with pytest.raises(HoymilesRateLimitError):
         await api.async_login()
     assert api._session.post.call_count == 1
     assert api._token is None
-    assert "stage=login_region reason=http_error http_status=429" in caplog.text
+    assert "stage=login_challenge reason=http_error http_status=429" in caplog.text
     assert SECRET not in caplog.text
 
 
-async def test_region_transport_failure_does_not_fall_back_to_old_entry():
+async def test_initial_challenge_transport_failure_does_not_try_another_entry():
     api = client_with()
     api._session.post.return_value.__aenter__.side_effect = TimeoutError(SECRET)
     from custom_components.hoymiles_home.errors import HoymilesConnectionError
@@ -179,7 +179,7 @@ async def test_region_transport_failure_does_not_fall_back_to_old_entry():
 
 
 async def test_selected_identity_is_shared_with_other_station_clients():
-    api = client_with(route(0), pre(0), ok({"token": SECRET}))
+    api = client_with(pre(0), ok({"token": SECRET}))
     other = HoymilesHomeClient(api._session, SECRET, SECRET, runtime=api.runtime)
     await api.async_login()
     assert other.headers["User-Agent"].endswith("/159/0")
@@ -194,11 +194,11 @@ def test_malformed_envelope_status_does_not_acquire_success_or_expiry_semantics(
 async def test_expired_live_read_uses_existing_single_reauthentication_path():
     uri = "https://neapi.hoymiles.com/live"
     api = client_with(ok({"uri": uri}), response(data={"status": 100, "data": None}),
-        route(0), pre(0), ok({"token": SECRET}), ok({"uri": uri}), ok({"con": 1, "power": {"pv": 42}}))
+        pre(0), ok({"token": SECRET}), ok({"uri": uri}), ok({"con": 1, "power": {"pv": 42}}))
     assert (await api.async_live(123))["power"]["pv"] == 42
     assert [c.args[0] for c in api._session.post.call_args_list] == [
-        DATA_BASE_URL + "/pvmc/api/0/station/get_sd_uri_c", uri, REGION,
-        AUTH_BASE_URLS[0] + "/iam/pub/3/auth/pre-insp", AUTH_BASE_URLS[0] + "/iam/pub/3/auth/login",
+        DATA_BASE_URL + "/pvmc/api/0/station/get_sd_uri_c", uri,
+        AUTH_BASE_URL + "/iam/pub/3/auth/pre-insp", AUTH_BASE_URLS[0] + "/iam/pub/3/auth/login",
         DATA_BASE_URL + "/pvmc/api/0/station/get_sd_uri_c", uri,
     ]
 

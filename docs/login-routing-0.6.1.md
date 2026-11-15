@@ -1,5 +1,10 @@
 # Login routing investigation — 2026-11-09
 
+Historical v0.6.1 investigation. The unconditional Home region prerequisite
+described below is removed in v0.6.2b2 after the issue #54 version comparison
+and renewed normal-Home/OEM source analysis. See
+[the updated investigation](issue-54-auth-profile-investigation.md#follow-up-successful-v060-comparison-2026-11-15).
+
 ## Reports and established facts
 
 Read the current [issue #16](https://github.com/Phil-0805/hoymiles-home-assistant/issues/16)

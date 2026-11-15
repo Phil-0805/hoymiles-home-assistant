@@ -49,7 +49,7 @@ from .telemetry import number
 from .inverter import inverter_model
 from .module_data import MAX_MODULE_BYTES, decode_module_snapshot
 from .micro_data import MICRO_QUOTAS, decode_micro_details
-from .security import trusted_hoymiles_url, trusted_auth_redirect, trusted_auth_base
+from .security import trusted_hoymiles_url, trusted_auth_redirect
 from .cloud_logging import (
     CloudDiagnosticError, LOGGER as CLOUD_LOGGER, failure_reason, response_summary,
     live_response_summary, request_stage, cloud_failure_reason, work_mode_response_summary,
@@ -336,19 +336,10 @@ class HoymilesHomeClient:
         self._token_expires = datetime.min.replace(tzinfo=UTC)
         self._live_uri = None
         self._station_classifications.clear()
-        if self.supports_home_features:
-            region = await self._json(f"{AUTH_BASE_URL}/iam/pub/0/c/region_c", {"email": self._email})
-            routing = self._unwrap(region)
-            dc = setting_integer(routing.get("dc"), 4) if isinstance(routing, dict) else None
-            base = routing.get("login_url") if isinstance(routing, dict) else None
-            if dc not in AUTH_BASE_URLS or not trusted_auth_base(base) or base.rstrip("/") != AUTH_BASE_URLS[dc]:
-                self._cloud_report("login_region", "invalid_auth_routing", region)
-                raise CloudDiagnosticError("invalid_auth_routing", "Invalid Hoymiles authentication routing")
-            self._auth_state.auth_dc = dc
-            base = AUTH_BASE_URLS[dc]
-        else:
-            # Installer and Enduser clear stored DC before pre-inspection.
-            base = DATA_BASE_URL
+        # Normal Home login starts with pre-inspection, not the separate OEM
+        # region_c operation. The fresh challenge below selects the login DC.
+        # Installer/Enduser retain their own documented pre-inspection entry.
+        base = AUTH_BASE_URL if self.supports_home_features else DATA_BASE_URL
         pre = await self._json(
             f"{base}/iam/pub/3/auth/pre-insp", {"u": self._email}
         )
