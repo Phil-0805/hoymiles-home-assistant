@@ -23,11 +23,12 @@ aktualisiert werden.
 
 [Neu in v0.6.1](docs/release-0.6.1.md) · [Upgrade-Hinweise](#update-auf-061)
 
-**Beta v0.6.2b1** ergänzt die Überwachung aller sechs Eingänge bei ausdrücklich
-erkannten HMT-1800-6T und HMT-2250-6T und behebt damit fehlende PV5/PV6-Entitäten.
-Die Gerätebestätigung steht aus; Stable bleibt **v0.6.1**.
-[Beta-Hinweise und Testschritte](docs/release-0.6.2b1.md).
-History-Sampling bleibt ein Konzept und ist in b1 noch nicht enthalten.
+**Beta v0.6.2b2** stellt den direkten Home-Anmeldeeinstieg wieder her und entfernt
+den seit v0.6.1 vorgeschalteten Region-Schritt. Die Erkennung aller sechs Eingänge
+bei HMT-1800-6T und HMT-2250-6T aus b1 bleibt enthalten.
+Die Bestätigung durch die Reporter steht aus; Stable bleibt **v0.6.1**.
+[Beta-Hinweise und Testschritte](docs/release-0.6.2b2.md).
+History-Sampling bleibt ein Konzept und ist in dieser Beta noch nicht enthalten.
 
 [Installation](#installation) · [Funktionen](#funktionen) · [Steuerung](#steuerung) ·
 [Betatest](#beta-versionen-testen) · [Probleme](#probleme-untersuchen)
