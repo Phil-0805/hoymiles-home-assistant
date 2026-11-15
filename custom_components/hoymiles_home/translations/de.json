@@ -62,6 +62,15 @@
   "entity": {
     "button": {"refresh_battery_settings": {"name": "Batterieeinstellungen aktualisieren"}, "refresh_output_power": {"name": "Ausgangsleistung aktualisieren"}, "refresh_battery_cutoffs": {"name": "Lade-/Entladeschluss aktualisieren"}, "refresh_device_settings": {"name": "Heizungs- und Displayeinstellungen aktualisieren"}},
     "sensor": {
+      "pv_power_history": {"name": "PV-Leistung (Historie)"},
+      "load_power_history": {"name": "Hausverbrauch (Historie)"},
+      "grid_power_history": {"name": "Netzleistung (Historie)"},
+      "battery_power_history": {"name": "Batterieleistung (Historie)"},
+      "battery_charge_power_history": {"name": "Batterie Ladeleistung (Historie)"},
+      "battery_discharge_power_history": {"name": "Batterie Entladeleistung (Historie)"},
+      "load_energy_today_history": {"name": "Hausverbrauch heute (Historie)"},
+      "battery_charge_energy_today_history": {"name": "Batterie heute geladen (Historie)"},
+      "battery_discharge_energy_today_history": {"name": "Batterie heute entladen (Historie)"},
       "inverter_voltage": {"name": "AC-Spannung"},
       "inverter_frequency": {"name": "Netzfrequenz"},
       "inverter_temperature": {"name": "Wechselrichtertemperatur"},
@@ -113,26 +122,29 @@
   "options": {
     "step": {
       "enduser": {
-        "title": "Zeitzone der Anlage",
-        "description": "Wähle die Zeitzone deiner Anlage für die Tagesgrenzen der Energiewerte.",
+        "title": "Anlagenoptionen",
+        "description": "Wähle die Zeitzone deiner Anlage für die Tagesgrenzen der Energiewerte. Optionale Historien-Sensoren behalten nur Stichproben. Zur Datenbankentlastung die zugehörigen Originalsensoren gezielt im Recorder ausschließen und für Verlaufsgrafiken die Historien-Sensoren verwenden. Die Originale bleiben schnell; beide aufzuzeichnen spart keine Einträge. Bestehende Statistik wird nicht übertragen.",
         "data": {
+          "history_interval": "Historien-Abtastung",
           "station_timezone": "Zeitzone der Anlage"
         }
       },
       "init": {
         "title": "Anlageneinstellungen",
-        "description": "Vergleiche die Attribute pv und pv2 des Sensors PV-Leistung mit der S-Miles-Home-App. Wähle eine andere Quelle nur, wenn der Vergleich das bestätigt. Automatisch behält das bisherige Verhalten bei: pv2, falls verfügbar, sonst pv; auch 0 ist ein gültiger Wert. Die Auswahl ändert nur die Anzeige in HA. Batterietemperaturen werden automatisch höchstens alle fünf Minuten gelesen. Zusätzliche Wechselrichterwerte sind optional. Wähle die tatsächliche Zeitzone der Anlage für Tagesgrenzen und Diagramme. Batteriebefehle sind standardmäßig gesperrt, auch nach einem Update. Aktiviere die Batteriesteuerung nur, wenn Home Assistant Modus, Reserve-SOC und die separaten Lade-/Entladeschlussstufen ändern darf. Schlussstufen und Ausgangsleistung werden zusätzlich alle 30 Minuten gelesen. Die Ausgangsleistung ist auf den frisch gemeldeten Höchstwert begrenzt; die neue Steuerung benötigt noch einen Gerätetest. Gleichzeitige Änderungen in der S-Miles-Home-App vermeiden. Gerätesteuerung liest zusätzlich Heizungs- und Displayeinstellungen alle 30 Minuten. Sie ist separat standardmäßig gesperrt. Der Heizungsschalter erlaubt das automatische Heizen; er erzwingt keinen laufenden Heizbetrieb. Je nach Gerät sind nicht alle Lichtfunktionen verfügbar.",
+        "description": "Vergleiche die Attribute pv und pv2 des Sensors PV-Leistung mit der S-Miles-Home-App. Wähle eine andere Quelle nur, wenn der Vergleich das bestätigt. Automatisch behält das bisherige Verhalten bei: pv2, falls verfügbar, sonst pv; auch 0 ist ein gültiger Wert. Die Auswahl ändert nur die Anzeige in HA. Batterietemperaturen werden automatisch höchstens alle fünf Minuten gelesen. Zusätzliche Wechselrichterwerte sind optional. Wähle die tatsächliche Zeitzone der Anlage für Tagesgrenzen und Diagramme. Batteriebefehle sind standardmäßig gesperrt, auch nach einem Update. Aktiviere die Batteriesteuerung nur, wenn Home Assistant Modus, Reserve-SOC und die separaten Lade-/Entladeschlussstufen ändern darf. Schlussstufen und Ausgangsleistung werden zusätzlich alle 30 Minuten gelesen. Die Ausgangsleistung ist auf den frisch gemeldeten Höchstwert begrenzt; die neue Steuerung benötigt noch einen Gerätetest. Gleichzeitige Änderungen in der S-Miles-Home-App vermeiden. Gerätesteuerung liest zusätzlich Heizungs- und Displayeinstellungen alle 30 Minuten. Sie ist separat standardmäßig gesperrt. Der Heizungsschalter erlaubt das automatische Heizen; er erzwingt keinen laufenden Heizbetrieb. Je nach Gerät sind nicht alle Lichtfunktionen verfügbar. Optionale Historien-Sensoren behalten nur Stichproben. Zur Datenbankentlastung die zugehörigen Originalsensoren gezielt im Recorder ausschließen und für Verlaufsgrafiken die Historien-Sensoren verwenden. Die Originale bleiben schnell; beide aufzuzeichnen spart keine Einträge. Bestehende Statistik wird nicht übertragen.",
         "data": {
           "device_controls": "Gerätesteuerung freigeben (Heizung, Licht und Display; Beta)",
           "battery_controls": "Steuerung freigeben (Batteriemodus, SOC und Ausgangsleistung)",
           "pv_power_source": "Quelle der PV-Leistung",
           "inverter_details": "Zusätzliche Wechselrichter-Messwerte (Beta)",
+          "history_interval": "Historien-Abtastung",
           "station_timezone": "Zeitzone der Anlage"
         }
       }
     }
   },
   "selector": {
+    "history_interval": {"options": {"off": "Aus", "10": "10 Sekunden", "15": "15 Sekunden", "30": "30 Sekunden", "60": "60 Sekunden"}},
     "client_profile": {"options": {"home": "S-Miles Home", "installer": "S-Miles Installer (experimentell, nur Lesen)", "enduser": "S-Miles Enduser (experimentell, nur Lesen)"}},
     "pv_power_source": {
       "options": {

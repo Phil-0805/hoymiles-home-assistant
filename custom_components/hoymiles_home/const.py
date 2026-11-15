@@ -13,6 +13,9 @@ CONF_INVERTER_DETAILS = "inverter_details"
 CONF_STATION_TIMEZONE = "station_timezone"
 CONF_CLIENT_PROFILE = "client_profile"
 CLIENT_PROFILES = ("home", "installer", "enduser")
+CONF_HISTORY_INTERVAL = "history_interval"
+HISTORY_FLUSH_SIGNAL = "hoymiles_home_history_flush_{}"
+HISTORY_INTERVALS = ("off", "10", "15", "30", "60")
 INSTALLER_USER_AGENT = "smc/ad/3.14.0/159/0"
 ENDUSER_USER_AGENT = "smo/ad/3.14.0/159/0"
 

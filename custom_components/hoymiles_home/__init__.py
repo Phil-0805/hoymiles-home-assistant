@@ -6,6 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers import device_registry as dr
 from homeassistant.util import dt as dt_util
 
@@ -19,6 +20,7 @@ from .device_migration import (
 )
 from .telemetry import PV_POWER_SOURCE
 from .const import CONF_CLIENT_PROFILE
+from .const import HISTORY_FLUSH_SIGNAL
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -79,6 +81,7 @@ async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
+    async_dispatcher_send(hass, HISTORY_FLUSH_SIGNAL.format(entry.entry_id))
     if await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         await hass.data[DOMAIN][entry.entry_id].async_shutdown()
         await hass.data[DOMAIN][entry.entry_id].async_save_energy()

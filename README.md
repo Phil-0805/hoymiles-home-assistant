@@ -22,12 +22,11 @@ installations can update without starting over.
 
 [What changed in v0.6.1](docs/release-0.6.1.md) · [Upgrade notes](#updating-to-061)
 
-**Beta v0.6.2b2** restores direct Home pre-inspection, removing the additional
-region-routing prerequisite introduced in v0.6.1. It retains b1's six-input
-monitoring for explicitly identified HMT-1800-6T and HMT-2250-6T models.
-Reporter confirmation remains pending; stable stays **v0.6.1**.
-[Beta notes and test steps](docs/release-0.6.2b2.md).
-History sampling is still a design proposal and is not included in this beta.
+**Beta v0.6.2b3** adds optional history sensors at 10/15/30/60-second intervals,
+while existing live sensors stay responsive. Recorder exclusions are required
+to reduce writes; sampling is off by default. It retains b1's six-input HMT
+monitoring and b2's Home login fix, now confirmed by the affected reporter.
+Stable stays **v0.6.1**. [Beta notes and test steps](docs/release-0.6.2b3.md).
 
 [Installation](#installation) · [Features](#features) · [Controls](#controls) ·
 [Beta testing](#testing-beta-versions) · [Troubleshooting](#troubleshooting)
@@ -263,10 +262,12 @@ audited.
 [MIT license](LICENSE) · [Release notes](https://github.com/Phil-0805/hoymiles-home-assistant/releases) ·
 [Device test plan](docs/testing-0.5.0.de.md) · [MQTT investigation for v0.7.0](docs/roadmap-0.7.md)
 
-## Planned for v0.6.2
+## Optional history sampling in v0.6.2 beta
 
 Optional history sampling for fast-changing sensors is tracked in
 [issue #51](https://github.com/Phil-0805/hoymiles-home-assistant/issues/51).
-The intended scope preserves responsive live readings while investigating
-lower-volume history. It is not implemented in v0.6.1. MQTT research remains
+Beta b3 preserves responsive live readings and adds optional
+sampled history copies. Recorder exclusions are required to reduce writes;
+see the [setup and test guide](docs/history-sampling-usage.md). It is not
+included in v0.6.1 or b2. MQTT research remains
 planned separately for [v0.7.0](docs/roadmap-0.7.md).

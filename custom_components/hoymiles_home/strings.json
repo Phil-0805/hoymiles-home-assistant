@@ -62,6 +62,15 @@
   "entity": {
     "button": {"refresh_battery_settings": {"name": "Refresh battery settings"}, "refresh_output_power": {"name": "Refresh output power settings"}, "refresh_battery_cutoffs": {"name": "Refresh battery cutoffs"}, "refresh_device_settings": {"name": "Refresh heating and display settings"}},
     "sensor": {
+      "pv_power_history": {"name": "PV power (history)"},
+      "load_power_history": {"name": "Load power (history)"},
+      "grid_power_history": {"name": "Grid power (history)"},
+      "battery_power_history": {"name": "Battery power (history)"},
+      "battery_charge_power_history": {"name": "Battery charge power (history)"},
+      "battery_discharge_power_history": {"name": "Battery discharge power (history)"},
+      "load_energy_today_history": {"name": "Home consumption today (history)"},
+      "battery_charge_energy_today_history": {"name": "Battery energy charged today (history)"},
+      "battery_discharge_energy_today_history": {"name": "Battery energy discharged today (history)"},
       "inverter_voltage": {"name": "AC voltage"},
       "inverter_frequency": {"name": "Grid frequency"},
       "inverter_temperature": {"name": "Inverter temperature"},
@@ -113,26 +122,29 @@
   "options": {
     "step": {
       "enduser": {
-        "title": "Plant timezone",
-        "description": "Choose your plant’s timezone for daily energy boundaries.",
+        "title": "Plant options",
+        "description": "Choose your plant’s timezone for daily energy boundaries. Optional history sensors publish sampled values. To reduce database rows, exclude their original sensors in Recorder and use history sensors for historical charts. Originals remain responsive; recording both does not save rows. Existing statistics are not transferred.",
         "data": {
+          "history_interval": "History sampling",
           "station_timezone": "Station timezone"
         }
       },
       "init": {
         "title": "Station settings",
-        "description": "Compare the PV power sensor attributes pv and pv2 with the S-Miles Home app. Select another source only after confirming the match. Automatic preserves the existing behavior: pv2 when available, otherwise pv; zero is a valid value. This changes only the display in HA. Battery temperatures are read automatically at most every five minutes. Additional inverter telemetry is optional. Select the actual station timezone for daily boundaries and charts. Battery commands are disabled by default, including after an upgrade. Enable battery controls only if Home Assistant should change the mode, reserve SOC and separate charge/discharge cutoffs. Cutoffs and output power add reads every 30 minutes. Output power is bounded by the freshly reported maximum; the new control still needs device testing. Avoid simultaneous changes in the S-Miles Home app. Device controls additionally read heating and display settings every 30 minutes and are separately disabled by default. The heating switch permits automatic heating; it does not force the heater to run. Available lighting functions depend on the device.",
+        "description": "Compare the PV power sensor attributes pv and pv2 with the S-Miles Home app. Select another source only after confirming the match. Automatic preserves the existing behavior: pv2 when available, otherwise pv; zero is a valid value. This changes only the display in HA. Battery temperatures are read automatically at most every five minutes. Additional inverter telemetry is optional. Select the actual station timezone for daily boundaries and charts. Battery commands are disabled by default, including after an upgrade. Enable battery controls only if Home Assistant should change the mode, reserve SOC and separate charge/discharge cutoffs. Cutoffs and output power add reads every 30 minutes. Output power is bounded by the freshly reported maximum; the new control still needs device testing. Avoid simultaneous changes in the S-Miles Home app. Device controls additionally read heating and display settings every 30 minutes and are separately disabled by default. The heating switch permits automatic heating; it does not force the heater to run. Available lighting functions depend on the device. Optional history sensors publish sampled values. To reduce database rows, exclude their original sensors in Recorder and use history sensors for historical charts. Originals remain responsive; recording both does not save rows. Existing statistics are not transferred.",
         "data": {
           "device_controls": "Allow device controls (heating, light and display; beta)",
           "battery_controls": "Allow controls (battery mode, SOC and output power)",
           "pv_power_source": "PV power source",
           "inverter_details": "Additional inverter telemetry (beta)",
+          "history_interval": "History sampling",
           "station_timezone": "Station timezone"
         }
       }
     }
   },
   "selector": {
+    "history_interval": {"options": {"off": "Off", "10": "10 seconds", "15": "15 seconds", "30": "30 seconds", "60": "60 seconds"}},
     "client_profile": {"options": {"home": "S-Miles Home", "installer": "S-Miles Installer (experimental, read only)", "enduser": "S-Miles Enduser (experimental, read only)"}},
     "pv_power_source": {
       "options": {

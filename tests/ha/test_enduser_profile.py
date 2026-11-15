@@ -291,10 +291,10 @@ async def test_enduser_options_exclude_home_controls_and_unrelated_pv2_selection
     entry = MockConfigEntry(domain=DOMAIN, data={"client_profile": "enduser"})
     entry.add_to_hass(hass)
     result = await hass.config_entries.options.async_init(entry.entry_id)
-    assert {key.schema for key in result["data_schema"].schema} == {"station_timezone"}
+    assert {key.schema for key in result["data_schema"].schema} == {"station_timezone", "history_interval"}
     result = await hass.config_entries.options.async_configure(result["flow_id"], {"station_timezone": "UTC"})
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert entry.options == {"station_timezone": "UTC"}
+    assert entry.options == {"station_timezone": "UTC", "history_interval": "off"}
 
 
 async def test_unsupported_classification_has_specific_setup_error(hass, client):

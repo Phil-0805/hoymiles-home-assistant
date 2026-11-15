@@ -27,6 +27,7 @@ from .api import HoymilesAuthError, HoymilesConnectionError, HoymilesHomeClient
 from .const import CONF_BATTERY_CONTROLS, CONF_DEVICE_CONTROLS, CONF_BATTERY_TEMPERATURES, CONF_INVERTER_DETAILS, CONF_STATION_ID, CONF_STATION_TIMEZONE, DOMAIN
 from .telemetry import PV_POWER_SOURCE, PV_POWER_SOURCES
 from .const import CONF_CLIENT_PROFILE, CLIENT_PROFILES
+from .const import CONF_HISTORY_INTERVAL, HISTORY_INTERVALS
 from .cloud_logging import log_failure
 
 
@@ -35,6 +36,15 @@ def _profile_selector(default="home"):
         options=list(CLIENT_PROFILES), translation_key=CONF_CLIENT_PROFILE,
         mode=SelectSelectorMode.DROPDOWN,
     ))}
+
+
+def _history_selector(options):
+    """Keep sampling opt-in and use the same choices for every account profile."""
+    value = options.get(CONF_HISTORY_INTERVAL, "off")
+    default = value if isinstance(value, str) and value in HISTORY_INTERVALS else "off"
+    return {vol.Optional(CONF_HISTORY_INTERVAL, default=default): SelectSelector(
+        SelectSelectorConfig(options=list(HISTORY_INTERVALS),
+                             translation_key=CONF_HISTORY_INTERVAL, mode=SelectSelectorMode.DROPDOWN))}
 
 
 @lru_cache(maxsize=1)
@@ -287,6 +297,7 @@ class HoymilesHomeOptionsFlow(config_entries.OptionsFlow):
             )
         timezones = await self.hass.async_add_executor_job(_time_zone_options)
         schema = {
+            **_history_selector(self.config_entry.options),
             vol.Required(
                 PV_POWER_SOURCE,
                 default=self.config_entry.options.get(PV_POWER_SOURCE, "auto"),
@@ -325,6 +336,7 @@ class HoymilesHomeOptionsFlow(config_entries.OptionsFlow):
             return self.async_create_entry(title="", data={**self.config_entry.options, **user_input})
         timezones = await self.hass.async_add_executor_job(_time_zone_options)
         return self.async_show_form(step_id="enduser", data_schema=vol.Schema({
+            **_history_selector(self.config_entry.options),
             vol.Required(CONF_STATION_TIMEZONE, default=self.config_entry.options.get(
                 CONF_STATION_TIMEZONE, self.hass.config.time_zone)): SelectSelector(
                     SelectSelectorConfig(options=timezones, mode=SelectSelectorMode.DROPDOWN)),

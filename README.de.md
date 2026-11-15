@@ -23,12 +23,11 @@ aktualisiert werden.
 
 [Neu in v0.6.1](docs/release-0.6.1.md) · [Upgrade-Hinweise](#update-auf-061)
 
-**Beta v0.6.2b2** stellt den direkten Home-Anmeldeeinstieg wieder her und entfernt
-den seit v0.6.1 vorgeschalteten Region-Schritt. Die Erkennung aller sechs Eingänge
-bei HMT-1800-6T und HMT-2250-6T aus b1 bleibt enthalten.
-Die Bestätigung durch die Reporter steht aus; Stable bleibt **v0.6.1**.
-[Beta-Hinweise und Testschritte](docs/release-0.6.2b2.md).
-History-Sampling bleibt ein Konzept und ist in dieser Beta noch nicht enthalten.
+**Beta v0.6.2b3** ergänzt optionale Historien-Sensoren mit 10/15/30/60 Sekunden,
+während vorhandene Live-Sensoren schnell bleiben. Weniger Schreibvorgänge erfordern
+Recorder-Ausschlüsse; die Option ist standardmäßig aus. Die HMT-Erweiterung aus b1
+und der vom betroffenen Reporter bestätigte Home-Login-Fix aus b2 bleiben enthalten.
+Stable bleibt **v0.6.1**. [Beta-Hinweise und Testschritte](docs/release-0.6.2b3.md).
 
 [Installation](#installation) · [Funktionen](#funktionen) · [Steuerung](#steuerung) ·
 [Betatest](#beta-versionen-testen) · [Probleme](#probleme-untersuchen)
@@ -283,10 +282,12 @@ unabhängig geprüft.
 [MIT-Lizenz](LICENSE) · [Release-Hinweise](https://github.com/Phil-0805/hoymiles-home-assistant/releases) ·
 [Gerätetestplan](docs/testing-0.5.0.de.md) · [MQTT-Prüfung für v0.7.0](docs/roadmap-0.7.md)
 
-## Für v0.6.2 vorgesehen
+## Optionale Historien-Abtastung in v0.6.2 Beta
 
 Optionale History-Abtastung für schnell wechselnde Sensoren wird in
 [Issue #51](https://github.com/Phil-0805/hoymiles-home-assistant/issues/51) verfolgt.
-Ziel sind weiterhin reaktionsschnelle Live-Werte bei einer untersuchten Lösung
-für weniger Historieneinträge. Die Funktion ist in v0.6.1 nicht enthalten.
+Beta b3 ergänzt optionale Historien-Kopien bei weiterhin schnellen
+Live-Werten. Für weniger Schreibvorgänge sind Recorder-Ausschlüsse erforderlich;
+siehe [Einrichtung und Test](docs/history-sampling-usage.md). Die Funktion ist
+in v0.6.1 und b2 nicht enthalten.
 MQTT bleibt eine getrennte Untersuchung für [v0.7.0](docs/roadmap-0.7.md).
