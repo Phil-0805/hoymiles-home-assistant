@@ -1,7 +1,10 @@
 # Optional history sampling for v0.6.2
 
-Status: design proposal, 2026-11-13. No runtime implementation, version bump,
-release authorization or Recorder configuration change is included.
+Status: original design proposal, 2026-11-13; local implementation started for
+v0.6.2b3 on 2026-11-15 following the maintainer's request. This document retains
+the design rationale. Current behavior and setup: [usage guide](history-sampling-usage.md).
+The maintainer subsequently authorized the b3 release. No automatic Recorder
+configuration change is included.
 Tracking: [issue #51](https://github.com/Phil-0805/hoymiles-home-assistant/issues/51).
 Baseline: stable v0.6.1, commit `33598495c864f1f18eee59df1a979ea1abb367e0`.
 
@@ -238,8 +241,9 @@ days leaves its roughly 27,000 new states/day unchanged.
    restart, then compare an equivalent 24-hour window. Measure original live
    responsiveness, sampled rows and daily energy totals separately.
 
-Keep the concept, implementation and publication as distinct steps. Maintainer
-currently requested the concept only. A beta is useful for installation feedback
+Keep the concept, implementation and publication as distinct steps. The original
+request covered the concept; implementation for b3 was subsequently requested.
+A beta is useful for installation feedback
 after synthetic and real-Recorder tests, not a substitute for those checks.
 
 ## Validation plan for subsequent implementation
@@ -282,6 +286,6 @@ tests and English/German usage documentation. Version/release notes and the
   attribute exclusions and the sensor publication path; repository station
   sensors, options forms, coordinator polling and daily energy reset/integration.
 
-This is a code/documentation investigation. No real accounts, devices or
-Recorder databases were queried, and the proposed implementation has not been
-tested or released.
+No real accounts, devices or user Recorder databases were queried. The local
+implementation uses synthetic HA state-machine, Recorder and statistics tests;
+installation feedback and publication remain separate steps.

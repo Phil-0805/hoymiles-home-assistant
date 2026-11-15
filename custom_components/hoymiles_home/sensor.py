@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
+from time import monotonic
 from typing import Any, Callable
 
 from homeassistant.components.sensor import (
@@ -13,6 +15,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
+    EVENT_HOMEASSISTANT_STOP,
     EntityCategory,
     PERCENTAGE,
     UnitOfElectricCurrent,
@@ -22,14 +25,17 @@ from homeassistant.const import (
     UnitOfTemperature,
     UnitOfFrequency,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.event import async_track_point_in_utc_time
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.restore_state import RestoreEntity, RestoredExtraData
 
 from .battery import BATTERY_MODE_STATES, battery_settings_attributes
-from .const import CONF_STATION_ID, DOMAIN
+from .const import CONF_STATION_ID, DOMAIN, CONF_HISTORY_INTERVAL, HISTORY_INTERVALS, HISTORY_FLUSH_SIGNAL
 from .coordinator import HoymilesHomeCoordinator
 from .energy import split_battery_power
 from .inverter import inverter_model, inverter_ports
@@ -47,6 +53,13 @@ ENDUSER_SENSOR_KEYS = {
     "battery_charge_power", "battery_discharge_power", "battery_activity",
     "load_energy_today", "battery_charge_energy_today", "battery_discharge_energy_today",
     "today_energy", "month_energy", "year_energy", "total_energy",
+}
+HISTORY_ENERGY_KEYS = {
+    "load_energy_today", "battery_charge_energy_today", "battery_discharge_energy_today",
+}
+HISTORY_SENSOR_KEYS = HISTORY_ENERGY_KEYS | {
+    "pv_power", "load_power", "grid_power", "battery_power",
+    "battery_charge_power", "battery_discharge_power",
 }
 
 
@@ -319,6 +332,12 @@ async def async_setup_entry(
         for description in STATION_SENSORS
         if not enduser or description.key in ENDUSER_SENSOR_KEYS
     ]
+    history_option = getattr(entry, "options", {}).get(CONF_HISTORY_INTERVAL, "off")
+    if isinstance(history_option, str) and history_option in HISTORY_INTERVALS[1:]:
+        entities.extend([
+            HoymilesHistorySensor(source, entry, int(history_option))
+            for source in entities if source.entity_description.key in HISTORY_SENSOR_KEYS
+        ])
     for inverter in coordinator.inverters:
         if enduser:
             continue  # No evidenced Enduser module-chart implementation yet.
@@ -412,6 +431,140 @@ class HoymilesStationSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEn
             return None
         return self.entity_description.attributes_fn(self.coordinator.data or {})
 
+
+class HoymilesHistorySensor(CoordinatorEntity[HoymilesHomeCoordinator], RestoreEntity, SensorEntity):
+    """Publish snapshots locally; the original entity and cloud stay responsive."""
+
+    _attr_has_entity_name = True
+
+    def __init__(self, source: HoymilesStationSensor, entry: ConfigEntry, interval: int) -> None:
+        super().__init__(source.coordinator)
+        self._source = source
+        self._interval = interval
+        self._energy = source.entity_description.key in HISTORY_ENERGY_KEYS
+        key = source.entity_description.key + "_history"
+        self.entity_description = replace(
+            source.entity_description, key=key, translation_key=key,
+            state_class=SensorStateClass.TOTAL if self._energy else source.state_class,
+        )
+        self._attr_unique_id = f"{entry.entry_id}_{key}"
+        self._attr_device_info = source.device_info
+        self._value = None
+        self._cycle = None
+        self._history_available = False
+        self._pending = None
+        self._next_sample = 0.0
+        self._minimum = None
+        self._minimum_cycle = None
+        self._flush_signal = HISTORY_FLUSH_SIGNAL.format(entry.entry_id)
+        self._cancel_boundary = None
+
+    @property
+    def available(self):
+        return self._history_available
+
+    @property
+    def native_value(self):
+        return self._value
+
+    @property
+    def last_reset(self) -> datetime | None:
+        if self._energy and self._cycle is not None:
+            return datetime.fromisoformat(self._cycle).replace(
+                tzinfo=self.coordinator.station_timezone).astimezone(UTC)
+        return None
+
+    @property
+    def extra_state_attributes(self):
+        return {"sampling_interval_seconds": self._interval}
+
+    async def async_added_to_hass(self) -> None:
+        # Restore only a monotonicity guard, never display a restored measurement.
+        if self._energy and (extra := await self.async_get_last_extra_data()) is not None:
+            stored = extra.as_dict()
+            today = datetime.now(UTC).astimezone(self.coordinator.station_timezone).date().isoformat()
+            value = _number(stored.get("value")) if isinstance(stored, dict) else None
+            if value is not None and value >= 0 and stored.get("cycle") == today:
+                self._minimum, self._minimum_cycle = value, today
+        await super().async_added_to_hass()
+        if self._energy:
+            self.async_on_remove(async_dispatcher_connect(self.hass, self._flush_signal, self._flush_energy))
+            self.async_on_remove(self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, self._flush_energy))
+            self._schedule_boundary()
+            self.async_on_remove(self._cancel_boundary_timer)
+        self._handle_coordinator_update()
+
+    @callback
+    def _cancel_boundary_timer(self) -> None:
+        if self._cancel_boundary is not None:
+            self._cancel_boundary()
+            self._cancel_boundary = None
+
+    @callback
+    def _schedule_boundary(self) -> None:
+        # Flush an observed tail even if no live event arrives just before midnight.
+        # This is a local publication timer, never a cloud refresh.
+        now = datetime.now(UTC).astimezone(self.coordinator.station_timezone)
+        midnight = datetime.combine(now.date() + timedelta(days=1), datetime.min.time(), now.tzinfo)
+        when = midnight.astimezone(UTC) - timedelta(seconds=self._interval)
+        if when <= now.astimezone(UTC):
+            midnight = datetime.combine(now.date() + timedelta(days=2), datetime.min.time(), now.tzinfo)
+            when = midnight.astimezone(UTC) - timedelta(seconds=self._interval)
+        self._cancel_boundary = async_track_point_in_utc_time(self.hass, self._boundary_reached, when)
+
+    @callback
+    def _boundary_reached(self, _) -> None:
+        self._flush_energy()
+        self._schedule_boundary()
+
+    @property
+    def extra_restore_state_data(self):
+        return RestoredExtraData({"value": self._minimum, "cycle": self._minimum_cycle}) if self._energy else None
+
+    def _publish(self, value, cycle) -> None:
+        self._value, self._cycle = value, cycle
+        self._history_available = True
+        if self._energy:
+            self._minimum, self._minimum_cycle = value, cycle
+        self.async_write_ha_state()
+
+    @callback
+    def _flush_energy(self, *_) -> None:
+        # Publish only an actually observed old counter, never extrapolate it.
+        # Do not publish an old-day value with a new-day timestamp.
+        today = datetime.now(UTC).astimezone(self.coordinator.station_timezone).date().isoformat()
+        if (self._energy and self._pending is not None and self._pending[1] == today
+                and self._pending != (self._value, self._cycle)):
+            self._publish(*self._pending)
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        value = _number(self._source.native_value)
+        available = self._source.available and value is not None
+        cycle = None
+        boundary = False
+        if self._energy:
+            now = datetime.now(UTC).astimezone(self.coordinator.station_timezone)
+            cycle = (self.coordinator.data or {}).get("battery_energy", {}).get("date")
+            # This also validates the source's cycle without parsing arbitrary text.
+            available = available and value >= 0 and cycle == now.date().isoformat()
+            if self._minimum_cycle == cycle and self._minimum is not None:
+                available = available and value is not None and value >= self._minimum
+            midnight = datetime.combine(now.date() + timedelta(days=1), datetime.min.time(), now.tzinfo)
+            boundary = (midnight.astimezone(UTC) - now.astimezone(UTC)).total_seconds() <= self._interval
+        if not available:
+            if self._history_available:
+                self._flush_energy()
+                self._history_available = False
+                self.async_write_ha_state()
+            self._pending = None
+            return
+        self._pending = (value, cycle)
+        clock = monotonic()
+        if (not self._history_available or clock >= self._next_sample
+                or cycle != self._cycle or boundary):
+            self._publish(value, cycle)
+            self._next_sample = clock + self._interval
 
 class HoymilesModuleSensor(CoordinatorEntity[HoymilesHomeCoordinator], SensorEntity):
     """A PV-input sensor."""
