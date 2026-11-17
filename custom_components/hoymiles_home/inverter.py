@@ -14,6 +14,37 @@ _HMS_MODEL = re.compile(r"\bHMS-\d+(?:DW|W)?-([124])(?:WB|T)\b", re.IGNORECASE)
 # Model/port recognition does not extend the HMS-only control target below.
 _HMT_MODEL = re.compile(r"\bHMT-(?:1800|2250)-(6)T\b", re.IGNORECASE)
 
+MODEL_DISCOVERY_REASONS = frozenset({
+    "empty_data", "unexpected_data_type", "candidate_missing", "ambiguous_candidate",
+    "invalid_identity_type", "identity_mismatch", "serial_mismatch", "model_missing",
+    "invalid_model_type", "unsupported_model", "authentication", "rate_limited",
+    "connection", "timeout", "transport_error", "http_error", "cloud_rejected",
+    "redirect_rejected", "invalid_json", "unexpected_response", "session_expired",
+    "client_update_required", "home_app_required", "unexpected_error",
+})
+
+
+def model_metadata_reason(candidate: Any, original: dict[str, Any]) -> str | None:
+    """Explain rejected metadata without returning private values or field names."""
+    if candidate is None or candidate == {}:
+        return "empty_data"
+    if not isinstance(candidate, dict):
+        return "unexpected_data_type"
+    if "id" in candidate:
+        if type(candidate["id"]) is not int:
+            return "invalid_identity_type"
+        if candidate["id"] != original["id"]:
+            return "identity_mismatch"
+    if original.get("sn") and candidate.get("sn") and original["sn"] != candidate["sn"]:
+        return "serial_mismatch"
+    if inverter_model(candidate) != "Hoymiles microinverter":
+        return None
+    fields = [candidate[key] for key in ("model_no", "model", "model_name", "name")
+              if key in candidate and candidate[key] not in (None, "")]
+    if not fields:
+        return "model_missing"
+    return "unsupported_model" if any(isinstance(value, str) for value in fields) else "invalid_model_type"
+
 
 def inverter_model(inverter: dict[str, Any]) -> str:
     """Use an explicit supported model, otherwise avoid a specific device claim."""

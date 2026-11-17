@@ -97,3 +97,69 @@ JADX has unrelated reconstruction errors as documented in the earlier review;
 the methods used here are readable. No app was installed/run, and no real
 account or device was contacted. Full manufacturer sources/APKs stay outside
 the repository. Hardware/app comparison by the reporter remains required.
+
+## Issue 61: bounded model recovery in v0.6.2b4 (2026-11-17)
+
+The reporter's b3 export has unresolved model metadata, `web_tree=no_model`
+and `detail=no_model`. The same device was previously identified through the
+web tree in b11. Original enrichment and standalone assessment functions were
+compared across b11, 0.6.2b1, b2 and the b3 tree. Synthetic replay reproduces
+these labels for empty/missing metadata, rejected identities and unsupported
+representations on all four versions; it does not establish which cloud reply
+this account received. B2 changes the Home login entry, but retains the fresh
+challenge's login DC and the existing metadata/data endpoints. No account-specific
+cause or rate restriction has been established.
+
+A separate lifecycle weakness is reproduced: enrichment only ran at startup,
+so a missing initial model persisted even after later replies would identify it.
+B4 allows at most two recovery attempts for missing metadata
+or transient connection failures. They become eligible five and fifteen minutes
+after the preceding attempt finishes, using existing coordinator ticks and one
+coalesced background task. These are conservative client delays, not manufacturer
+quotas. Startup retains the existing bounded enrichment; each attempt still has
+its shared twelve-second budget and at most twenty per-device detail requests.
+Known devices retain their original discovery provenance and are not probed again.
+
+Recovery does not block the coordinator on its optional metadata request, though
+all HTTP calls still share the existing account pacing/concurrency/server pauses.
+Explicit authentication/rate failures stop remaining optional requests and do not
+schedule recovery. HTTP/redirect/structural/identity/model-format errors likewise
+do not schedule recovery. Successful or exhausted discovery stops further retries
+until the entry is reloaded. No periodic metadata loop or new timer is added.
+Shutdown cancels an active recovery. Results are discarded after station, original
+tree or inverter changes. Original IDs, serials and topology remain untouched.
+
+Diagnostics preserve the old result/source/read-status fields and add fixed
+`web_tree_reason`/`detail_reason` labels: empty data, unexpected data type,
+missing/ambiguous candidates, invalid identity type, identity/serial mismatch,
+missing model, invalid model type, unsupported model, or a known request error.
+No raw response, model-field content, serial, ID, URL or exception text is exported.
+The polling section exposes only the capped recovery count and pending flag.
+JSON-text metadata, string identities and alternate model spellings are diagnosed,
+not newly accepted without manufacturer evidence.
+
+After verified recognition, existing standalone guards skip battery readers and
+allow the original output target to be selected; permissions, reported maxima,
+locked fresh reads, single writes and complete confirmation remain mandatory.
+In-flight battery reads are not retroactively undone. Detail charts resume on
+the normal chart schedule. Recovery does not recreate entities or rewrite their
+registry labels; a newly discovered different physical port count may require a
+reload to rebuild the entity set. The reported four-input HMS keeps its existing
+four-input entities. The model-independent Live/URI path is unchanged, so this
+candidate does not claim to fix the missing station Live/PV values.
+
+Suggested device check after an explicitly authorized beta publication: keep the
+existing Home entry, restart HA Core during production, and compare diagnostics
+at startup and after the bounded recovery windows. Check the fixed metadata
+reasons, recovery count, standalone applicability, output read, and next regular
+detail-chart cycle. An identity/format failure needs its specific diagnostic
+reason investigated; it is not an occasion for guessed endpoint or command
+fallbacks. Actual recovery on the reporter's account remains unconfirmed.
+
+Local verification: 1,393 HA tests plus 134 subtests passed
+on HA 2026.10.4; 56 dependency-free unit tests passed. The 40 new tests cover
+fixed/private reasons, identity rejection, original-data/provenance preservation,
+recovery success/cap/completion-based timing, fast Live updates while recovery
+is blocked, coalescing, cancellation, target changes, and auth/rate/HTTP failures.
+Python syntax, translation key parity and whitespace checks passed. This run
+does not claim validation on HA 2026.11.x or the reporter's hardware. See the [b4 release notes](release-0.6.2b4.md) for scope and device-test steps.

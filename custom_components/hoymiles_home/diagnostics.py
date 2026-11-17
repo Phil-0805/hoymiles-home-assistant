@@ -4,7 +4,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
-from .inverter import inverter_model, inverter_ports, standalone_hms_assessment
+from .inverter import MODEL_DISCOVERY_REASONS, inverter_model, inverter_ports, standalone_hms_assessment
 from .battery import work_mode_upper_soc, writable_modes
 from .telemetry import battery_activity, live_power, number, pv_power_details, status_codes
 from .errors import SETTINGS_ERROR_REASONS, SETTINGS_DIAGNOSTIC_FIELDS
@@ -126,6 +126,10 @@ async def async_get_config_entry_diagnostics(
             if key in {"result", "source", "web_tree", "detail"}
             and isinstance(value, str) and value in statuses
         }
+        for key in ("web_tree_reason", "detail_reason"):
+            value = discovery.get(key)
+            if isinstance(value, str) and value in MODEL_DISCOVERY_REASONS:
+                safe_discovery[key] = value
         if discovery.get("timeout") is True:
             safe_discovery["timeout"] = True
         poller = getattr(coordinator, "module_polling", None)
@@ -150,6 +154,8 @@ async def async_get_config_entry_diagnostics(
         "polling": {
             "standalone_hms_recognized": standalone,
             "standalone_hms_reason": standalone_reason,
+            "model_discovery_recovery_pending": getattr(coordinator, "_model_retry_at", None) is not None,
+            "model_discovery_recovery_attempts": min(2, max(0, getattr(coordinator, "_model_retry_count", 0))),
             "live_available": data.get("live_available", bool(live)) is True,
             "station_timezone": str(getattr(coordinator, "station_timezone", "unknown")),
             "details_enabled": getattr(coordinator, "inverter_details", False) is True,

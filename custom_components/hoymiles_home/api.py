@@ -46,7 +46,7 @@ from .const import (
 )
 from .protobuf import ProtobufDecodeError, latest_module_samples
 from .telemetry import number
-from .inverter import inverter_model
+from .inverter import inverter_model, model_metadata_reason
 from .module_data import MAX_MODULE_BYTES, decode_module_snapshot
 from .micro_data import MICRO_QUOTAS, decode_micro_details
 from .security import trusted_hoymiles_url, trusted_auth_redirect
@@ -491,17 +491,20 @@ class HoymilesHomeClient:
         """Try read-only web metadata without making Home-account setup depend on it.
 
         The consumer tree often omits model_no. Web endpoints may expose it,
-        but some Home accounts cannot access them. Probe only during initial
-        discovery, with a shared time budget and no raw payload/error logging.
+        but some Home accounts cannot access them. Each attempt has a shared
+        time budget; the coordinator bounds recovery of missing metadata.
         Never replace identity fields from a supplemental response.
         """
-        enriched = [dict(inverter) for inverter in inverters]
+        enriched = [deepcopy(inverter) for inverter in inverters]
         if not self.supports_home_features:
             return enriched
         pending = []
         for inverter in enriched:
             if inverter_model(inverter) != "Hoymiles microinverter":
-                inverter["_model_discovery"] = {"result": "identified", "source": "home_tree"}
+                discovery = inverter.get("_model_discovery")
+                if (not isinstance(discovery, dict) or discovery.get("result") != "identified"
+                        or discovery.get("source") not in {"home_tree", "web_tree", "micro_detail"}):
+                    inverter["_model_discovery"] = {"result": "identified", "source": "home_tree"}
             else:
                 inverter["_model_discovery"] = {"result": "unresolved", "source": "none"}
                 pending.append(inverter)
@@ -509,17 +512,12 @@ class HoymilesHomeClient:
             return enriched
 
         def apply(inverter: dict[str, Any], candidate: Any, source: str) -> bool:
-            if not isinstance(candidate, dict):
+            reason = model_metadata_reason(candidate, inverter)
+            key = "detail" if source == "micro_detail" else "web_tree"
+            if reason is not None:
+                inverter["_model_discovery"][f"{key}_reason"] = reason
                 return False
-            if ("id" in candidate and (type(candidate["id"]) is not int
-                                       or candidate["id"] != inverter["id"])):
-                return False
-            if inverter.get("sn") and candidate.get("sn") and inverter["sn"] != candidate["sn"]:
-                return False
-            model = inverter_model(candidate)
-            if model == "Hoymiles microinverter":
-                return False
-            inverter["model_no"] = model
+            inverter["model_no"] = inverter_model(candidate)
             inverter["_model_discovery"].update(result="identified", source=source)
             return True
 
@@ -530,14 +528,24 @@ class HoymilesHomeClient:
                         f"{DATA_BASE_URL}/pvm/api/0/station/select_device_of_tree",
                         {"id": station_id},
                     ))
-                except HoymilesError:
+                except HoymilesError as err:
                     for inverter in pending:
                         inverter["_model_discovery"]["web_tree"] = "unavailable"
+                        inverter["_model_discovery"]["web_tree_reason"] = failure_reason(err)
+                    if isinstance(err, (HoymilesAuthError, HoymilesRateLimitError)):
+                        return enriched
                 else:
                     candidates = {node["id"]: node for node in microinverters(tree, reject_ambiguous=True)}
+                    all_candidates = {node["id"] for node in microinverters(tree)}
                     for inverter in pending:
                         found = apply(inverter, candidates.get(inverter["id"]), "web_tree")
                         inverter["_model_discovery"]["web_tree"] = "identified" if found else "no_model"
+                        if inverter["id"] not in candidates:
+                            reason = ("empty_data" if tree is None or tree == [] or tree == {} else
+                                      "unexpected_data_type" if not isinstance(tree, (dict, list)) else
+                                      "ambiguous_candidate" if inverter["id"] in all_candidates else
+                                      "candidate_missing")
+                            inverter["_model_discovery"]["web_tree_reason"] = reason
 
                 # Bound supplemental requests on unusually large plants.
                 for inverter in pending[:20]:
@@ -548,8 +556,11 @@ class HoymilesHomeClient:
                             f"{DATA_BASE_URL}/pvm/api/0/dev/micro/find",
                             {"id": inverter["id"], "sid": station_id},
                         ))
-                    except HoymilesError:
+                    except HoymilesError as err:
                         inverter["_model_discovery"]["detail"] = "unavailable"
+                        inverter["_model_discovery"]["detail_reason"] = failure_reason(err)
+                        if isinstance(err, (HoymilesAuthError, HoymilesRateLimitError)):
+                            return enriched
                     else:
                         found = apply(inverter, detail, "micro_detail")
                         inverter["_model_discovery"]["detail"] = "identified" if found else "no_model"
@@ -557,6 +568,14 @@ class HoymilesHomeClient:
             for inverter in pending:
                 if inverter["_model_discovery"]["result"] != "identified":
                     inverter["_model_discovery"]["timeout"] = True
+        recoverable = {"empty_data", "candidate_missing", "model_missing", "connection",
+                       "timeout", "transport_error"}
+        for inverter in pending:
+            discovery = inverter["_model_discovery"]
+            reasons = [discovery[key] for key in ("web_tree_reason", "detail_reason") if key in discovery]
+            discovery["retryable"] = (discovery["result"] == "unresolved"
+                                      and (bool(reasons) or discovery.get("timeout") is True)
+                                      and all(reason in recoverable for reason in reasons))
         return enriched
 
     async def async_list_stations(self) -> list[dict[str, Any]]:
