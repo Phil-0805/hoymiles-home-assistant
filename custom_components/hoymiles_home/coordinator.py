@@ -71,6 +71,9 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.pv_power_source = "pv" if getattr(client, "profile", "home") == "enduser" else pv_power_source
         self.device_tree: list[dict[str, Any]] = []
         self.inverters: list[dict[str, Any]] = []
+        self._model_retry_at: datetime | None = None
+        self._model_retry_count = 0
+        self._model_recovery_task: asyncio.Task | None = None
         self.station_timezone = station_timezone or dt_util.get_default_time_zone()
         self.inverter_details = inverter_details and self.home_features
         self.battery_telemetry = BatteryTelemetryPoller(
@@ -159,7 +162,14 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def async_shutdown(self) -> None:
         """Cancel our background read before the entry is removed or reloaded."""
         self._stopped = True
+        self._model_retry_at = None
         self._battery_read_retry_at = None
+        if self._model_recovery_task and not self._model_recovery_task.done():
+            self._model_recovery_task.cancel()
+            try:
+                await self._model_recovery_task
+            except asyncio.CancelledError:
+                pass
         await self.device_settings.async_shutdown()
         await self.cutoff_settings.async_shutdown()
         await self.output_settings.async_shutdown()
@@ -460,6 +470,51 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Switch mode while preserving the latest complete settings block."""
         await self._async_apply_battery_settings(mode)
 
+    async def _async_enrich_inverter_models(self) -> None:
+        """Recover missing startup metadata at most twice, on existing ticks.
+
+        These five/fifteen-minute delays are client policy, not cloud limits.
+        Never apply a result after unload or a concurrent identity/tree change.
+        """
+        self._model_retry_at = None
+        if self._stopped or not self.home_features:
+            return
+        station_id = self.station_id
+        tree = deepcopy(self.device_tree)
+        original = deepcopy(self.inverters)
+        requested = [item for item in original if self._model_retry_count == 0
+                     or item.get("_model_discovery", {}).get("retryable") is True]
+        if not requested:
+            return
+        recovered = await self.client.async_enrich_inverters(station_id, requested)
+        if (self._stopped or self.station_id != station_id
+                or self.device_tree != tree or self.inverters != original):
+            return
+        replacements = {item["id"]: item for item in recovered}
+        enriched = [replacements.get(item["id"], item) for item in original]
+        self.inverters = enriched
+        if self.data is not None:
+            self.data["inverters"] = enriched
+            self.async_update_listeners()
+        delays = (MODULE_INTERVAL, 3 * MODULE_INTERVAL)
+        if self._model_retry_count < len(delays) and any(
+            item.get("_model_discovery", {}).get("retryable") is True for item in enriched
+        ):
+            self._model_retry_at = datetime.now(UTC) + delays[self._model_retry_count]
+
+    def _start_model_recovery(self) -> None:
+        """Coalesce optional reads without delaying the fast live update."""
+        if (self._stopped or not self.home_features or self._model_retry_at is None
+                or self._model_retry_count >= 2
+                or datetime.now(UTC) < self._model_retry_at
+                or self._model_recovery_task is not None and not self._model_recovery_task.done()):
+            return
+        self._model_retry_at = None
+        self._model_retry_count += 1
+        self._model_recovery_task = self.hass.async_create_background_task(
+            self._async_enrich_inverter_models(), f"{DOMAIN} model discovery recovery"
+        )
+
     async def _async_update_data(self) -> dict[str, Any]:
         try:
             now = datetime.now(UTC)
@@ -508,9 +563,9 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     raise HoymilesConnectionError("Invalid station device tree")
                 self.device_tree = tree
                 self.inverters = microinverters(self.device_tree, children_only=not self.home_features)
-                self.inverters = await self.client.async_enrich_inverters(
-                    self.station_id, self.inverters
-                )
+                await self._async_enrich_inverter_models()
+            elif self._model_retry_at is not None and now >= self._model_retry_at:
+                self._start_model_recovery()
 
             if now - self._station_attempted >= STATION_INTERVAL:
                 # Failed totals must not turn a once-per-minute request into
