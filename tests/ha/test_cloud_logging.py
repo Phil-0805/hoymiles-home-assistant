@@ -270,7 +270,7 @@ def test_live_summary_distinguishes_empty_and_delay_shapes_without_values(
 async def test_delay_only_payload_still_never_becomes_telemetry_or_guessed_uri_expiry(caplog):
     api = client(ok({"dly": 3000}), ok({"uri": LIVE}), ok({"dly": 3000}))
     api._live_uri = LIVE
-    with pytest.raises(HoymilesConnectionError, match="no usable telemetry after retry"):
+    with pytest.raises(HoymilesConnectionError, match="measurements are not currently available"):
         await api.async_live(123)
     assert api._json.await_count == 3
     assert api._json.call_args_list[0].args == (LIVE, {"sid": 123, "m": 0})

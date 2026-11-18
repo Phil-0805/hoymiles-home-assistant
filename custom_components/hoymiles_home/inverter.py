@@ -70,6 +70,40 @@ def standalone_hms_target(tree: Any, enriched: Any = None) -> dict[str, Any] | N
     return standalone_hms_assessment(tree, enriched)[0]
 
 
+def pv_only_topology(tree: Any) -> bool:
+    """Check topology only, never infer a model or authorize a control target."""
+    identities = set()
+    inverters = 0
+
+    def visit(nodes):
+        nonlocal inverters
+        if not isinstance(nodes, list) or not nodes:
+            return False
+        for node in nodes:
+            if not isinstance(node, dict):
+                return False
+            kind, identity = node.get("type"), node.get("id")
+            if (type(kind) is not int or kind not in (1, 2, 3)
+                    or type(identity) is not int or identity <= 0
+                    or (kind, identity) in identities):
+                return False
+            identities.add((kind, identity))
+            inverters += kind == 3
+            for key in ("devices", "children"):
+                children = node.get(key)
+                if children is not None and children != [] and not visit(children):
+                    return False
+        return True
+
+    # Conflicting storage information anywhere in the tree vetoes suppression.
+    def storage(value):
+        if isinstance(value, dict):
+            return value.get("type") == 12 or any(storage(v) for v in value.values())
+        return isinstance(value, list) and any(storage(v) for v in value)
+
+    return not storage(tree) and visit(tree) and inverters > 0
+
+
 def standalone_hms_assessment(tree: Any, enriched: Any = None) -> tuple[dict | None, str]:
     """Recognize one explicit HMS with optional DTU/repeater nodes.
 

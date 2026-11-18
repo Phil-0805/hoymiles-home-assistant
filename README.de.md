@@ -23,14 +23,16 @@ aktualisiert werden.
 
 [Neu in v0.6.1](docs/release-0.6.1.md) · [Upgrade-Hinweise](#update-auf-061)
 
-**Beta v0.6.2b4** ergänzt begrenzte Wiederholungen und genauere Diagnosen bei
-fehlenden Modellinformationen eines Standalone-Wechselrichters. Die Bestätigung
-am betroffenen Gerät steht aus. Enthalten bleiben optionale Historien-Sensoren
+**Beta v0.6.2b5** lässt unabhängig bestätigte Home-Anlagen nach zwei eng definierten
+Antworten ohne Messwerte mit unverfügbaren Live-Sensoren laden. Frische, ausdrückliche
+PV-ohne-Batterie-Merkmale können Batterie-Leseabfragen auch ohne Modellnamen
+unterdrücken. Das sind Testkandidaten für #59/#61; die Gerätebestätigung steht aus.
+Die begrenzte Modellerkennungs-Wiederholung aus b4 und optionale Historien-Sensoren
 mit 10/15/30/60 Sekunden,
 während vorhandene Live-Sensoren schnell bleiben. Weniger Schreibvorgänge erfordern
 Recorder-Ausschlüsse; die Option ist standardmäßig aus. Die HMT-Erweiterung aus b1
 und der vom betroffenen Reporter bestätigte Home-Login-Fix aus b2 bleiben enthalten.
-Stable bleibt **v0.6.1**. [Beta-Hinweise und Testschritte](docs/release-0.6.2b4.md).
+Stable bleibt **v0.6.1**. [Beta-Hinweise und Testschritte](docs/release-0.6.2b5.md).
 
 [Installation](#installation) · [Funktionen](#funktionen) · [Steuerung](#steuerung) ·
 [Betatest](#beta-versionen-testen) · [Probleme](#probleme-untersuchen)

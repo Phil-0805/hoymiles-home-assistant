@@ -51,7 +51,7 @@ STAGES = frozenset(set(_KNOWN_STAGES.values()) | _SETTING_STAGES
                    | {"reauthentication", "live_data", "other_api"})
 REASONS = frozenset({"http_error", "timeout", "transport_error", "redirect_rejected",
                      "invalid_json", "cloud_rejected", "invalid_challenge", "missing_token",
-                     "missing_uri", "invalid_uri_type", "untrusted_uri", "invalid_live_data",
+                     "missing_uri", "invalid_uri_type", "untrusted_uri", "invalid_live_data", "live_no_measurements",
                      "unexpected_response", "authentication", "rate_limited", "connection", "unexpected_error",
                      "unsupported_auth_version", "unsupported_auth_region", "invalid_auth_routing",
                      "session_expired", "client_update_required", "home_app_required",

@@ -31,6 +31,7 @@ def envelope(data):
 def api_with(*responses):
     api = HoymilesHomeClient(MagicMock(), "private@example.invalid", "PASSWORD")
     api._json = AsyncMock(side_effect=responses)
+    api.async_list_stations = AsyncMock(return_value=[{"sid": 123}])
     return api
 
 
