@@ -584,6 +584,7 @@ class HoymilesHomeClient:
         if self.profile == "enduser":
             return await self._async_list_enduser_stations()
         stations: dict[int, dict[str, Any]] = {}
+        repeated_ids: set[int] = set()
         page_size = 100
         # Bound discovery even if the undocumented endpoint repeats a full page.
         for page in range(1, 21):
@@ -619,10 +620,18 @@ class HoymilesHomeClient:
                 if station_id <= 0:
                     continue
                 name = row.get("name")
+                if station_id in stations:
+                    repeated_ids.add(station_id)
                 stations[station_id] = {
                     "sid": station_id,
                     "name": name.strip() if isinstance(name, str) else "",
                 }
+                # Home StationType.PV=1; the app's explicit bt=0 selects PV
+                # settings without battery. Missing/defaulted values prove nothing.
+                if (self.supports_home_features and station_id not in repeated_ids
+                        and type(row.get("classify")) is int and row["classify"] == 1
+                        and type(row.get("bt")) is int and row["bt"] == 0):
+                    stations[station_id]["battery_capability"] = "pv_without_battery"
             if len(stations) == previous_count:
                 raise HoymilesConnectionError("Station list has no new valid station IDs")
             if len(rows) < page_size:
@@ -748,6 +757,7 @@ class HoymilesHomeClient:
         # not an outage if that recovery returns actual telemetry in this call.
         previous_invalid_refresh = ("live_data", "invalid_live_data") in self._cloud_log_states
         delay_hint_retried = False
+        sampleless_replies = 0
         await self.async_ensure_login()
         classification = (await self._async_enduser_classification(station_id)
                           if self.profile == "enduser" else None)
@@ -810,6 +820,12 @@ class HoymilesHomeClient:
                 and type(payload.get("dly")) is int
                 and 0 <= payload["dly"] <= 2**63 - 1
             )
+            # Preserve the complete URI retry before allowing independent setup.
+            # These successful Home replies are not usable telemetry and must
+            # never be returned as measured zero/offline data.
+            if (self.supports_home_features and isinstance(payload, dict)
+                    and (not payload or set(payload) == {"dly"} and has_delay_hint)):
+                sampleless_replies += 1
             if _attempt == 0 and has_delay_hint:
                 # Do not call a successful bounded recovery a failed refresh.
                 # A second invalid reply still warns and fails normally below.
@@ -817,6 +833,8 @@ class HoymilesHomeClient:
             else:
                 self._cloud_report("live_data", "invalid_live_data", {"data": payload})
             self._live_uri = None
+        if sampleless_replies == 2:
+            raise CloudDiagnosticError("live_no_measurements", "Live measurements are not currently available")
         raise CloudDiagnosticError("invalid_live_data", "Live response contains no usable telemetry after retry")
 
     async def _async_binary_data(self, url: str, payload: dict[str, Any]) -> bytes:

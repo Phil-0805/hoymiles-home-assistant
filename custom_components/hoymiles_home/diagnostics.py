@@ -157,6 +157,12 @@ async def async_get_config_entry_diagnostics(
             "model_discovery_recovery_pending": getattr(coordinator, "_model_retry_at", None) is not None,
             "model_discovery_recovery_attempts": min(2, max(0, getattr(coordinator, "_model_retry_count", 0))),
             "live_available": data.get("live_available", bool(live)) is True,
+            "live_unavailable_reason": getattr(coordinator, "_live_unavailable_reason", None)
+                if getattr(coordinator, "_live_unavailable_reason", None) in {"missing_uri", "live_no_measurements", "invalid_live_data"} else None,
+            "battery_reads_applicable": getattr(coordinator, "battery_reads_applicable", not standalone) is True,
+            "battery_read_applicability_reason": getattr(coordinator, "battery_read_applicability_reason", None)
+                if getattr(coordinator, "battery_read_applicability_reason", None) in {
+                    "standalone_hms", "station_pv_without_battery", "not_excluded"} else None,
             "station_timezone": str(getattr(coordinator, "station_timezone", "unknown")),
             "details_enabled": getattr(coordinator, "inverter_details", False) is True,
             "details_status": getattr(getattr(coordinator, "module_polling", None), "details_status", "disabled"),
@@ -164,7 +170,8 @@ async def async_get_config_entry_diagnostics(
             "maximum_concurrent_http_requests": 2,
         },
         "battery_telemetry": {
-            "applicable": getattr(coordinator, "home_features", True) is True and not standalone,
+            "applicable": getattr(coordinator, "home_features", True) is True
+                and getattr(coordinator, "battery_reads_applicable", not standalone) is True,
             "enabled": getattr(getattr(coordinator, "battery_telemetry", None), "enabled", False),
             "status": getattr(getattr(coordinator, "battery_telemetry", None), "status", "disabled"),
             "device_count": len(getattr(getattr(coordinator, "battery_telemetry", None), "values", {})),

@@ -37,7 +37,7 @@ from .const import (
 )
 from .energy import integrate_battery_energy, integrate_positive_energy
 from .module_polling import ModulePoller
-from .inverter import standalone_hms_target
+from .inverter import standalone_hms_target, pv_only_topology
 from .telemetry import PV_POWER_SOURCE, live_connected, number
 from .cloud_logging import CloudDiagnosticError
 
@@ -92,6 +92,10 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._station_updated = datetime.min.replace(tzinfo=UTC)
         self._station_attempted = datetime.min.replace(tzinfo=UTC)
         self._station_access_validated = False
+        self._station_access_validated_id = None
+        self._battery_capability_context = None
+        self._battery_capability_checked = None
+        self._live_unavailable_reason = None
         self._live_uri_retry_at = datetime.min.replace(tzinfo=UTC)
         self._battery_settings_updated = datetime.min.replace(tzinfo=UTC)
         self._battery_read_retry_at = None
@@ -186,7 +190,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def _start_battery_settings_refresh(self, *, retry=False) -> asyncio.Task | None:
         if not self.home_features:
             return None
-        if standalone_hms_target(self.device_tree, self.inverters) is not None:
+        if not self.battery_reads_applicable:
             self.battery_settings = {"readable": False, "error": "not_applicable"}
             self._battery_read_retry_at = None
             return None
@@ -201,6 +205,48 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 f"{DOMAIN} battery settings",
             )
         return self._battery_settings_task
+
+    @property
+    def battery_reads_applicable(self) -> bool:
+        """Read-only capability; never relax model/identity checks for writes."""
+        if standalone_hms_target(self.device_tree, self.inverters) is not None:
+            return False
+        return not (self._battery_capability_context == (self.station_id, self.device_tree)
+                    and pv_only_topology(self.device_tree))
+
+    @property
+    def battery_read_applicability_reason(self) -> str:
+        if standalone_hms_target(self.device_tree, self.inverters) is not None:
+            return "standalone_hms"
+        return "station_pv_without_battery" if not self.battery_reads_applicable else "not_excluded"
+
+    async def _async_check_battery_capability(self, stations=None) -> None:
+        if (not self.home_features or self._stopped
+                or not self.battery_reads_applicable or not pv_only_topology(self.device_tree)):
+            return
+        context = (self.station_id, deepcopy(self.device_tree))
+        if self._battery_capability_checked == context:
+            return
+        self._battery_capability_checked = context
+        self._battery_capability_context = None
+        try:
+            if stations is None:
+                async with asyncio.timeout(12):
+                    stations = await self.client.async_list_stations()
+        except (HoymilesAuthError, HoymilesRateLimitError):
+            raise
+        except (HoymilesConnectionError, TimeoutError):
+            return  # Unknown capability retains the existing conservative path.
+        if self._stopped or context != (self.station_id, self.device_tree):
+            return
+        matches = [s for s in stations if isinstance(s, dict)
+                   and type(s.get("sid")) is int and s["sid"] == self.station_id] if isinstance(stations, list) else []
+        if len(matches) == 1 and matches[0].get("battery_capability") == "pv_without_battery":
+            self._battery_capability_context = context
+            self._station_access_validated = True
+            self._station_access_validated_id = self.station_id
+            self.battery_settings = {"readable": False, "error": "not_applicable"}
+            self._battery_read_retry_at = None
 
     async def async_refresh_battery_settings(self) -> bool:
         """Manually refresh read-only settings, coalescing concurrent requests."""
@@ -384,7 +430,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             raise HoymilesConnectionError(
                 "Battery controls are disabled; enable them in the integration options"
             )
-        if standalone_hms_target(self.device_tree, self.inverters) is not None:
+        if not self.battery_reads_applicable:
             raise HoymilesConnectionError("Battery settings are not applicable to this inverter-only station")
 
     async def _async_apply_battery_settings(
@@ -520,31 +566,38 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             now = datetime.now(UTC)
             live = {}
             live_available = False
+            station_access_rows = None
             if now >= self._live_uri_retry_at:
+                self._live_unavailable_reason = None
                 try:
                     live = await self.client.async_live(self.station_id)
                 except CloudDiagnosticError as err:
                     # An absent server address is not usable offline telemetry.
                     # Validate the station independently before accepting partial setup.
-                    if err.reason != "missing_uri":
+                    self._live_unavailable_reason = err.reason
+                    if err.reason not in {"missing_uri", "live_no_measurements"}:
                         raise
                     self._live_uri_retry_at = datetime.now(UTC) + STATION_INTERVAL
                 else:
                     live_available = True
+                    self._live_unavailable_reason = None
                     self._live_uri_retry_at = datetime.min.replace(tzinfo=UTC)
             if not live_available:
                 self._reset_energy_samples()
-                if not self._station_access_validated:
+                if (not self._station_access_validated
+                        or self._station_access_validated_id != self.station_id):
                     if self.station_only:
                         await self.client.async_validate_station(self.station_id)
                     else:
                         stations = await self.client.async_list_stations()
+                        station_access_rows = stations
                         if (type(self.station_id) is not int or self.station_id <= 0 or not isinstance(stations, list)
                                 or not any(isinstance(station, dict)
                                            and type(station.get("sid")) is int
                                            and station["sid"] == self.station_id for station in stations)):
                             raise HoymilesConnectionError("Selected station is not accessible to this account")
                     self._station_access_validated = True
+                    self._station_access_validated_id = self.station_id
             now = datetime.now(UTC)
             battery_energy = self._update_battery_energy(live, now)
             delay_ms = number(live.get("dly"))
@@ -566,6 +619,8 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 await self._async_enrich_inverter_models()
             elif self._model_retry_at is not None and now >= self._model_retry_at:
                 self._start_model_recovery()
+
+            await self._async_check_battery_capability(station_access_rows)
 
             if now - self._station_attempted >= STATION_INTERVAL:
                 # Failed totals must not turn a once-per-minute request into
@@ -591,7 +646,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                   and now >= self._battery_read_retry_at):
                 self._start_battery_settings_refresh(retry=True)
 
-            if standalone_hms_target(self.device_tree, self.inverters) is None:
+            if self.battery_reads_applicable:
                 self.battery_telemetry.start()
             self.device_settings.start()
             self.cutoff_settings.start()

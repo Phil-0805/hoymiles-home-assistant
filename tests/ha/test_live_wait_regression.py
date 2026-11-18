@@ -28,6 +28,7 @@ def client(*responses, profile="home"):
     api._live_uri = OLD
     api._json = AsyncMock(side_effect=responses)
     api.async_device_tree = AsyncMock(return_value=[])
+    api.async_list_stations = AsyncMock(return_value=[{"sid": 123}])
     api.async_enrich_inverters = AsyncMock(return_value=[])
     api.async_station_realtime = AsyncMock(return_value={})
     api.async_battery_settings = AsyncMock(return_value={"readable": False})
@@ -74,13 +75,14 @@ async def test_missing_telemetry_after_both_attempts_still_becomes_unavailable(h
     old_data = {"live": {"con": 1, "power": {"pv": 12}}}
     coordinator.async_set_updated_data(old_data)
     await asyncio.wait_for(coordinator.async_refresh(), timeout=1)
-    assert not coordinator.last_update_success
-    assert coordinator.data is old_data
-    assert "no usable telemetry after retry" in str(coordinator.last_exception)
+    assert coordinator.last_update_success
+    assert coordinator.data["live_available"] is False
+    assert coordinator.data["live"] == {}
+    assert coordinator._live_unavailable_reason == "live_no_measurements"
     assert api._json.await_count == 3
     assert caplog.text.count("reason=invalid_live_data") == 1
     assert "Cloud live retry recovered" not in caplog.text
-    api.async_station_realtime.assert_not_awaited()
+    api.async_station_realtime.assert_awaited_once()
     await coordinator.async_shutdown()
 
 

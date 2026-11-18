@@ -22,13 +22,16 @@ installations can update without starting over.
 
 [What changed in v0.6.1](docs/release-0.6.1.md) · [Upgrade notes](#updating-to-061)
 
-**Beta v0.6.2b4** adds bounded recovery and more precise diagnostics for missing
-standalone inverter model metadata. Device confirmation is pending. It retains
+**Beta v0.6.2b5** allows independently validated Home stations to load with
+unavailable Live sensors after two narrowly recognized replies without measurements.
+Fresh, explicit PV-without-battery metadata can suppress battery reads even when
+the model is missing. These are test candidates for #59/#61; device confirmation
+is pending. It retains b4's bounded model recovery and
 optional history sensors at 10/15/30/60-second intervals,
 while existing live sensors stay responsive. Recorder exclusions are required
 to reduce writes; sampling is off by default. It retains b1's six-input HMT
 monitoring and b2's Home login fix, now confirmed by the affected reporter.
-Stable stays **v0.6.1**. [Beta notes and test steps](docs/release-0.6.2b4.md).
+Stable stays **v0.6.1**. [Beta notes and test steps](docs/release-0.6.2b5.md).
 
 [Installation](#installation) · [Features](#features) · [Controls](#controls) ·
 [Beta testing](#testing-beta-versions) · [Troubleshooting](#troubleshooting)
