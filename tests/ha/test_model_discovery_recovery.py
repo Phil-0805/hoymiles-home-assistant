@@ -346,3 +346,197 @@ async def test_recovery_only_requests_retryable_devices_on_mixed_installations(h
         assert standalone_hms_target(c.device_tree, c.inverters) is None
     finally:
         await c.async_shutdown()
+
+
+async def exhaust_inactive_discovery(c, clock):
+    """Real initial enrichment and both startup retries, without live telemetry."""
+    c.client.async_live.side_effect = CloudDiagnosticError("missing_uri", "synthetic")
+    await update(c)
+    for _ in range(2):
+        clock.move_to(c._model_retry_at)
+        await update(c)
+        await c._model_recovery_task
+    assert c._model_retry_count == 2
+    assert c._model_retry_at is None
+
+
+def chart_sample(c, stamp, *, identity=99, progress=None):
+    key = (identity, 1, "power")
+    c.module_polling.module_field_updated[key] = stamp
+    c.module_polling.module_field_progress[key] = progress or stamp
+    c._publish_modules()
+
+
+@pytest.mark.parametrize("channel", ["live", "chart"])
+async def test_inactive_startup_recovers_verified_model_after_real_measurements_return(hass, channel):
+    api = api_with(*([envelope([]), envelope({})] * 3), envelope([MODEL]))
+    c = coordinator(hass, api)
+    with freeze_time("2026-11-20 02:00:00+00:00") as clock:
+        try:
+            await exhaust_inactive_discovery(c, clock)
+            clock.tick(timedelta(hours=6))
+            if channel == "live":
+                api.async_live.side_effect = None
+                await update(c)
+            else:
+                chart_sample(c, datetime.now(UTC))  # First sample is only a baseline.
+                assert c._model_retry_at is None
+                clock.tick(timedelta(minutes=5))
+                chart_sample(c, datetime.now(UTC))
+                assert c._output_read_live_state() == "unavailable"
+            assert c._model_activity_rearmed
+            assert c._model_retry_at == datetime.now(UTC) + timedelta(minutes=5)
+            assert api._json.await_count == 6  # Callback never makes a request.
+            clock.move_to(c._model_retry_at)
+            await update(c)
+            await c._model_recovery_task
+            assert standalone_hms_target(c.device_tree, c.inverters) is not None
+            assert c.battery_reads_applicable is False
+            assert c._model_retry_at is None
+            assert api._json.await_count == 7
+        finally:
+            await c.async_shutdown()
+
+
+@pytest.mark.parametrize("case", ["duplicate", "stale", "future", "other_device", "tree", "station", "unload"])
+async def test_old_unrelated_or_changed_context_chart_cannot_rearm_discovery(hass, case):
+    api = api_with(*([envelope([]), envelope({})] * 3))
+    c = coordinator(hass, api)
+    with freeze_time("2026-11-20 02:00:00+00:00") as clock:
+        try:
+            await exhaust_inactive_discovery(c, clock)
+            stamp = datetime.now(UTC)
+            chart_sample(c, stamp)
+            clock.tick(timedelta(minutes=5))
+            if case == "tree":
+                c.device_tree.append({"id": 100, "type": 2})
+            elif case == "station":
+                c.station_id = 456
+            elif case == "unload":
+                await c.async_shutdown()
+            new_stamp = stamp if case == "duplicate" else datetime.now(UTC)
+            if case == "stale":
+                new_stamp = stamp + timedelta(seconds=1)
+                clock.tick(timedelta(minutes=30))
+            elif case == "future":
+                new_stamp += timedelta(hours=1)
+            chart_sample(c, new_stamp, identity=100 if case == "other_device" else 99)
+            assert not c._model_activity_rearmed
+            assert c._model_retry_at is None
+            assert api._json.await_count == 6
+        finally:
+            await c.async_shutdown()
+
+
+async def test_activity_cycle_stays_capped_despite_live_flapping_and_chart_progress(hass):
+    api = api_with(*([envelope([]), envelope({})] * 5))
+    c = coordinator(hass, api)
+    with freeze_time("2026-11-20 02:00:00+00:00") as clock:
+        try:
+            await exhaust_inactive_discovery(c, clock)
+            api.async_live.side_effect = None
+            clock.tick(timedelta(minutes=1))
+            await update(c)
+            for delay in (15, None):
+                deadline = c._model_retry_at
+                clock.move_to(deadline)
+                await update(c)
+                await c._model_recovery_task
+                assert c._model_retry_at == (deadline + timedelta(minutes=delay) if delay else None)
+            assert c._model_retry_count == 4
+            for _ in range(3):
+                api.async_live.side_effect = CloudDiagnosticError("missing_uri", "synthetic")
+                clock.tick(timedelta(hours=1))
+                await update(c)
+                chart_sample(c, datetime.now(UTC))
+                api.async_live.side_effect = None
+                clock.tick(timedelta(minutes=5))
+                await update(c)
+                chart_sample(c, datetime.now(UTC))
+            assert api._json.await_count == 10
+            assert c._model_retry_at is None
+        finally:
+            await c.async_shutdown()
+
+
+@pytest.mark.parametrize("change", ["station", "tree", "inverter", "unload"])
+async def test_activity_read_uses_existing_inflight_identity_and_unload_guards(hass, change):
+    api = api_with(*([envelope([]), envelope({})] * 3), envelope([MODEL]))
+    c = coordinator(hass, api)
+    with freeze_time("2026-11-20 02:00:00+00:00") as clock:
+        try:
+            await exhaust_inactive_discovery(c, clock)
+            api.async_live.side_effect = None
+            clock.tick(timedelta(minutes=1))
+            await update(c)
+            real = api.async_enrich_inverters
+
+            async def replace(*args):
+                found = await real(*args)
+                if change == "station":
+                    c.station_id = 456
+                elif change == "tree":
+                    c.device_tree.append({"id": 100, "type": 2})
+                elif change == "inverter":
+                    c.inverters[0]["sn"] = "CHANGED"
+                else:
+                    c._stopped = True
+                return found
+
+            api.async_enrich_inverters = replace
+            clock.move_to(c._model_retry_at)
+            await update(c)
+            await c._model_recovery_task
+            assert "model_no" not in c.inverters[0]
+            assert c._model_retry_at is None
+        finally:
+            await c.async_shutdown()
+
+
+@pytest.mark.parametrize("change", ["station", "tree", "nonretryable"])
+async def test_armed_activity_cycle_cannot_read_a_replacement_or_nonretryable_target(hass, change):
+    api = api_with(*([envelope([]), envelope({})] * 3))
+    c = coordinator(hass, api)
+    with freeze_time("2026-11-20 02:00:00+00:00") as clock:
+        try:
+            await exhaust_inactive_discovery(c, clock)
+            api.async_live.side_effect = None
+            clock.tick(timedelta(minutes=1))
+            await update(c)
+            deadline = c._model_retry_at
+            assert deadline is not None
+            if change == "station":
+                c.station_id = 456
+            elif change == "tree":
+                c.device_tree.append({"id": 100, "type": 2})
+            else:
+                c.inverters[0]["_model_discovery"]["retryable"] = False
+            clock.move_to(deadline)
+            await update(c)
+            await c._model_recovery_task
+            assert api._json.await_count == 6
+            assert c._model_retry_at is None
+        finally:
+            await c.async_shutdown()
+
+
+async def test_activity_diagnostics_are_bounded_and_do_not_export_internal_context(hass):
+    api = api_with(*([envelope([]), envelope({})] * 3))
+    c = coordinator(hass, api)
+    entry = SimpleNamespace(entry_id="synthetic", data={})
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = c
+    with freeze_time("2026-11-20 02:00:00+00:00") as clock:
+        try:
+            await exhaust_inactive_discovery(c, clock)
+            api.async_live.side_effect = None
+            clock.tick(timedelta(minutes=1))
+            await update(c)
+            c._model_retry_count = 4
+            result = await async_get_config_entry_diagnostics(hass, entry)
+            assert result["polling"]["model_discovery_recovery_attempts"] == 2
+            assert result["polling"]["model_discovery_activity_attempts"] == 2
+            assert result["polling"]["model_discovery_activity_rearmed"] is True
+            assert "PRIVATE-SERIAL" not in json.dumps(result)
+            assert "_model_activity_context" not in json.dumps(result)
+        finally:
+            await c.async_shutdown()

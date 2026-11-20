@@ -80,11 +80,53 @@ def output_write_data(settings, value):
 class OutputPowerSettings(DeviceSettings):
     """Reuse scheduled reads and cooldowns; preserve current phase settings."""
 
-    def __init__(self, *args, get_inverters=None):
+    def __init__(self, *args, get_inverters=None, get_live_state=None):
         super().__init__(*args, features=("output_power",))
         self.output = None
         self.confirmed_target = None
         self.get_inverters = get_inverters or (lambda: [])
+        self.get_live_state = get_live_state or (lambda: None)
+        self._rejected_read_target = None
+
+    @property
+    def polling_paused(self):
+        # No clock/zero-power heuristic, and never extend this gate to storage.
+        target = standalone_hms_target(self.get_tree(), self.get_inverters())
+        state = self.get_live_state()
+        return (target is not None and (state == "offline" or
+                state == "unavailable" and self._rejected_read_target == {
+                    "station_id": self.station_id, **target}))
+
+    def available(self, feature):
+        return not self.polling_paused and super().available(feature)
+
+    def _defer_read(self, feature):
+        if self.polling_paused:
+            self.status[feature] = "waiting_for_live"
+            self._clear_read_retry(feature)
+            return True
+        return False
+
+    def start(self):
+        if not self.enabled or self.stopped or not self.may_write():
+            return None
+        previous = self.status.get("output_power")
+        if self._defer_read("output_power"):
+            if previous != "waiting_for_live":
+                self.on_update()
+            return None
+        if previous == "waiting_for_live":
+            self.status["output_power"] = "pending"
+            if not self.stopped:
+                self.on_update()
+        # Keep the previous deadline: recovery must not accelerate polling.
+        return super().start()
+
+    async def async_refresh(self):
+        if self.enabled and not self.stopped and self.may_write() and self._defer_read("output_power"):
+            self.on_update()
+            return False
+        return await super().async_refresh()
 
     def _target(self, feature):
         tree = self.get_tree()
@@ -94,9 +136,21 @@ class OutputPowerSettings(DeviceSettings):
         return super()._target(feature)
 
     async def _read(self, feature, target=None):
-        return validate_output_settings(await self.client.async_output_power_settings(self.station_id))
+        read_target = deepcopy(target if target is not None else self._target(feature))
+        try:
+            return validate_output_settings(await self.client.async_output_power_settings(self.station_id))
+        except HoymilesConnectionError as error:
+            # Missing Live alone does not prove settings are unreadable. Bind
+            # an actual READ rejection to the unchanged target, never a write
+            # error or a different device selected while this read was running.
+            if (getattr(error, "reason", None) == "cloud_rejected"
+                    and read_target is not None and "inverter" in read_target
+                    and read_target == self._target(feature)):
+                self._rejected_read_target = read_target
+            raise
 
     def _store(self, feature, value):
+        self._rejected_read_target = None
         self.output = deepcopy(value)
         self.confirmed_target = deepcopy(self.target)
         self._mark_readable(feature)

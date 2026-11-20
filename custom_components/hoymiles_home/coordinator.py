@@ -73,6 +73,12 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.inverters: list[dict[str, Any]] = []
         self._model_retry_at: datetime | None = None
         self._model_retry_count = 0
+        self._model_retry_limit = 2
+        self._model_activity_context = None
+        self._model_activity_missing = False
+        self._model_activity_returned = False
+        self._model_activity_rearmed = False
+        self._model_chart_stamps = {}
         self._model_recovery_task: asyncio.Task | None = None
         self.station_timezone = station_timezone or dt_util.get_default_time_zone()
         self.inverter_details = inverter_details and self.home_features
@@ -96,6 +102,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._battery_capability_context = None
         self._battery_capability_checked = None
         self._live_unavailable_reason = None
+        self._output_live_context = None
         self._live_uri_retry_at = datetime.min.replace(tzinfo=UTC)
         self._battery_settings_updated = datetime.min.replace(tzinfo=UTC)
         self._battery_read_retry_at = None
@@ -138,7 +145,13 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             lambda: self.battery_controls and not self._stopped,
             self._publish_device_settings,
             get_inverters=lambda: self.inverters,
+            get_live_state=self._output_read_live_state,
         )
+
+    def _output_read_live_state(self):
+        if self._output_live_context is not None and self._output_live_context[0] == self.station_id:
+            return self._output_live_context[1]
+        return None
 
     def _publish_device_settings(self) -> None:
         if not self._stopped and self.data is not None:
@@ -293,6 +306,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def _publish_modules(self) -> None:
         if not self._stopped and self.data is not None:
+            self._consider_model_activity_recovery()
             self.data.update({
                 "modules": self.modules,
                 "inverter_details": self.module_polling.details,
@@ -516,14 +530,59 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Switch mode while preserving the latest complete settings block."""
         await self._async_apply_battery_settings(mode)
 
+    def _consider_model_activity_recovery(self) -> None:
+        """Allow one bounded second cycle after measurements return.
+
+        Merely fetching the same old chart again is not a recovery signal.
+        Bind the signal to the unchanged station/tree and retryable devices.
+        No request is made here; the existing update ticks run scheduled reads.
+        """
+        if self._stopped or not self.home_features:
+            return
+        identities = {item["id"] for item in self.inverters
+                      if item.get("_model_discovery", {}).get("retryable") is True}
+        if not identities:
+            return
+        context = (self.station_id, self.device_tree)
+        if self._model_activity_context is None:
+            self._model_activity_context = deepcopy(context)
+        if context != self._model_activity_context:
+            return
+        available = self._output_read_live_state() == "available"
+        fresh_chart = False
+        advanced_chart = False
+        for key, stamp in self.module_polling.module_field_updated.items():
+            if key[0] not in identities:
+                continue
+            previous = self._model_chart_stamps.get(key)
+            if previous is None or stamp > previous:
+                self._model_chart_stamps[key] = stamp
+            if self.module_polling.is_fresh(*key):
+                fresh_chart = True
+                advanced_chart |= previous is not None and stamp > previous
+        if not available and not fresh_chart:
+            self._model_activity_missing = True
+        if self._model_activity_missing and (available or advanced_chart):
+            self._model_activity_returned = True
+        if (self._model_activity_returned and (available or fresh_chart)
+                and not self._model_activity_rearmed
+                and self._model_retry_count == 2 and self._model_retry_at is None
+                and (self._model_recovery_task is None or self._model_recovery_task.done())):
+            self._model_activity_rearmed = True
+            self._model_retry_limit = 4
+            self._model_retry_at = datetime.now(UTC) + MODULE_INTERVAL
+
     async def _async_enrich_inverter_models(self) -> None:
-        """Recover missing startup metadata at most twice, on existing ticks.
+        """Recover missing metadata with bounded retries on existing ticks.
 
         These five/fifteen-minute delays are client policy, not cloud limits.
         Never apply a result after unload or a concurrent identity/tree change.
         """
         self._model_retry_at = None
         if self._stopped or not self.home_features:
+            return
+        if (self._model_retry_count > 2
+                and self._model_activity_context != (self.station_id, self.device_tree)):
             return
         station_id = self.station_id
         tree = deepcopy(self.device_tree)
@@ -542,8 +601,8 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if self.data is not None:
             self.data["inverters"] = enriched
             self.async_update_listeners()
-        delays = (MODULE_INTERVAL, 3 * MODULE_INTERVAL)
-        if self._model_retry_count < len(delays) and any(
+        delays = (MODULE_INTERVAL, 3 * MODULE_INTERVAL) * 2
+        if self._model_retry_count < self._model_retry_limit and any(
             item.get("_model_discovery", {}).get("retryable") is True for item in enriched
         ):
             self._model_retry_at = datetime.now(UTC) + delays[self._model_retry_count]
@@ -551,7 +610,7 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def _start_model_recovery(self) -> None:
         """Coalesce optional reads without delaying the fast live update."""
         if (self._stopped or not self.home_features or self._model_retry_at is None
-                or self._model_retry_count >= 2
+                or self._model_retry_count >= self._model_retry_limit
                 or datetime.now(UTC) < self._model_retry_at
                 or self._model_recovery_task is not None and not self._model_recovery_task.done()):
             return
@@ -580,9 +639,13 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     self._live_uri_retry_at = datetime.now(UTC) + STATION_INTERVAL
                 else:
                     live_available = True
+                    self._output_live_context = (
+                        self.station_id, "offline" if number(live.get("con")) == 0
+                        else "available" if live_connected(live) else "unavailable")
                     self._live_unavailable_reason = None
                     self._live_uri_retry_at = datetime.min.replace(tzinfo=UTC)
             if not live_available:
+                self._output_live_context = (self.station_id, "unavailable")
                 self._reset_energy_samples()
                 if (not self._station_access_validated
                         or self._station_access_validated_id != self.station_id):
@@ -619,6 +682,8 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 await self._async_enrich_inverter_models()
             elif self._model_retry_at is not None and now >= self._model_retry_at:
                 self._start_model_recovery()
+
+            self._consider_model_activity_recovery()
 
             await self._async_check_battery_capability(station_access_rows)
 
@@ -669,12 +734,15 @@ class HoymilesHomeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "battery_settings": self.battery_settings,
             }
         except HoymilesAuthError as err:
+            self._output_live_context = (self.station_id, "unavailable")
             self._reset_energy_samples()
             raise ConfigEntryAuthFailed(str(err)) from err
         except HoymilesRateLimitError as err:
+            self._output_live_context = (self.station_id, "unavailable")
             self._reset_energy_samples()
             raise UpdateFailed(str(err), retry_after=err.retry_after) from err
         except HoymilesConnectionError as err:
+            self._output_live_context = (self.station_id, "unavailable")
             self._reset_energy_samples()
             raise UpdateFailed(str(err)) from err
 
