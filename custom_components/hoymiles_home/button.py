@@ -82,3 +82,7 @@ class HoymilesRefreshOutputPowerButton(HoymilesRefreshCutoffSettingsButton):
     @property
     def manager(self):
         return self.coordinator.output_settings
+
+    @property
+    def available(self):
+        return super().available and not self.manager.polling_paused

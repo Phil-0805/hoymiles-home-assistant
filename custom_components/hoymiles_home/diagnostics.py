@@ -49,7 +49,7 @@ def _cutoff_diagnostics(manager):
 
 
 def _output_power_diagnostics(manager):
-    statuses = {"pending", "disabled", "readable", "unavailable", "no_unique_target"}
+    statuses = {"pending", "disabled", "readable", "unavailable", "no_unique_target", "waiting_for_live"}
     status = getattr(manager, "status", {}).get("output_power", "disabled")
     data = getattr(manager, "output", None) or {}
     phases = data.get("phases", [])
@@ -62,6 +62,7 @@ def _output_power_diagnostics(manager):
         "power_w": number(data.get("values", {}).get("total")),
         "maximum_w": number(data.get("limits", {}).get("total")),
         "value_status": manager.display_status() if manager is not None else "unavailable",
+        "polling_paused": getattr(manager, "polling_paused", False) is True,
         "last_confirmed_age_seconds": manager.confirmed_age_seconds() if manager is not None else None,
     }
 
@@ -156,6 +157,8 @@ async def async_get_config_entry_diagnostics(
             "standalone_hms_reason": standalone_reason,
             "model_discovery_recovery_pending": getattr(coordinator, "_model_retry_at", None) is not None,
             "model_discovery_recovery_attempts": min(2, max(0, getattr(coordinator, "_model_retry_count", 0))),
+            "model_discovery_activity_rearmed": getattr(coordinator, "_model_activity_rearmed", False) is True,
+            "model_discovery_activity_attempts": min(2, max(0, getattr(coordinator, "_model_retry_count", 0) - 2)),
             "live_available": data.get("live_available", bool(live)) is True,
             "live_unavailable_reason": getattr(coordinator, "_live_unavailable_reason", None)
                 if getattr(coordinator, "_live_unavailable_reason", None) in {"missing_uri", "live_no_measurements", "invalid_live_data"} else None,

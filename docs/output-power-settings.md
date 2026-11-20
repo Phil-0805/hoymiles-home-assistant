@@ -1,5 +1,8 @@
 # Output power commands: manufacturer evidence
 
+Local follow-up, 2026-11-19: [issue #61 output-polling pause candidate](issue-61-output-polling.md).
+This is not yet released; independent settings reads without Live remain covered.
+
 As of v0.6.1b7, an explicitly recognized single-HMS/optional-DTU tree without
 storage can also use the existing station-level control. The older battery-only
 scope below describes its initial introduction. Fresh phase evidence and returned

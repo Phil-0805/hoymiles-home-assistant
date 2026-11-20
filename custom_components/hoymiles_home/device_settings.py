@@ -267,6 +267,10 @@ class DeviceSettings:
     def _target(self, feature):
         return light_target(self.get_tree(), mobile_addressing=feature == "cutoffs")
 
+    def _defer_read(self, feature):
+        """Optional read-only gate, checked again after acquiring the lock."""
+        return False
+
     async def _async_refresh(self, features=None):
         selected = self.features if features is None else features
         pending = set(selected)
@@ -277,6 +281,9 @@ class DeviceSettings:
                 for feature in selected:
                     if self.stopped or not self.may_write():
                         return
+                    if self._defer_read(feature):
+                        pending.discard(feature)
+                        continue
                     target = self._target(feature) if feature != "heating" else None
                     if feature != "heating":
                         self.target = target
